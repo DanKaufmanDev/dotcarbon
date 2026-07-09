@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Description>Core runtime for DotCarbon: the Photino-based host, configuration, and the JS↔C# bridge.</Description>
+    <Description>Core runtime for DotCarbon: the host, configuration, and the JS-to-C# command bridge.</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -11,9 +11,14 @@
     <PackageReference Include="Photino.NET" Version="4.0.16" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)../DotCarbon.Generators/bin/$(Configuration)/netstandard2.0/DotCarbon.Generators.dll"
-          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-  </ItemGroup>
+  <Target Name="PackCarbonGenerator" BeforeTargets="_GetPackageFiles">
+    <MSBuild Projects="$(MSBuildThisFileDirectory)../DotCarbon.Generators/DotCarbon.Generators.csproj"
+             Targets="Build" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CarbonGeneratorDll" />
+    </MSBuild>
+    <ItemGroup>
+      <None Include="@(_CarbonGeneratorDll)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+  </Target>
 
 </Project>
