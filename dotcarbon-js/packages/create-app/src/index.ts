@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { writeFile, readFile, cp, unlink, rename, readdir, stat } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join, dirname, sep } from 'path'
