@@ -50,3 +50,20 @@ export const carbonWindow = {
     close: (): Promise<void> =>
         invoke('window:close'),
 }
+
+declare module '@dotcarbon/api' {
+    interface CarbonCommands {
+        'window:get_state': { args: void; result: WindowState }
+        'window:set_title': { args: { title: string }; result: void }
+        'window:set_size': { args: { width: number; height: number }; result: void }
+        'window:set_position': { args: { x: number; y: number }; result: void }
+        'window:center': { args: void; result: void }
+        'window:minimize': { args: void; result: void }
+        'window:maximize': { args: void; result: void }
+        'window:unmaximize': { args: void; result: void }
+        'window:set_fullscreen': { args: { fullscreen: boolean }; result: void }
+        'window:set_always_on_top': { args: { alwaysOnTop: boolean }; result: void }
+        'window:set_resizable': { args: { resizable: boolean }; result: void }
+        'window:close': { args: void; result: void }
+    }
+}

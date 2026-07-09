@@ -24,7 +24,7 @@ export const shell = {
         }),
 
     run: async (program: string, args: string[] = [], cwd?: string): Promise<string> => {
-        const result = await invoke<ShellResult>('shell:execute', {
+        const result = await invoke('shell:execute', {
             program,
             args,
             cwd: cwd ?? null,
@@ -40,4 +40,12 @@ export const shell = {
 
     openUrl: (url: string): Promise<void> =>
         invoke('shell:open_url', { path: url }),
+}
+
+declare module '@dotcarbon/api' {
+    interface CarbonCommands {
+        'shell:execute': { args: { program: string; args: string[]; cwd: string | null; env: Record<string, string> | null }; result: ShellResult }
+        'shell:open': { args: { path: string }; result: void }
+        'shell:open_url': { args: { path: string }; result: void }
+    }
 }

@@ -10,3 +10,11 @@ export const clipboard = {
     clear: (): Promise<void> =>
         invoke('clipboard:clear'),
 }
+
+declare module '@dotcarbon/api' {
+    interface CarbonCommands {
+        'clipboard:read_text': { args: void; result: string }
+        'clipboard:write_text': { args: { text: string }; result: void }
+        'clipboard:clear': { args: void; result: void }
+    }
+}

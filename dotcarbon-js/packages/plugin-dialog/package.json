@@ -1,6 +1,6 @@
 {
     "name": "@dotcarbon/plugin-dialog",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "description": "Native dialog plugin for DotCarbon",
     "type": "module",
     "main": "./dist/index.js",
@@ -13,12 +13,36 @@
     },
     "scripts": {
         "build": "tsc",
-        "dev": "tsc --watch"
+        "dev": "tsc --watch",
+        "prepublishOnly": "npm run build"
     },
     "dependencies": {
-        "@dotcarbon/api": "workspace:*"
+        "@dotcarbon/api": "workspace:^"
     },
     "devDependencies": {
         "typescript": "^5.0.0"
-    }
+    },
+    "author": "DanKaufmanDev",
+    "license": "MIT",
+    "homepage": "https://github.com/DanKaufmanDev/dotcarbon#readme",
+    "bugs": {
+        "url": "https://github.com/DanKaufmanDev/dotcarbon/issues"
+    },
+    "keywords": [
+        "dotcarbon",
+        "desktop",
+        "plugin",
+        "dialog"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/DanKaufmanDev/dotcarbon.git",
+        "directory": "dotcarbon-js/packages/plugin-dialog"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "files": [
+        "dist"
+    ]
 }

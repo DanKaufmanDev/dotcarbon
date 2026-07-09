@@ -61,3 +61,13 @@ export const dialog = {
             message,
         }),
 }
+
+declare module '@dotcarbon/api' {
+    interface CarbonCommands {
+        'dialog:open_file': { args: { title: string; defaultPath: string | null; multiple: boolean; filters: string[] | null }; result: string[] | null }
+        'dialog:save_file': { args: { title: string; defaultPath: string | null; defaultName: string | null; filters: string[] | null }; result: string | null }
+        'dialog:open_folder': { args: { title: string; defaultPath: string | null }; result: string | null }
+        'dialog:message': { args: { title: string; message: string; kind: 'info' | 'warning' | 'error' }; result: void }
+        'dialog:confirm': { args: { title: string; message: string }; result: boolean }
+    }
+}

@@ -225,7 +225,7 @@ importers:
   packages/plugin-clipboard:
     dependencies:
       '@dotcarbon/api':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../api
     devDependencies:
       typescript:
@@ -235,7 +235,7 @@ importers:
   packages/plugin-dialog:
     dependencies:
       '@dotcarbon/api':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../api
     devDependencies:
       typescript:
@@ -245,7 +245,7 @@ importers:
   packages/plugin-fs:
     dependencies:
       '@dotcarbon/api':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../api
     devDependencies:
       typescript:
@@ -255,7 +255,7 @@ importers:
   packages/plugin-notification:
     dependencies:
       '@dotcarbon/api':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../api
     devDependencies:
       typescript:
@@ -265,7 +265,7 @@ importers:
   packages/plugin-shell:
     dependencies:
       '@dotcarbon/api':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../api
     devDependencies:
       typescript:
@@ -275,7 +275,7 @@ importers:
   packages/plugin-window:
     dependencies:
       '@dotcarbon/api':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../api
     devDependencies:
       typescript:

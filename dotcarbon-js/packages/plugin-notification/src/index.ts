@@ -14,3 +14,9 @@ export const notification = {
             subtitle: options.subtitle ?? null,
         }),
 }
+
+declare module '@dotcarbon/api' {
+    interface CarbonCommands {
+        'notification:send': { args: { title: string; body: string; subtitle: string | null }; result: void }
+    }
+}
