@@ -1,0 +1,13 @@
+using System.Text.Json.Serialization;
+
+namespace DotCarbon.Plugins.Window;
+
+[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(SetTitleArgs))]
+[JsonSerializable(typeof(SetSizeArgs))]
+[JsonSerializable(typeof(SetPositionArgs))]
+[JsonSerializable(typeof(SetFullscreenArgs))]
+[JsonSerializable(typeof(SetAlwaysOnTopArgs))]
+[JsonSerializable(typeof(SetResizableArgs))]
+[JsonSerializable(typeof(WindowState))]
+internal partial class WindowJsonContext : JsonSerializerContext;

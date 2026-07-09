@@ -1,0 +1,26 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+artifacts/
+[Dd]ebug/
+[Rr]elease/
+.vs/
+
+# NuGet
+*.nupkg
+*.snupkg
+
+# Node
+node_modules/
+dist/
+*.log
+
+# Carbon build output
+out/
+
+# Editors / OS
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,27 @@
+{
+    "$schema": "./carbon.schema.json",
+    "app": {
+        "name": "{{APP_NAME}}",
+        "version": "0.1.0",
+        "identifier": "com.example.{{APP_NAME}}"
+    },
+    "window": {
+        "title": "{{APP_NAME}}",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 400,
+        "minHeight": 300,
+        "resizable": true,
+        "fullscreen": false,
+        "maximized": false,
+        "alwaysOnTop": false,
+        "decorations": true,
+        "center": true,
+        "devtools": true
+    },
+    "build": {
+        "devCommand": "{{PM}} dev",
+        "devUrl": "http://localhost:5173",
+        "frontendDist": "ui/dist"
+    }
+}

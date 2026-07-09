@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DotCarbon.Cli/DotCarbon.Cli.csproj" />
+    <Project Path="src/DotCarbon.Core/DotCarbon.Core.csproj" />
+    <Project Path="src/DotCarbon.Host/DotCarbon.Host.csproj" />
+    <Project Path="src/DotCarbon.Plugins.Clipboard/DotCarbon.Plugins.Clipboard.csproj" />
+    <Project Path="src/DotCarbon.Plugins.Dialog/DotCarbon.Plugins.Dialog.csproj" />
+    <Project Path="src/DotCarbon.Plugins.FileSystem/DotCarbon.Plugins.FileSystem.csproj" />
+    <Project Path="src/DotCarbon.Plugins.Notification/DotCarbon.Plugins.Notification.csproj" />
+    <Project Path="src/DotCarbon.Plugins.Shell/DotCarbon.Plugins.Shell.csproj" />
+    <Project Path="src/DotCarbon.Plugins.Window/DotCarbon.Plugins.Window.csproj" />
+  </Folder>
+</Solution>

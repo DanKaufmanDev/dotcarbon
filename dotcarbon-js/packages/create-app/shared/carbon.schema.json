@@ -1,0 +1,66 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://dotcarbon.dev/schema/carbon.schema.json",
+    "title": "Carbon config",
+    "description": "Configuration for a DotCarbon desktop app (carbon.json).",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "$schema": { "type": "string", "description": "JSON Schema reference for editor autocomplete." },
+        "app": { "$ref": "#/definitions/App" },
+        "window": { "$ref": "#/definitions/Window" },
+        "build": { "$ref": "#/definitions/Build" }
+    },
+    "definitions": {
+        "App": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "App identity.",
+            "properties": {
+                "name": { "type": "string", "description": "Human-readable product name.", "default": "Carbon App" },
+                "version": { "type": "string", "description": "App version (semver).", "default": "0.1.0" },
+                "identifier": {
+                    "type": "string",
+                    "description": "Reverse-DNS bundle identifier, e.g. \"com.example.app\". Used by installers, notifications, and OS integration.",
+                    "default": "com.example.app"
+                }
+            }
+        },
+        "Window": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Main window options, applied at launch.",
+            "properties": {
+                "title": { "type": "string", "default": "Carbon App" },
+                "width": { "type": "integer", "minimum": 1, "default": 800 },
+                "height": { "type": "integer", "minimum": 1, "default": 600 },
+                "minWidth": { "type": ["integer", "null"], "minimum": 1, "description": "Minimum window width." },
+                "minHeight": { "type": ["integer", "null"], "minimum": 1, "description": "Minimum window height." },
+                "maxWidth": { "type": ["integer", "null"], "minimum": 1, "description": "Maximum window width." },
+                "maxHeight": { "type": ["integer", "null"], "minimum": 1, "description": "Maximum window height." },
+                "x": { "type": ["integer", "null"], "description": "Explicit top-left X. When x and y are both set, overrides center." },
+                "y": { "type": ["integer", "null"], "description": "Explicit top-left Y. When x and y are both set, overrides center." },
+                "center": { "type": "boolean", "default": true, "description": "Center the window on launch (ignored when x/y are set)." },
+                "resizable": { "type": "boolean", "default": true },
+                "fullscreen": { "type": "boolean", "default": false },
+                "maximized": { "type": "boolean", "default": false },
+                "alwaysOnTop": { "type": "boolean", "default": false },
+                "decorations": { "type": "boolean", "default": true, "description": "Window chrome (title bar + border). Set false for a frameless window." },
+                "transparent": { "type": "boolean", "default": false, "description": "Transparent window background." },
+                "devtools": { "type": "boolean", "default": true, "description": "Allow opening the webview dev tools." },
+                "contextMenu": { "type": "boolean", "default": true, "description": "Allow the webview's right-click context menu." },
+                "icon": { "type": ["string", "null"], "description": "Path to a window icon file (relative to the working directory)." }
+            }
+        },
+        "Build": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Dev-server and build wiring.",
+            "properties": {
+                "devCommand": { "type": "string", "description": "Command that starts your frontend dev server.", "default": "pnpm dev" },
+                "devUrl": { "type": "string", "format": "uri", "description": "URL the dev server serves on.", "default": "http://localhost:5173" },
+                "frontendDist": { "type": "string", "description": "Path to the built frontend, relative to the project.", "default": "ui/dist" }
+            }
+        }
+    }
+}
