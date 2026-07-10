@@ -79,7 +79,8 @@ public static class DevCommand
 
         Console.WriteLine("[Carbon] Starting .NET host...");
 
-        var hostProject = FindHostProject(workingDir);
+        var config = ConfigLoader.Load(Path.Combine(workingDir, "carbon.json"));
+        var hostProject = ProjectLocator.FindHostProject(workingDir, config);
 
         if (hostProject is null)
         {
@@ -168,14 +169,4 @@ public static class DevCommand
         return null;
     }
 
-private static string? FindHostProject(string workingDir)
-{
-    return Directory
-        .GetFiles(workingDir, "*.csproj", SearchOption.AllDirectories)
-        .FirstOrDefault(proj => {
-            var content = File.ReadAllText(proj);
-            return content.Contains("Photino") &&
-                   content.Contains("<OutputType>Exe</OutputType>");
-        });
-}
 }

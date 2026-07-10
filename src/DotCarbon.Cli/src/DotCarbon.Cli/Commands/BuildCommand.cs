@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Diagnostics;
+using System.Xml.Linq;
 using DotCarbon.Core.Config;
 
 namespace DotCarbon.Cli.Commands;
@@ -21,84 +22,107 @@ public static class BuildCommand
             description: "Runtime target (e.g. osx-arm64, win-x64, linux-x64)"
         );
 
-        var noAotOption = new Option<bool>(
-            "--no-aot",
-            "Skip NativeAOT; emit a single-file self-contained build instead (larger, but no native toolchain required)"
+        var aotOption = new Option<bool>(
+            "--aot",
+            "Use NativeAOT (experimental; Photino's native library remains a second file)"
+        );
+        var bundleOption = new Option<bool>(
+            "--bundle",
+            "Also create the platform installer/package (.dmg, .msi, or .AppImage)"
         );
 
         command.AddOption(projectOption);
         command.AddOption(targetOption);
-        command.AddOption(noAotOption);
-        command.SetHandler(Run, projectOption, targetOption, noAotOption);
+        command.AddOption(aotOption);
+        command.AddOption(bundleOption);
+        command.SetHandler(async context =>
+        {
+            context.ExitCode = await Run(
+                context.ParseResult.GetValueForOption(projectOption),
+                context.ParseResult.GetValueForOption(targetOption)!,
+                context.ParseResult.GetValueForOption(aotOption),
+                context.ParseResult.GetValueForOption(bundleOption));
+        });
 
         return command;
     }
 
-    private static async Task Run(DirectoryInfo? projectDir, string target, bool noAot)
+    private static async Task<int> Run(DirectoryInfo? projectDir, string target, bool aot, bool bundle)
     {
         var workingDir = projectDir?.FullName ?? Directory.GetCurrentDirectory();
         var configPath = Path.Combine(workingDir, "carbon.json");
 
         if (!File.Exists(configPath))
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"[Carbon] No carbon.json found in {workingDir}");
-            Console.ResetColor();
-            return;
+            WriteError($"No carbon.json found in {workingDir}");
+            return 1;
         }
 
         var config = ConfigLoader.Load(configPath);
 
         Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine($"⚡ Carbon build starting (target: {target}, {(noAot ? "single-file" : "NativeAOT")})...");
+        Console.WriteLine($"[Carbon] Build starting (target: {target}, {(aot ? "NativeAOT" : "single-file")})...");
         Console.ResetColor();
 
         Console.WriteLine("\n[Carbon] Step 1/2 — Building frontend...");
         var buildSuccess = await BuildFrontend(config, workingDir);
         if (!buildSuccess)
         {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("[Carbon] Frontend build failed. Aborting.");
-            Console.ResetColor();
-            return;
+            WriteError("Frontend build failed. Aborting.");
+            return 1;
         }
 
-        Console.WriteLine("\n[Carbon] Step 2/2 — Publishing .NET host...");
-        await PublishHost(workingDir, target, aot: !noAot);
+        var frontendDist = Path.GetFullPath(Path.Combine(workingDir, config.Build.FrontendDist));
+        if (!File.Exists(Path.Combine(frontendDist, "index.html")))
+        {
+            WriteError($"Frontend output does not contain index.html: {frontendDist}");
+            return 1;
+        }
 
-        BundleFrontend(config, workingDir, target);
+        var hostProject = ProjectLocator.FindHostProject(workingDir, config);
+        if (hostProject is null)
+        {
+            WriteError("Could not identify the executable host project. Set build.backendProject in carbon.json.");
+            return 1;
+        }
 
-        var artifact = $"out/{target}/";
-        if (target.StartsWith("osx"))
+        Console.WriteLine($"[Carbon] Host project: {Path.GetRelativePath(workingDir, hostProject)}");
+        Console.WriteLine("\n[Carbon] Step 2/2 - Embedding frontend and publishing .NET host...");
+        var bundleProps = WriteBundleProps(workingDir, hostProject, frontendDist, configPath, aot);
+        if (!await PublishHost(hostProject, workingDir, target, bundleProps))
+        {
+            WriteError(".NET publish failed.");
+            return 1;
+        }
+
+        var outputDir = Path.Combine(workingDir, "out", target);
+        RemovePublishSymbols(outputDir);
+        var executable = FindExecutable(outputDir, target);
+        if (executable is null)
+        {
+            WriteError("Publish completed but no executable was produced.");
+            return 1;
+        }
+
+        var artifact = Path.GetRelativePath(workingDir, executable);
+        if (bundle && target.StartsWith("osx"))
             artifact = await BundleMac(config, workingDir, target) ?? artifact;
-        else if (target.StartsWith("win"))
+        else if (bundle && target.StartsWith("win"))
             artifact = await BundleWindows(config, workingDir, target) ?? artifact;
-        else if (target.StartsWith("linux"))
+        else if (bundle && target.StartsWith("linux"))
             artifact = await BundleLinux(config, workingDir, target) ?? artifact;
 
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine($"\n✅ Build complete → {artifact}");
+        Console.WriteLine($"\n[Carbon] Build complete -> {artifact}");
         Console.ResetColor();
+        return 0;
     }
 
-    private static void BundleFrontend(CarbonConfig config, string workingDir, string target)
+    private static void WriteError(string message)
     {
-        var outDir = Path.Combine(workingDir, "out", target);
-
-        // carbon.json must ship next to the exe — a distributed app runs with cwd=/
-        // and loads its config from AppContext.BaseDirectory, not the working dir.
-        var carbonJson = Path.Combine(workingDir, "carbon.json");
-        if (File.Exists(carbonJson))
-            File.Copy(carbonJson, Path.Combine(outDir, "carbon.json"), true);
-
-        var src = Path.GetFullPath(Path.Combine(workingDir, config.Build.FrontendDist));
-        if (!Directory.Exists(src))
-        {
-            Console.WriteLine("[Carbon] Warning: frontend dist not found — the app would show the fallback screen.");
-            return;
-        }
-        CopyDir(src, Path.Combine(outDir, config.Build.FrontendDist));
-        Console.WriteLine($"[Carbon] Bundled web UI → out/{target}/{config.Build.FrontendDist}");
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine($"[Carbon] {message}");
+        Console.ResetColor();
     }
 
     private static async Task<string?> BundleMac(CarbonConfig config, string workingDir, string target)
@@ -106,8 +130,7 @@ public static class BuildCommand
         if (!OperatingSystem.IsMacOS()) return null;
 
         var outDir = Path.Combine(workingDir, "out", target);
-        var exe = Directory.GetFiles(outDir)
-            .FirstOrDefault(f => Path.GetExtension(f).Length == 0 && !f.EndsWith(".dylib"));
+        var exe = Directory.GetFiles(outDir).FirstOrDefault(IsUnixExecutable);
         if (exe is null) return null;
 
         var exeName = Path.GetFileName(exe);
@@ -125,9 +148,6 @@ public static class BuildCommand
 
         foreach (var f in Directory.GetFiles(outDir))
             File.Copy(f, Path.Combine(macos, Path.GetFileName(f)), true);
-        var dist = Path.Combine(outDir, config.Build.FrontendDist);
-        if (Directory.Exists(dist))
-            CopyDir(dist, Path.Combine(macos, config.Build.FrontendDist));
 
         await File.WriteAllTextAsync(Path.Combine(app, "Contents", "Info.plist"), InfoPlist(config, exeName, appName));
         await RunProcessToCompletion("chmod", $"+x \"{Path.Combine(macos, exeName)}\"", outDir, "[pkg]", ConsoleColor.Blue);
@@ -196,7 +216,7 @@ public static class BuildCommand
     {
         if (!OperatingSystem.IsLinux()) return null;
         var outDir = Path.Combine(workingDir, "out", target);
-        var exe = Directory.GetFiles(outDir).FirstOrDefault(f => Path.GetExtension(f).Length == 0 && !f.EndsWith(".so"));
+        var exe = Directory.GetFiles(outDir).FirstOrDefault(IsUnixExecutable);
         if (exe is null) return null;
         var tool = await EnsureAppImageTool(workingDir);
         if (tool is null)
@@ -215,8 +235,6 @@ public static class BuildCommand
         Directory.CreateDirectory(bin);
 
         foreach (var f in Directory.GetFiles(outDir)) File.Copy(f, Path.Combine(bin, Path.GetFileName(f)), true);
-        var dist = Path.Combine(outDir, config.Build.FrontendDist);
-        if (Directory.Exists(dist)) CopyDir(dist, Path.Combine(bin, config.Build.FrontendDist));
 
         await File.WriteAllTextAsync(Path.Combine(appdir, "AppRun"),
             "#!/bin/sh\nHERE=\"$(dirname \"$(readlink -f \"$0\")\")\"\ncd \"$HERE/usr/bin\"\nexec \"./" + exeName + "\" \"$@\"\n");
@@ -277,9 +295,9 @@ public static class BuildCommand
 
     private static async Task<bool> BuildFrontend(CarbonConfig config, string workingDir)
     {
-        var buildCommand = config.Build.DevCommand
-            .Replace("run dev", "run build")
-            .Replace(" dev", " build");
+        var buildCommand = string.IsNullOrWhiteSpace(config.Build.BuildCommand)
+            ? config.Build.DevCommand.Replace("run dev", "run build").Replace(" dev", " build")
+            : config.Build.BuildCommand;
 
         var parts = buildCommand.Split(' ', 2);
         var cmd = parts[0];
@@ -295,36 +313,91 @@ public static class BuildCommand
         return exitCode == 0;
     }
 
-    private static async Task PublishHost(string workingDir, string target, bool aot)
+    private static string WriteBundleProps(
+        string workingDir,
+        string hostProject,
+        string frontendDist,
+        string configPath,
+        bool aot)
     {
-        var hostProject = Directory
-            .GetFiles(workingDir, "*.csproj", SearchOption.AllDirectories)
-            .FirstOrDefault(p =>
-                File.ReadAllText(p).Contains("DotCarbon.Core") ||
-                File.ReadAllText(p).Contains("DotCarbon.Host")
-            );
+        var generatedDir = Path.Combine(workingDir, "obj", "dotcarbon");
+        Directory.CreateDirectory(generatedDir);
+        var propsPath = Path.Combine(generatedDir, "DotCarbon.Bundle.props");
+        var condition = $"'$(MSBuildProjectFullPath)' == '{hostProject.Replace("'", "%27")}'";
+        var document = new XDocument(
+            new XElement("Project",
+                new XElement("PropertyGroup",
+                    new XAttribute("Condition", condition),
+                    new XElement("PublishAot", aot.ToString().ToLowerInvariant()),
+                    new XElement("PublishSingleFile", (!aot).ToString().ToLowerInvariant()),
+                    new XElement("IncludeNativeLibrariesForSelfExtract", (!aot).ToString().ToLowerInvariant()),
+                    new XElement("EnableCompressionInSingleFile", (!aot).ToString().ToLowerInvariant()),
+                    new XElement("PublishTrimmed", true),
+                    new XElement("TrimMode", "partial"),
+                    new XElement("DebugType", "None"),
+                    new XElement("DebugSymbols", false),
+                    new XElement("CopyOutputSymbolsToPublishDirectory", false),
+                    new XElement("StripSymbols", aot.ToString().ToLowerInvariant())),
+                new XElement("ItemGroup",
+                    new XAttribute("Condition", condition),
+                    new XElement("EmbeddedResource",
+                        new XAttribute("Include", Path.Combine(frontendDist, "**", "*")),
+                        new XAttribute("LogicalName", "DotCarbon.Assets/%(RecursiveDir)%(Filename)%(Extension)")),
+                    new XElement("EmbeddedResource",
+                        new XAttribute("Include", configPath),
+                        new XAttribute("LogicalName", "DotCarbon.Config/carbon.json")))));
+        document.Save(propsPath);
+        return propsPath;
+    }
 
-        if (hostProject is null)
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("[Carbon] Could not find host project.");
-            Console.ResetColor();
-            return;
-        }
+    private static async Task<bool> PublishHost(
+        string hostProject,
+        string workingDir,
+        string target,
+        string bundleProps)
+    {
 
         var outputDir = Path.Combine(workingDir, "out", target);
-
-        var publishFlags = aot
-            ? "-p:PublishAot=true"
-            : "-p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:DebugType=none --self-contained true";
+        if (Directory.Exists(outputDir)) Directory.Delete(outputDir, recursive: true);
 
         var args = $"publish \"{hostProject}\" " +
                    $"--runtime {target} " +
                    $"--configuration Release " +
                    $"--output \"{outputDir}\" " +
-                   publishFlags;
+                   $"--self-contained true " +
+                   $"-p:CustomBeforeMicrosoftCommonProps=\"{bundleProps}\"";
 
-        await RunProcessToCompletion("dotnet", args, workingDir, "[C#]", ConsoleColor.Magenta);
+        return await RunProcessToCompletion("dotnet", args, workingDir, "[C#]", ConsoleColor.Magenta) == 0;
+    }
+
+    private static string? FindExecutable(string outputDir, string target)
+    {
+        if (!Directory.Exists(outputDir)) return null;
+        return target.StartsWith("win", StringComparison.OrdinalIgnoreCase)
+            ? Directory.GetFiles(outputDir, "*.exe", SearchOption.TopDirectoryOnly).FirstOrDefault()
+            : Directory.GetFiles(outputDir, "*", SearchOption.TopDirectoryOnly)
+                .FirstOrDefault(IsUnixExecutable);
+    }
+
+    private static void RemovePublishSymbols(string outputDir)
+    {
+        foreach (var pattern in new[] { "*.pdb", "*.dbg" })
+            foreach (var file in Directory.EnumerateFiles(outputDir, pattern, SearchOption.TopDirectoryOnly))
+                File.Delete(file);
+
+        foreach (var directory in Directory.EnumerateDirectories(outputDir, "*.dSYM", SearchOption.TopDirectoryOnly))
+            Directory.Delete(directory, recursive: true);
+    }
+
+    private static bool IsUnixExecutable(string path)
+    {
+        if (OperatingSystem.IsWindows()) return false;
+        try
+        {
+            const UnixFileMode execute = UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute;
+            return (File.GetUnixFileMode(path) & execute) != 0;
+        }
+        catch (PlatformNotSupportedException) { return false; }
     }
 
     private static async Task<int> RunProcessToCompletion(
