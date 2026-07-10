@@ -1,6 +1,6 @@
 {
     "name": "@dotcarbon/create-app",
-    "version": "0.1.1",
+    "version": "0.2.1",
     "description": "Scaffold a new DotCarbon app",
     "type": "module",
     "bin": {
@@ -14,12 +14,13 @@
     },
     "scripts": {
         "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
-        "build": "npm run clean && tsc && node -e \"const fs=require('fs');fs.cpSync('templates','dist/templates',{recursive:true});fs.cpSync('shared','dist/shared',{recursive:true})\"",
+        "build": "npm run clean && node scripts/gen-js.mjs && tsc && node -e \"const fs=require('fs');for(const d of ['templates','templates-js','shared'])fs.cpSync(d,'dist/'+d,{recursive:true})\"",
         "dev": "tsc --watch",
         "prepublishOnly": "npm run build"
     },
     "devDependencies": {
         "@types/node": "^20.0.0",
+        "esbuild": "^0.28.1",
         "typescript": "^5.0.0"
     },
     "author": "DanKaufmanDev",
@@ -43,5 +44,8 @@
     },
     "publishConfig": {
         "access": "public"
+    },
+    "dependencies": {
+        "@clack/prompts": "^1.7.0"
     }
 }

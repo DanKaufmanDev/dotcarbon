@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using DotCarbon.Core.Bridge;
 using DotCarbon.Core.Config;
 using DotCarbon.Core.Host;
@@ -20,8 +19,3 @@ public partial class AppCommands : IPlugin
     public string Greet(GreetRequest req) =>
         $"Hello, {req.Name}! You've been greeted from C# ⚡";
 }
-
-[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
-[JsonSerializable(typeof(GreetRequest))]
-[JsonSerializable(typeof(string))]
-internal partial class AppJsonContext : JsonSerializerContext;

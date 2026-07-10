@@ -1,274 +1,234 @@
 #!/usr/bin/env node
+import * as p from '@clack/prompts'
 import { writeFile, readFile, cp, unlink, rename, readdir, stat } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join, dirname, sep } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync, spawn } from 'child_process'
-import { createInterface } from 'node:readline'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const TEMPLATES = ['react', 'vue', 'svelte', 'solid', 'preact', 'vanilla'] as const
 type Template = typeof TEMPLATES[number]
-type PackageManager = 'pnpm' | 'npm' | 'bun' | 'yarn'
+type PackageManager = 'pnpm' | 'npm' | 'yarn' | 'bun'
+type Lang = 'ts' | 'js'
 
-const EXCLUDE_DIRS = new Set(['node_modules', 'dist', 'bin', 'obj', 'out'])
-
-const c = {
-    reset: '\x1b[0m', dim: '\x1b[2m', bold: '\x1b[1m',
-    cyan: '\x1b[36m', green: '\x1b[32m', yellow: '\x1b[33m',
+const TEMPLATE_LABELS: Record<Template, string> = {
+    react: 'React', vue: 'Vue', svelte: 'Svelte', solid: 'Solid', preact: 'Preact', vanilla: 'Vanilla',
 }
+const PMS: readonly PackageManager[] = ['pnpm', 'npm', 'yarn', 'bun']
+const EXCLUDE_DIRS = new Set(['node_modules', 'dist', 'bin', 'obj', 'out'])
 
 async function main() {
     const args = process.argv.slice(2)
+    const valueFlags = new Set(['--template', '--pm', '--lang'])
+    const getFlag = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined }
 
-    const appName = args.find(a => !a.startsWith('--')) ?? 'my-carbon-app'
-    const templateArg = args.find((_, i) => args[i - 1] === '--template') ?? 'react'
-    const pmArg = args.find((_, i) => args[i - 1] === '--pm')
     const noInstall = args.includes('--no-install')
     const autoYes = args.includes('--yes') || args.includes('-y')
-    const template = TEMPLATES.includes(templateArg as Template)
-        ? templateArg as Template
-        : 'react'
+    const interactive = Boolean(process.stdin.isTTY) && !autoYes
 
-    if (!TEMPLATES.includes(templateArg as Template) && args.includes('--template')) {
-        console.error(`❌ Unknown template: ${templateArg}`)
-        console.error(`   Available: ${TEMPLATES.join(', ')}`)
-        process.exit(1)
+    let name = args.find((a, i) => !a.startsWith('-') && !valueFlags.has(args[i - 1]))
+    let template = getFlag('--template') as Template | undefined
+    let lang = getFlag('--lang') as Lang | undefined
+    let pm = getFlag('--pm') as PackageManager | undefined
+    if (args.includes('--ts') || args.includes('--typescript')) lang = 'ts'
+    if (args.includes('--js') || args.includes('--javascript')) lang = 'js'
+
+    validate('template', template, TEMPLATES)
+    validate('lang', lang, ['ts', 'js'])
+    validate('pm', pm, PMS)
+
+    p.intro('⚡ create-dotcarbon-app')
+
+    if (!name) {
+        name = interactive
+            ? asString(await p.text({
+                message: 'Project name',
+                placeholder: 'my-carbon-app',
+                defaultValue: 'my-carbon-app',
+                validate: (v) => (v && existsSync(join(process.cwd(), v))) ? `"${v}" already exists` : undefined,
+            }))
+            : 'my-carbon-app'
     }
 
-    const pm: PackageManager = (pmArg as PackageManager) ?? detectPackageManager()
-
-    console.log(`\n${c.bold}${c.cyan}⚡ Creating Carbon app${c.reset} ${c.bold}${appName}${c.reset}`)
-    console.log(`${c.dim}   Template:        ${template}${c.reset}`)
-    console.log(`${c.dim}   Package manager: ${pm}${c.reset}\n`)
-
-    const targetDir = join(process.cwd(), appName)
-
-    if (existsSync(targetDir)) {
-        console.error(`❌ Directory already exists: ${targetDir}`)
-        process.exit(1)
+    if (!template) {
+        template = interactive
+            ? asString(await p.select({
+                message: 'Frontend framework',
+                initialValue: 'react',
+                options: TEMPLATES.map(t => ({ value: t, label: TEMPLATE_LABELS[t] })),
+            })) as Template
+            : 'react'
     }
 
-    const templateDir = join(__dirname, 'templates', template)
-
-    if (!existsSync(templateDir)) {
-        console.error(`❌ Template not found: ${template}`)
-        console.error(`   Available: ${TEMPLATES.join(', ')}`)
-        process.exit(1)
+    if (!lang) {
+        lang = interactive
+            ? asString(await p.select({
+                message: 'Language',
+                initialValue: 'ts',
+                options: [{ value: 'ts', label: 'TypeScript' }, { value: 'js', label: 'JavaScript' }],
+            })) as Lang
+            : 'ts'
     }
 
-    process.stdout.write('📁 Copying template...')
+    if (!pm) {
+        const detected = detectPackageManager()
+        pm = interactive
+            ? asString(await p.select({
+                message: 'Package manager',
+                initialValue: detected,
+                options: PMS.map(m => ({ value: m, label: m })),
+            })) as PackageManager
+            : detected
+    }
+
+    const targetDir = join(process.cwd(), name)
+    if (existsSync(targetDir)) fail(`Directory "${name}" already exists`)
+
+    const templateDir = join(__dirname, lang === 'js' ? 'templates-js' : 'templates', template)
+    if (!existsSync(templateDir)) fail(`Template not found: ${template} (${lang})`)
+
+    const s = p.spinner()
+    s.start(`Scaffolding ${TEMPLATE_LABELS[template]} + ${lang === 'ts' ? 'TypeScript' : 'JavaScript'}`)
+
     await cp(templateDir, targetDir, {
         recursive: true,
-        filter: (src) => {
-            const rel = src.slice(templateDir.length)
-            return !rel.split(sep).some(seg => EXCLUDE_DIRS.has(seg))
-        },
+        filter: (src) => !src.slice(templateDir.length).split(sep).some(seg => EXCLUDE_DIRS.has(seg)),
     })
 
     const tmplGitignore = join(targetDir, 'gitignore')
-    if (existsSync(tmplGitignore)) {
-        await rename(tmplGitignore, join(targetDir, '.gitignore'))
-    }
+    if (existsSync(tmplGitignore)) await rename(tmplGitignore, join(targetDir, '.gitignore'))
 
     const schemaSrc = join(__dirname, 'shared', 'carbon.schema.json')
-    if (existsSync(schemaSrc)) {
-        await cp(schemaSrc, join(targetDir, 'carbon.schema.json'))
-    }
+    if (existsSync(schemaSrc)) await cp(schemaSrc, join(targetDir, 'carbon.schema.json'))
 
-    await replaceInDir(targetDir, '{{APP_NAME}}', appName)
+    await replaceInDir(targetDir, '{{APP_NAME}}', name)
     await replaceInDir(targetDir, '{{PM}}', pm)
 
     const oldCsproj = join(targetDir, 'src-carbon', 'APP_NAME.csproj')
-    const newCsproj = join(targetDir, 'src-carbon', `${appName}.csproj`)
     if (existsSync(oldCsproj)) {
-        const content = await readFile(oldCsproj, 'utf-8')
-        await writeFile(newCsproj, content.replaceAll('{{APP_NAME}}', appName))
+        await writeFile(
+            join(targetDir, 'src-carbon', `${name}.csproj`),
+            (await readFile(oldCsproj, 'utf-8')).replaceAll('{{APP_NAME}}', name),
+        )
         await unlink(oldCsproj)
     }
-    console.log(' ✅')
+    s.stop('Project scaffolded')
 
     if (noInstall) {
-        console.log('⏭️  Skipping dependency install (--no-install)')
+        p.log.info('Skipped dependency install (--no-install)')
     } else {
-        process.stdout.write(`📦 Installing frontend dependencies with ${pm}...`)
-        try {
-            await runInstall(pm, join(targetDir, 'ui'))
-            console.log(' ✅')
-        } catch (err) {
-            console.log(' ⚠️')
-            console.warn(`   Skipped: ${(err as Error).message}`)
-            console.warn(`   Run "${pm} install" inside ${appName}/ui later.`)
-        }
+        s.start(`Installing frontend dependencies with ${pm}`)
+        const uiOk = await runInstall(pm, join(targetDir, 'ui'))
+        s.stop(uiOk ? 'Frontend dependencies installed' : `Frontend install incomplete — run "${pm} install" in ${name}/ui`)
 
-        process.stdout.write('🔧 Restoring .NET packages...')
-        try {
-            await runDotnetRestore(join(targetDir, 'src-carbon'))
-            console.log(' ✅')
-        } catch (err) {
-            console.log(' ⚠️')
-            console.warn(`   Skipped: ${(err as Error).message}`)
-            console.warn('   DotCarbon.Core may not be published to NuGet yet.')
-            console.warn(`   Run "dotnet restore" inside ${appName}/src-carbon once it is.`)
-        }
+        s.start('Restoring .NET packages')
+        const netOk = await runDotnetRestore(join(targetDir, 'src-carbon'))
+        s.stop(netOk ? '.NET packages restored' : '.NET restore skipped (run "dotnet restore" in ' + name + '/src-carbon)')
     }
 
-    await ensureCarbonCli(autoYes)
+    await ensureCarbonCli(autoYes, interactive)
 
-    console.log(`\n✅ Created ${appName}!\n`)
-    console.log('Get started:\n')
-    console.log(`  cd ${appName}`)
-    if (noInstall) {
-        console.log(`  ${pm} --prefix ui install`)
-    }
-    console.log('  carbon dev\n')
-    console.log('Happy building! ⚡\n')
+    p.note(`cd ${name}\ncarbon dev`, 'Next steps')
+    p.outro('Happy building ⚡')
+}
+
+function validate<T extends string>(label: string, value: string | undefined, allowed: readonly T[]) {
+    if (value && !allowed.includes(value as T))
+        fail(`Invalid --${label} "${value}". Options: ${allowed.join(', ')}`)
+}
+
+function asString(value: unknown): string {
+    if (p.isCancel(value)) { p.cancel('Cancelled.'); process.exit(0) }
+    return value as string
+}
+
+function fail(message: string): never {
+    p.cancel(message)
+    process.exit(1)
 }
 
 function hasDotnet(): boolean {
-    try {
-        execSync('dotnet --version', { stdio: 'ignore' })
-        return true
-    } catch { return false }
+    try { execSync('dotnet --version', { stdio: 'ignore' }); return true } catch { return false }
 }
 
 function carbonCliInstalled(): boolean {
-    try {
-        const out = execSync('dotnet tool list --global', { encoding: 'utf-8' })
-        return /dotcarbon\.cli/i.test(out)
-    } catch { return false }
-}
-
-function promptYesNo(question: string, defaultYes = true): Promise<boolean> {
-    if (!process.stdin.isTTY) return Promise.resolve(false)
-
-    const rl = createInterface({ input: process.stdin, output: process.stdout })
-    const hint = `${c.dim}${defaultYes ? '(Y/n)' : '(y/N)'}${c.reset}`
-    return new Promise(resolve => {
-        rl.question(`${c.cyan}?${c.reset} ${question} ${hint} `, answer => {
-            rl.close()
-            const a = answer.trim().toLowerCase()
-            resolve(a === '' ? defaultYes : a === 'y' || a === 'yes')
-        })
-    })
+    try { return /dotcarbon\.cli/i.test(execSync('dotnet tool list --global', { encoding: 'utf-8' })) }
+    catch { return false }
 }
 
 function runToolInstall(): Promise<void> {
     return new Promise((resolve, reject) => {
         const proc = spawn('dotnet', ['tool', 'install', '--global', 'DotCarbon.Cli'], {
-            stdio: 'ignore',
-            shell: process.platform === 'win32',
+            stdio: 'ignore', shell: process.platform === 'win32',
         })
-        proc.on('close', code => code === 0 ? resolve() : reject(new Error(`dotnet tool install exited with code ${code}`)))
+        proc.on('close', code => code === 0 ? resolve() : reject(new Error(`exited with code ${code}`)))
         proc.on('error', reject)
     })
 }
 
-async function ensureCarbonCli(autoYes: boolean) {
-    process.stdout.write('🔎 Checking for the Carbon CLI...')
-
-    if (carbonCliInstalled()) {
-        console.log(` ${c.green}✅${c.reset}`)
-        return
-    }
-    console.log(` ${c.yellow}not found${c.reset}`)
+async function ensureCarbonCli(autoYes: boolean, interactive: boolean) {
+    if (carbonCliInstalled()) { p.log.success('Carbon CLI is installed'); return }
 
     if (!hasDotnet()) {
-        console.log(`${c.dim}   The Carbon CLI needs the .NET SDK — install .NET 10:${c.reset} https://dotnet.microsoft.com/download`)
-        console.log(`${c.dim}   Then run:${c.reset} dotnet tool install -g DotCarbon.Cli`)
+        p.log.warn('Carbon CLI needs the .NET SDK: https://dotnet.microsoft.com/download\n   Then: dotnet tool install -g DotCarbon.Cli')
         return
     }
 
-    const install = autoYes || await promptYesNo('   Install the Carbon CLI now?')
-    if (!install) {
-        console.log(`${c.dim}   Install later with:${c.reset} dotnet tool install -g DotCarbon.Cli`)
-        return
+    let install = autoYes
+    if (!install && interactive) {
+        const r = await p.confirm({ message: 'Install the Carbon CLI now? (dotnet tool install -g DotCarbon.Cli)' })
+        install = p.isCancel(r) ? false : r
     }
+    if (!install) { p.log.info('Install the CLI later: dotnet tool install -g DotCarbon.Cli'); return }
 
-    process.stdout.write('⬇️  Installing Carbon CLI...')
-    try {
-        await runToolInstall()
-        console.log(` ${c.green}✅${c.reset}`)
-    } catch (err) {
-        console.log(` ${c.yellow}⚠️${c.reset}`)
-        console.log(`${c.dim}   ${(err as Error).message}${c.reset}`)
-        console.log(`${c.dim}   Install manually:${c.reset} dotnet tool install -g DotCarbon.Cli`)
-    }
+    const s = p.spinner()
+    s.start('Installing Carbon CLI')
+    try { await runToolInstall(); s.stop('Carbon CLI installed') }
+    catch { s.stop('Carbon CLI install failed — run: dotnet tool install -g DotCarbon.Cli') }
 }
 
 function detectPackageManager(): PackageManager {
-    const managers: PackageManager[] = ['pnpm', 'bun', 'yarn', 'npm']
-    for (const pm of managers) {
-        try {
-            execSync(`${pm} --version`, { stdio: 'ignore' })
-            return pm
-        } catch {
-        }
+    for (const m of ['pnpm', 'bun', 'yarn', 'npm'] as const) {
+        try { execSync(`${m} --version`, { stdio: 'ignore' }); return m } catch { /* keep looking */ }
     }
     return 'npm'
 }
 
-function runInstall(pm: PackageManager, cwd: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const args = pm === 'pnpm'
-            ? ['install', '--ignore-workspace']
-            : ['install']
-
-        const proc = spawn(pm, args, {
-            cwd,
-            stdio: 'ignore',
-            shell: process.platform === 'win32'
-        })
-
-        proc.on('close', code => {
-            if (code === 0) resolve()
-            else reject(new Error(`${pm} install failed with code ${code}`))
-        })
-
-        proc.on('error', reject)
+// Resolves true when deps are usable. pnpm exits non-zero on its ignored-builds
+// warning even though node_modules is fully populated — treat that as success.
+function runInstall(pm: PackageManager, cwd: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        const proc = spawn(pm, ['install'], { cwd, stdio: 'ignore', shell: process.platform === 'win32' })
+        proc.on('close', code => resolve(code === 0 || existsSync(join(cwd, 'node_modules'))))
+        proc.on('error', () => resolve(false))
     })
 }
 
-function runDotnetRestore(cwd: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-        const proc = spawn('dotnet', ['restore'], {
-            cwd,
-            stdio: 'ignore',
-            shell: process.platform === 'win32'
-        })
-
-        proc.on('close', code => {
-            if (code === 0) resolve()
-            else reject(new Error(`dotnet restore failed with code ${code}`))
-        })
-
-        proc.on('error', reject)
+function runDotnetRestore(cwd: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        const proc = spawn('dotnet', ['restore'], { cwd, stdio: 'ignore', shell: process.platform === 'win32' })
+        proc.on('close', code => resolve(code === 0))
+        proc.on('error', () => resolve(false))
     })
 }
 
 async function replaceInDir(dir: string, search: string, replace: string) {
-    const entries = await readdir(dir)
-
-    for (const entry of entries) {
+    for (const entry of await readdir(dir)) {
         const fullPath = join(dir, entry)
-        const info = await stat(fullPath)
-
-        if (info.isDirectory()) {
+        if ((await stat(fullPath)).isDirectory()) {
             await replaceInDir(fullPath, search, replace)
         } else {
             try {
                 const content = await readFile(fullPath, 'utf-8')
-                if (content.includes(search)) {
-                    await writeFile(fullPath, content.replaceAll(search, replace))
-                }
-            } catch {
-            }
+                if (content.includes(search)) await writeFile(fullPath, content.replaceAll(search, replace))
+            } catch { /* skip binary/unreadable */ }
         }
     }
 }
 
 main().catch(err => {
-    console.error('\n❌ Failed:', err.message)
+    p.cancel(`Failed: ${err.message}`)
     process.exit(1)
 })
