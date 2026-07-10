@@ -18,7 +18,12 @@
         "decorations": true,
         "center": true,
         "devtools": true,
-        "icon": "src-carbon/icons/icon.png"
+        "icon": "src-carbon/icons/icon.png",
+        "capabilities": ["main"]
+    },
+    "security": {
+        "enabled": true,
+        "devAllowAll": true
     },
     "build": {
         "devCommand": "{{PM}} run dev",

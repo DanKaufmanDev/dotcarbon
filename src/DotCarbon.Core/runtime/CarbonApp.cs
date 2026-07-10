@@ -6,6 +6,7 @@ using DotCarbon.Core.Bridge;
 using DotCarbon.Core.Config;
 using DotCarbon.Core.Host;
 using DotCarbon.Core.Plugins;
+using DotCarbon.Core.Security;
 
 namespace DotCarbon.Core.Runtime;
 
@@ -13,6 +14,7 @@ public sealed class CarbonApp
 {
     private readonly CarbonConfig _config;
     private readonly CommandRegistry _registry = new();
+    private readonly CapabilityManager _capabilities;
     private readonly AppHandleAccessor _handleAccessor = new();
     private readonly List<IPlugin> _plugins = [];
     private readonly List<Func<IServiceProvider, IPlugin>> _pluginFactories = [];
@@ -31,10 +33,12 @@ public sealed class CarbonApp
     private CarbonApp(CarbonConfig config)
     {
         _config = config;
+        _capabilities = new CapabilityManager(config);
         JsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         Services = new ServiceCollection();
         Services.AddSingleton(config);
         Services.AddSingleton(this);
+        Services.AddSingleton(_capabilities);
         Services.AddSingleton(_handleAccessor);
         Services.AddSingleton(serviceProvider =>
             serviceProvider.GetRequiredService<AppHandleAccessor>().Handle);
@@ -144,6 +148,7 @@ public sealed class CarbonApp
         {
             RegisterRuntimeCommands();
             PrepareContentMode();
+            _capabilities.Configure(_contentMode == ContentMode.DevServer);
             RaiseLifecycle(CarbonLifecycleEventKind.Starting);
 
             var mainOptions = CarbonWindowOptions.FromConfig(_config.Window);
@@ -288,6 +293,7 @@ public sealed class CarbonApp
             if (bridgeMessage is null) return;
             requestId = bridgeMessage.Id;
 
+            _capabilities.EnsureCommandAllowed(window, bridgeMessage.Command);
             var data = await _registry.InvokeAsync(
                 bridgeMessage.Command,
                 bridgeMessage.Payload,

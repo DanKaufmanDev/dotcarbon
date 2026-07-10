@@ -70,6 +70,7 @@ public static class BuildCommand
         }
 
         var config = ConfigLoader.Load(configPath);
+        var effectiveConfigPath = WriteEffectiveConfig(config, workingDir);
 
         if (!TryPrepareIcons(config, workingDir, out var icons, out var iconError))
         {
@@ -113,13 +114,13 @@ public static class BuildCommand
                 return 1;
             }
             return await BuildUniversalMac(
-                config, workingDir, hostProject, frontendDist, configPath, icons, aot,
+                config, workingDir, hostProject, frontendDist, effectiveConfigPath, icons, aot,
                 updaterArtifacts);
         }
 
         Console.WriteLine("\n[Carbon] Step 2/2 - Embedding frontend and publishing .NET host...");
         var bundleProps = WriteBundleProps(
-            workingDir, hostProject, frontendDist, configPath, target, icons, aot);
+            workingDir, hostProject, frontendDist, effectiveConfigPath, target, icons, aot);
         if (!await PublishHost(hostProject, workingDir, target, bundleProps))
         {
             WriteError(".NET publish failed.");
@@ -166,6 +167,15 @@ public static class BuildCommand
         Console.ForegroundColor = ConsoleColor.Red;
         Console.WriteLine($"[Carbon] {message}");
         Console.ResetColor();
+    }
+
+    private static string WriteEffectiveConfig(CarbonConfig config, string workingDir)
+    {
+        var generatedDir = Path.Combine(workingDir, "obj", "dotcarbon");
+        Directory.CreateDirectory(generatedDir);
+        var path = Path.Combine(generatedDir, "carbon.effective.json");
+        ConfigLoader.Save(config, path);
+        return path;
     }
 
     private static async Task<int> BuildUniversalMac(

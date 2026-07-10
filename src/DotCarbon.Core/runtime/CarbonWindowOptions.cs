@@ -7,6 +7,7 @@ public sealed class CarbonWindowOptions
     public string Label { get; set; } = "main";
     public string? Url { get; set; }
     public string? ParentLabel { get; set; }
+    public List<string> Capabilities { get; set; } = [];
     public string Title { get; set; } = "Carbon App";
     public int Width { get; set; } = 800;
     public int Height { get; set; } = 600;
@@ -32,6 +33,7 @@ public sealed class CarbonWindowOptions
         Label = config.Label,
         Url = config.Url,
         ParentLabel = config.Parent,
+        Capabilities = [.. config.Capabilities],
         Title = config.Title,
         Width = config.Width,
         Height = config.Height,

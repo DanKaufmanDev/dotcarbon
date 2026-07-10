@@ -19,7 +19,9 @@ public static class ConfigLoader
         if (path is not null && File.Exists(path))
         {
             using var file = File.OpenRead(path);
-            return Deserialize(file);
+            var config = Deserialize(file);
+            LoadExternalCapabilities(config, Path.GetDirectoryName(Path.GetFullPath(path))!);
+            return config;
         }
 
         Console.WriteLine("[Carbon] No carbon.json found, using defaults");
@@ -29,6 +31,43 @@ public static class ConfigLoader
     private static CarbonConfig Deserialize(Stream json) =>
         JsonSerializer.Deserialize(json, CarbonConfigJsonContext.Default.CarbonConfig)
             ?? new CarbonConfig();
+
+    public static void Save(CarbonConfig config, string path)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        using var file = File.Create(path);
+        JsonSerializer.Serialize(file, config, CarbonConfigJsonContext.Default.CarbonConfig);
+    }
+
+    private static void LoadExternalCapabilities(CarbonConfig config, string projectDir)
+    {
+        foreach (var capabilityDir in CapabilityDirectories(projectDir))
+        {
+            if (!Directory.Exists(capabilityDir)) continue;
+
+            foreach (var file in Directory.GetFiles(capabilityDir, "*.json"))
+            {
+                using var stream = File.OpenRead(file);
+                var capability = JsonSerializer.Deserialize(
+                    stream,
+                    CarbonConfigJsonContext.Default.CapabilityConfig);
+                if (capability is null) continue;
+
+                var id = string.IsNullOrWhiteSpace(capability.Identifier)
+                    ? Path.GetFileNameWithoutExtension(file)
+                    : capability.Identifier;
+                capability.Identifier = id;
+                config.Security.Capabilities[id] = capability;
+            }
+        }
+    }
+
+    private static IEnumerable<string> CapabilityDirectories(string projectDir)
+    {
+        yield return Path.Combine(projectDir, "src-carbon", "capabilities");
+        yield return Path.Combine(projectDir, "capabilities");
+    }
 
     private static string? FindConfigFile()
     {
@@ -52,4 +91,5 @@ public static class ConfigLoader
 
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(CarbonConfig))]
+[JsonSerializable(typeof(CapabilityConfig))]
 internal partial class CarbonConfigJsonContext : JsonSerializerContext;

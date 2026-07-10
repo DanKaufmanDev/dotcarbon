@@ -31,6 +31,7 @@ public partial class WindowPlugin : IPlugin
             Label = args.Label,
             Url = args.Url,
             ParentLabel = args.ParentLabel,
+            Capabilities = args.Capabilities is null ? [] : [.. args.Capabilities],
             Title = args.Title ?? app.Config.App.Name,
             Width = args.Width ?? 800,
             Height = args.Height ?? 600,

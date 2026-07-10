@@ -5,6 +5,7 @@ public class CarbonConfig
     public AppConfig App { get; set; } = new();
     public WindowConfig Window { get; set; } = new();
     public List<WindowConfig> Windows { get; set; } = [];
+    public SecurityConfig Security { get; set; } = new();
     public BuildConfig Build { get; set; } = new();
     public BundleConfig Bundle { get; set; } = new();
 }
@@ -23,6 +24,7 @@ public class WindowConfig
     public string Label { get; set; } = "main";
     public string? Url { get; set; }
     public string? Parent { get; set; }
+    public List<string> Capabilities { get; set; } = [];
     public string Title { get; set; } = "Carbon App";
     public int Width { get; set; } = 800;
     public int Height { get; set; } = 600;
@@ -51,6 +53,23 @@ public class WindowConfig
     public bool ContextMenu { get; set; } = true;
 
     public string? Icon { get; set; }
+}
+
+public class SecurityConfig
+{
+    public bool Enabled { get; set; }
+    public bool DevAllowAll { get; set; } = true;
+    public List<string> DefaultCapabilities { get; set; } = [];
+    public Dictionary<string, CapabilityConfig> Capabilities { get; set; } = [];
+}
+
+public class CapabilityConfig
+{
+    public string? Identifier { get; set; }
+    public string? Description { get; set; }
+    public List<string> Windows { get; set; } = [];
+    public List<string> Commands { get; set; } = [];
+    public List<string> Permissions { get; set; } = [];
 }
 
 public class BuildConfig

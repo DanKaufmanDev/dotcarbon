@@ -15,6 +15,7 @@
             "default": [],
             "description": "Additional labeled windows/webviews created when the application starts."
         },
+        "security": { "$ref": "#/definitions/Security" },
         "build": { "$ref": "#/definitions/Build" },
         "bundle": { "$ref": "#/definitions/Bundle" }
     },
@@ -41,6 +42,12 @@
                 "label": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "default": "main", "description": "Unique application-wide window/webview label." },
                 "url": { "type": ["string", "null"], "description": "Absolute URL or path relative to the embedded frontend root." },
                 "parent": { "type": ["string", "null"], "description": "Optional label of the parent window." },
+                "capabilities": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": [],
+                    "description": "Named capability sets this window can use when security.enabled is true."
+                },
                 "title": { "type": "string", "default": "Carbon App" },
                 "width": { "type": "integer", "minimum": 1, "default": 800 },
                 "height": { "type": "integer", "minimum": 1, "default": 600 },
@@ -60,6 +67,54 @@
                 "devtools": { "type": "boolean", "default": true, "description": "Allow opening the webview dev tools." },
                 "contextMenu": { "type": "boolean", "default": true, "description": "Allow the webview's right-click context menu." },
                 "icon": { "type": ["string", "null"], "description": "Path to a square PNG icon (1024x1024 recommended), relative to the project root. DotCarbon generates platform-specific icons from this source." }
+            }
+        },
+        "Security": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Bridge command permissions for production apps.",
+            "properties": {
+                "enabled": { "type": "boolean", "default": false, "description": "When true, frontend command calls are denied unless allowed by a capability." },
+                "devAllowAll": { "type": "boolean", "default": true, "description": "When true, development-server mode bypasses capability checks while production still enforces them." },
+                "defaultCapabilities": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": [],
+                    "description": "Capability names available to every window."
+                },
+                "capabilities": {
+                    "type": "object",
+                    "additionalProperties": { "$ref": "#/definitions/Capability" },
+                    "default": {},
+                    "description": "Inline named capability sets. Files under src-carbon/capabilities/*.json are also loaded, using the filename as the identifier when omitted."
+                }
+            }
+        },
+        "Capability": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "A named allowlist of bridge commands for one or more windows.",
+            "properties": {
+                "identifier": { "type": ["string", "null"], "description": "Capability identifier. External files may omit this and use the filename." },
+                "description": { "type": ["string", "null"] },
+                "windows": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": [],
+                    "description": "Window labels this capability applies to. Use * for all windows."
+                },
+                "commands": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": [],
+                    "description": "Allowed command names. Supports exact names like app:greet, namespace wildcards like window:*, and *."
+                },
+                "permissions": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": [],
+                    "description": "Alias for commands, useful for Tauri-style capability files."
+                }
             }
         },
         "Build": {

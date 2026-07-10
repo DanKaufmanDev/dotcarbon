@@ -30,7 +30,8 @@ public record CreateWindowArgs(
     bool? Transparent = null,
     bool? DevTools = null,
     bool? ContextMenu = null,
-    string? Icon = null);
+    string? Icon = null,
+    List<string>? Capabilities = null);
 
 public record WindowState(
     string Label,

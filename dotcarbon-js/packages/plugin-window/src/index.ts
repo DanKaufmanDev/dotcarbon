@@ -18,6 +18,7 @@ export interface CreateWindowOptions {
     label: string
     url?: string
     parentLabel?: string
+    capabilities?: string[]
     title?: string
     width?: number
     height?: number
