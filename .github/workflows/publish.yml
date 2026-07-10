@@ -71,7 +71,7 @@ jobs:
 
       - name: Install
         working-directory: dotcarbon-js
-        run: pnpm install --no-frozen-lockfile --allow-scripts
+        run: pnpm install --no-frozen-lockfile
 
       - name: Set package versions
         working-directory: dotcarbon-js
