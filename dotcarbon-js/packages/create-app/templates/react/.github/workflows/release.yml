@@ -1,0 +1,59 @@
+name: Build installers
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install carbon CLI
+        run: dotnet tool install --global DotCarbon.Cli
+
+      - name: Install WiX (Windows)
+        if: runner.os == 'Windows'
+        run: dotnet tool install --global wix --version 4.*
+
+      - name: Install AppImage deps (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libfuse2
+
+      - name: Install frontend dependencies
+        working-directory: ui
+        shell: bash
+        run: |
+          corepack enable
+          PM=$(node -p "require('../carbon.json').build.devCommand.split(' ')[0]")
+          $PM install || true
+
+      - name: Build
+        shell: bash
+        run: |
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          carbon build
+
+      - name: Upload installers
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/**/*.dmg
+            out/**/*.msi
+            out/**/*.AppImage
