@@ -21,7 +21,7 @@ DotCarbon lets you build native desktop applications using the web stack you alr
 
 ## Highlights
 
-- **Tiny, native binaries** — Ahead-of-time compilation produces a small, self-contained executable with no separate runtime dependency.
+- **Single-file apps** — The .NET runtime, native webview host, configuration, and compiled frontend ship as one compressed executable.
 - **Any frontend** — First-class templates for **React, Vue, Svelte, Solid, Preact, and Vanilla**, all TypeScript + Vite.
 - **End-to-end type safety** — Your C# commands are projected into TypeScript types, so `invoke()` calls are autocompleted and checked at compile time.
 - **C# backend** — Use the entire .NET ecosystem for your application logic, file access, networking, and native OS integration.
@@ -140,8 +140,10 @@ Everything about your app lives in `carbon.json`, validated by the bundled schem
   },
   "build": {
     "devCommand": "npm run dev",
+    "buildCommand": "npm run build",
     "devUrl": "http://localhost:5173",
-    "frontendDist": "ui/dist"
+    "frontendDist": "ui/dist",
+    "backendProject": "src-carbon"
   }
 }
 ```
@@ -154,15 +156,21 @@ The `window` section supports size and position, `minWidth`/`minHeight`, `resiza
 carbon build
 ```
 
-By default this produces a **small, self-contained native binary** with no separate runtime to install. It requires a native toolchain on the build machine (Clang on macOS/Linux, the Visual Studio C++ build tools on Windows).
+By default this produces one compressed, trimmed, self-contained executable with the frontend and `carbon.json` embedded. The operating system's webview is reused, so no browser engine ships with the app.
 
-Don't have the toolchain, or want a simpler build? Use a single-file self-contained build instead:
+NativeAOT is available as an experimental size/startup option, but Photino's native library currently remains beside the executable:
 
 ```bash
-carbon build --no-aot
+carbon build --aot
 ```
 
 Target another platform with `--target` (e.g. `--target win-x64`, `--target linux-x64`, `--target osx-arm64`).
+
+Installers and platform packages are opt-in so the normal output directory stays one file:
+
+```bash
+carbon build --bundle
+```
 
 ## Plugins
 
