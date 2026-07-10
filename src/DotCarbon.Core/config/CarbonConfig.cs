@@ -51,6 +51,8 @@ public class WindowConfig
 public class BuildConfig
 {
     public string DevCommand { get; set; } = "pnpm dev";
+    public string? BuildCommand { get; set; }
     public string DevUrl { get; set; } = "http://localhost:5173";
     public string FrontendDist { get; set; } = "../../ui/dist";
+    public string? BackendProject { get; set; }
 }

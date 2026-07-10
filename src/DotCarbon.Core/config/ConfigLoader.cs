@@ -7,19 +7,28 @@ public static class ConfigLoader
 {
     public static CarbonConfig Load(string? path = null)
     {
-        path ??= FindConfigFile();
-
-        if (path is null || !File.Exists(path))
+        if (path is null)
         {
-            Console.WriteLine("No carbon.json found, using defaults");
-            return new CarbonConfig();
+            using var bundled = Host.EmbeddedAssetStore.OpenConfig();
+            if (bundled is not null)
+                return Deserialize(bundled);
+
+            path = FindConfigFile();
         }
 
-        var json = File.ReadAllText(path);
+        if (path is not null && File.Exists(path))
+        {
+            using var file = File.OpenRead(path);
+            return Deserialize(file);
+        }
 
-        return JsonSerializer.Deserialize(json, CarbonConfigJsonContext.Default.CarbonConfig)
-            ?? new CarbonConfig();
+        Console.WriteLine("[Carbon] No carbon.json found, using defaults");
+        return new CarbonConfig();
     }
+
+    private static CarbonConfig Deserialize(Stream json) =>
+        JsonSerializer.Deserialize(json, CarbonConfigJsonContext.Default.CarbonConfig)
+            ?? new CarbonConfig();
 
     private static string? FindConfigFile()
     {
@@ -35,7 +44,7 @@ public static class ConfigLoader
             dir = dir.Parent;
         }
 
-        // Prod: a distributed app runs with cwd=/ — carbon.json ships next to the exe.
+        // Compatibility with older builds that shipped carbon.json beside the executable.
         var beside = Path.Combine(AppContext.BaseDirectory, "carbon.json");
         return File.Exists(beside) ? beside : null;
     }
