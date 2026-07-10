@@ -103,6 +103,9 @@ async function main() {
     const schemaSrc = join(__dirname, 'shared', 'carbon.schema.json')
     if (existsSync(schemaSrc)) await cp(schemaSrc, join(targetDir, 'carbon.schema.json'))
 
+    const iconsSrc = join(__dirname, 'shared', 'icons')
+    if (existsSync(iconsSrc)) await cp(iconsSrc, join(targetDir, 'src-carbon', 'icons'), { recursive: true })
+
     await replaceInDir(targetDir, '{{APP_NAME}}', name)
     await replaceInDir(targetDir, '{{PM}}', pm)
     const packageMetadata = JSON.parse(await readFile(join(__dirname, '..', 'package.json'), 'utf-8')) as { version: string }

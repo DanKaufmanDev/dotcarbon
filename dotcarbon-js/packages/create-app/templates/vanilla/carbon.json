@@ -17,7 +17,8 @@
         "alwaysOnTop": false,
         "decorations": true,
         "center": true,
-        "devtools": true
+        "devtools": true,
+        "icon": "src-carbon/icons/icon.png"
     },
     "build": {
         "devCommand": "{{PM}} run dev",
@@ -25,5 +26,24 @@
         "devUrl": "http://localhost:5173",
         "frontendDist": "ui/dist",
         "backendProject": "src-carbon"
+    },
+    "bundle": {
+        "category": "Utility",
+        "resources": [],
+        "fileAssociations": [],
+        "protocols": [],
+        "macOS": {
+            "minimumSystemVersion": "12.0"
+        },
+        "windows": {
+            "webView2InstallMode": "downloadBootstrapper"
+        },
+        "linux": {
+            "category": "Utility"
+        },
+        "updater": {
+            "active": false,
+            "createArtifacts": false
+        }
     }
 }

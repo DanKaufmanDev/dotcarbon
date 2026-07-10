@@ -2,7 +2,8 @@
     "window": {
         "title": "My Carbon App",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "icon": "dotcarbon-js/packages/create-app/shared/icons/icon.png"
     },
     "build": {
         "devCommand": "pnpm dev",
@@ -10,5 +11,37 @@
         "devUrl": "http://localhost:5173",
         "frontendDist": "dotcarbon-js/packages/ui/dist",
         "backendProject": "src/DotCarbon.Host/DotCarbon.Host.csproj"
+    },
+    "bundle": {
+        "category": "DeveloperTool",
+        "resources": [],
+        "fileAssociations": [
+            {
+                "name": "DotCarbon Configuration",
+                "description": "DotCarbon application configuration",
+                "extensions": ["carbon"],
+                "mimeType": "application/vnd.dotcarbon.config",
+                "role": "Editor"
+            }
+        ],
+        "protocols": [
+            {
+                "name": "DotCarbon URL",
+                "schemes": ["dotcarbon"]
+            }
+        ],
+        "macOS": {
+            "minimumSystemVersion": "12.0"
+        },
+        "windows": {
+            "webView2InstallMode": "downloadBootstrapper"
+        },
+        "linux": {
+            "category": "Development"
+        },
+        "updater": {
+            "active": false,
+            "createArtifacts": false
+        }
     }
 }

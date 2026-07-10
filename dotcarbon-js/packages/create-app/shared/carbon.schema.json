@@ -9,7 +9,8 @@
         "$schema": { "type": "string", "description": "JSON Schema reference for editor autocomplete." },
         "app": { "$ref": "#/definitions/App" },
         "window": { "$ref": "#/definitions/Window" },
-        "build": { "$ref": "#/definitions/Build" }
+        "build": { "$ref": "#/definitions/Build" },
+        "bundle": { "$ref": "#/definitions/Bundle" }
     },
     "definitions": {
         "App": {
@@ -49,7 +50,7 @@
                 "transparent": { "type": "boolean", "default": false, "description": "Transparent window background." },
                 "devtools": { "type": "boolean", "default": true, "description": "Allow opening the webview dev tools." },
                 "contextMenu": { "type": "boolean", "default": true, "description": "Allow the webview's right-click context menu." },
-                "icon": { "type": ["string", "null"], "description": "Path to a window icon file (relative to the working directory)." }
+                "icon": { "type": ["string", "null"], "description": "Path to a square PNG icon (1024x1024 recommended), relative to the project root. DotCarbon generates platform-specific icons from this source." }
             }
         },
         "Build": {
@@ -62,6 +63,81 @@
                 "devUrl": { "type": "string", "format": "uri", "description": "URL the dev server serves on.", "default": "http://localhost:5173" },
                 "frontendDist": { "type": "string", "description": "Path to the built frontend, relative to the project.", "default": "ui/dist" },
                 "backendProject": { "type": ["string", "null"], "description": "Path to the executable .csproj (or its directory), relative to the project. Recommended when a repository contains multiple executable projects." }
+            }
+        },
+        "Bundle": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Platform packaging, native integration, signing, and update metadata.",
+            "properties": {
+                "publisher": { "type": ["string", "null"] },
+                "copyright": { "type": ["string", "null"] },
+                "category": { "type": "string", "default": "Utility" },
+                "resources": { "type": "array", "items": { "type": "string" }, "default": [] },
+                "fileAssociations": { "type": "array", "items": { "$ref": "#/definitions/FileAssociation" }, "default": [] },
+                "protocols": { "type": "array", "items": { "$ref": "#/definitions/Protocol" }, "default": [] },
+                "macOS": { "$ref": "#/definitions/MacOSBundle" },
+                "windows": { "$ref": "#/definitions/WindowsBundle" },
+                "linux": { "$ref": "#/definitions/LinuxBundle" },
+                "updater": { "$ref": "#/definitions/UpdaterBundle" }
+            }
+        },
+        "FileAssociation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "extensions"],
+            "properties": {
+                "name": { "type": "string" },
+                "description": { "type": "string", "default": "" },
+                "extensions": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" } },
+                "mimeType": { "type": ["string", "null"] },
+                "role": { "type": "string", "enum": ["Viewer", "Editor", "Shell", "None"], "default": "Editor" }
+            }
+        },
+        "Protocol": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "schemes"],
+            "properties": {
+                "name": { "type": "string" },
+                "schemes": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9+.-]*$" } }
+            }
+        },
+        "MacOSBundle": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "minimumSystemVersion": { "type": "string", "default": "12.0" },
+                "signingIdentity": { "type": ["string", "null"] },
+                "entitlements": { "type": ["string", "null"] },
+                "notarizationProfile": { "type": ["string", "null"], "description": "Keychain profile created with xcrun notarytool store-credentials." }
+            }
+        },
+        "WindowsBundle": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "webView2InstallMode": { "type": "string", "enum": ["downloadBootstrapper", "offlineInstaller", "skip"], "default": "downloadBootstrapper" },
+                "webView2InstallerPath": { "type": ["string", "null"], "description": "Path to the Evergreen standalone installer when webView2InstallMode is offlineInstaller." },
+                "certificateThumbprint": { "type": ["string", "null"] },
+                "timestampUrl": { "type": "string", "format": "uri", "default": "http://timestamp.digicert.com" }
+            }
+        },
+        "LinuxBundle": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "category": { "type": "string", "default": "Utility" }
+            }
+        },
+        "UpdaterBundle": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "active": { "type": "boolean", "default": false },
+                "createArtifacts": { "type": "boolean", "default": false },
+                "endpoints": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Artifact URL templates supporting {{target}}, {{version}}, and {{artifact}}." },
+                "publicKey": { "type": ["string", "null"] }
             }
         }
     }

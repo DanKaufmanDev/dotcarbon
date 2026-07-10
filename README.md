@@ -117,6 +117,8 @@ Run `carbon types` to (re)generate `ui/src/carbon.d.ts` from your commands — a
 |---------|-------------|
 | `carbon dev` | Run the frontend and C# host together with live reload |
 | `carbon build` | Compile a native, self-contained app into `out/` |
+| `carbon icon` | Generate optimized Windows, macOS, and Linux icons |
+| `carbon signer generate` | Generate an updater signing key pair |
 | `carbon types` | Generate `carbon.d.ts` from your `[CarbonCommand]` methods |
 
 ## Configuration
@@ -165,12 +167,20 @@ carbon build --aot
 ```
 
 Target another platform with `--target` (e.g. `--target win-x64`, `--target linux-x64`, `--target osx-arm64`).
+Use `--target osx-universal --bundle` for one macOS application that runs natively on Apple Silicon and Intel Macs.
 
 Installers and platform packages are opt-in so the normal output directory stays one file:
 
 ```bash
 carbon build --bundle
 ```
+
+The project template includes a 1024x1024 master icon at `src-carbon/icons/icon.png`.
+Replace it, then run `carbon icon`; production builds also refresh generated icon formats automatically.
+
+Platform signing, notarization, WebView2 deployment, resources, file associations, protocol handlers,
+and signed updater artifacts are configured under `bundle`. See [Production distribution](DISTRIBUTION.md)
+for the complete configuration and CI secret reference.
 
 ## Plugins
 

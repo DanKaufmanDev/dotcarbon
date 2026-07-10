@@ -8,6 +8,7 @@ dist/
 
 # Carbon
 out/
+carbon-updater.key
 
 #MacOS
 .DS_Store
