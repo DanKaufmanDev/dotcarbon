@@ -20,7 +20,7 @@
         "devtools": true
     },
     "build": {
-        "devCommand": "{{PM}} dev",
+        "devCommand": "{{PM}} run dev",
         "devUrl": "http://localhost:5173",
         "frontendDist": "ui/dist"
     }
