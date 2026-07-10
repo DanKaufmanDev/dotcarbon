@@ -83,13 +83,21 @@ public static class BuildCommand
 
     private static void BundleFrontend(CarbonConfig config, string workingDir, string target)
     {
+        var outDir = Path.Combine(workingDir, "out", target);
+
+        // carbon.json must ship next to the exe — a distributed app runs with cwd=/
+        // and loads its config from AppContext.BaseDirectory, not the working dir.
+        var carbonJson = Path.Combine(workingDir, "carbon.json");
+        if (File.Exists(carbonJson))
+            File.Copy(carbonJson, Path.Combine(outDir, "carbon.json"), true);
+
         var src = Path.GetFullPath(Path.Combine(workingDir, config.Build.FrontendDist));
         if (!Directory.Exists(src))
         {
             Console.WriteLine("[Carbon] Warning: frontend dist not found — the app would show the fallback screen.");
             return;
         }
-        CopyDir(src, Path.Combine(workingDir, "out", target, config.Build.FrontendDist));
+        CopyDir(src, Path.Combine(outDir, config.Build.FrontendDist));
         Console.WriteLine($"[Carbon] Bundled web UI → out/{target}/{config.Build.FrontendDist}");
     }
 
