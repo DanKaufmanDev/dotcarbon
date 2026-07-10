@@ -25,6 +25,7 @@ DotCarbon lets you build native desktop applications using the web stack you alr
 - **Any frontend** — First-class templates for **React, Vue, Svelte, Solid, Preact, and Vanilla**, all TypeScript + Vite.
 - **End-to-end type safety** — Your C# commands are projected into TypeScript types, so `invoke()` calls are autocompleted and checked at compile time.
 - **C# backend** — Use the entire .NET ecosystem for your application logic, file access, networking, and native OS integration.
+- **Application runtime** — Managed state and DI, labeled multi-window apps, lifecycle hooks, and typed cross-webview events.
 - **Built-in capabilities** — Clipboard, dialogs, file system, notifications, shell, and window management, available as opt-in plugins.
 - **Batteries-included CLI** — One command to develop, one to ship.
 
@@ -110,6 +111,9 @@ const message = await invoke('app:greet', { name: 'World' })
 ```
 
 Run `carbon types` to (re)generate `ui/src/carbon.d.ts` from your commands — arguments and return values become real TypeScript types, so typos and mismatched payloads are caught before you run.
+
+For application state, dependency injection, additional windows, lifecycle events, and the typed event
+bus, see [Application runtime](RUNTIME.md).
 
 ## CLI
 

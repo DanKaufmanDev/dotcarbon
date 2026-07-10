@@ -9,6 +9,12 @@
         "$schema": { "type": "string", "description": "JSON Schema reference for editor autocomplete." },
         "app": { "$ref": "#/definitions/App" },
         "window": { "$ref": "#/definitions/Window" },
+        "windows": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/Window" },
+            "default": [],
+            "description": "Additional labeled windows/webviews created when the application starts."
+        },
         "build": { "$ref": "#/definitions/Build" },
         "bundle": { "$ref": "#/definitions/Bundle" }
     },
@@ -32,6 +38,9 @@
             "additionalProperties": false,
             "description": "Main window options, applied at launch.",
             "properties": {
+                "label": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "default": "main", "description": "Unique application-wide window/webview label." },
+                "url": { "type": ["string", "null"], "description": "Absolute URL or path relative to the embedded frontend root." },
+                "parent": { "type": ["string", "null"], "description": "Optional label of the parent window." },
                 "title": { "type": "string", "default": "Carbon App" },
                 "width": { "type": "integer", "minimum": 1, "default": 800 },
                 "height": { "type": "integer", "minimum": 1, "default": 600 },

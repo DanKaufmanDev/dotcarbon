@@ -4,6 +4,7 @@ public class CarbonConfig
 {
     public AppConfig App { get; set; } = new();
     public WindowConfig Window { get; set; } = new();
+    public List<WindowConfig> Windows { get; set; } = [];
     public BuildConfig Build { get; set; } = new();
     public BundleConfig Bundle { get; set; } = new();
 }
@@ -19,6 +20,9 @@ public class AppConfig
 
 public class WindowConfig
 {
+    public string Label { get; set; } = "main";
+    public string? Url { get; set; }
+    public string? Parent { get; set; }
     public string Title { get; set; } = "Carbon App";
     public int Width { get; set; } = 800;
     public int Height { get; set; } = 600;

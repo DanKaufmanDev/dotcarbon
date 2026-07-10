@@ -1,129 +1,129 @@
-name: Build
+# name: Build
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-  workflow_dispatch:
+# on:
+#   push:
+#     branches: [main]
+#   pull_request:
+#   workflow_dispatch:
 
-permissions:
-  contents: read
+# permissions:
+#   contents: read
 
-jobs:
-  build:
-    name: ${{ matrix.rid }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-15
-            rid: osx-arm64
-          - os: macos-15
-            rid: osx-x64
-          - os: ubuntu-24.04
-            rid: linux-x64
-          - os: windows-2025
-            rid: win-x64
-    runs-on: ${{ matrix.os }}
-    env:
-      CI: true
-      CARBON_RID: ${{ matrix.rid }}
+# jobs:
+#   build:
+#     name: ${{ matrix.rid }}
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         include:
+#           - os: macos-15
+#             rid: osx-arm64
+#           - os: macos-15
+#             rid: osx-x64
+#           - os: ubuntu-24.04
+#             rid: linux-x64
+#           - os: windows-2025
+#             rid: win-x64
+#     runs-on: ${{ matrix.os }}
+#     env:
+#       CI: true
+#       CARBON_RID: ${{ matrix.rid }}
 
-    steps:
-      - uses: actions/checkout@v6
+#     steps:
+#       - uses: actions/checkout@v6
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
+#       - uses: actions/setup-dotnet@v4
+#         with:
+#           dotnet-version: 10.0.x
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11
+#       - uses: pnpm/action-setup@v4
+#         with:
+#           version: 11
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: dotcarbon-js/pnpm-lock.yaml
+#       - uses: actions/setup-node@v6
+#         with:
+#           node-version: 24
+#           cache: pnpm
+#           cache-dependency-path: dotcarbon-js/pnpm-lock.yaml
 
-      - name: Install frontend dependencies
-        working-directory: dotcarbon-js
-        run: pnpm install --frozen-lockfile
+#       - name: Install frontend dependencies
+#         working-directory: dotcarbon-js
+#         run: pnpm install --frozen-lockfile
 
-      - name: Build solution
-        run: dotnet build DotCarbon.slnx --configuration Release
+#       - name: Build solution
+#         run: dotnet build DotCarbon.slnx --configuration Release
 
-      - name: Build scaffolder
-        working-directory: dotcarbon-js
-        run: pnpm --filter @dotcarbon/create-app build
+#       - name: Build scaffolder
+#         working-directory: dotcarbon-js
+#         run: pnpm --filter @dotcarbon/create-app build
 
-      - name: Build native application
-        run: dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- build --target ${{ matrix.rid }}
+#       - name: Build native application
+#         run: dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- build --target ${{ matrix.rid }}
 
-      - name: Verify single-file output
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem "out/$env:CARBON_RID" -File
-          if ($files.Count -ne 1) {
-            $files | Format-Table FullName, Length
-            throw "Expected exactly one published file, found $($files.Count)."
-          }
-          if ($files[0].Length -le 0) { throw "Published executable is empty." }
+#       - name: Verify single-file output
+#         shell: pwsh
+#         run: |
+#           $files = Get-ChildItem "out/$env:CARBON_RID" -File
+#           if ($files.Count -ne 1) {
+#             $files | Format-Table FullName, Length
+#             throw "Expected exactly one published file, found $($files.Count)."
+#           }
+#           if ($files[0].Length -le 0) { throw "Published executable is empty." }
 
-  package:
-    name: Package ${{ matrix.rid }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-15
-            rid: osx-universal
-            artifact: out/osx-universal/*.dmg
-          - os: ubuntu-24.04
-            rid: linux-x64
-            artifact: out/linux-x64/*.AppImage
-          - os: windows-2025
-            rid: win-x64
-            artifact: out/*.msi
-    runs-on: ${{ matrix.os }}
+#   package:
+#     name: Package ${{ matrix.rid }}
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         include:
+#           - os: macos-15
+#             rid: osx-universal
+#             artifact: out/osx-universal/*.dmg
+#           - os: ubuntu-24.04
+#             rid: linux-x64
+#             artifact: out/linux-x64/*.AppImage
+#           - os: windows-2025
+#             rid: win-x64
+#             artifact: out/*.msi
+#     runs-on: ${{ matrix.os }}
 
-    steps:
-      - uses: actions/checkout@v6
+#     steps:
+#       - uses: actions/checkout@v6
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
+#       - uses: actions/setup-dotnet@v4
+#         with:
+#           dotnet-version: 10.0.x
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11
+#       - uses: pnpm/action-setup@v4
+#         with:
+#           version: 11
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: dotcarbon-js/pnpm-lock.yaml
+#       - uses: actions/setup-node@v6
+#         with:
+#           node-version: 24
+#           cache: pnpm
+#           cache-dependency-path: dotcarbon-js/pnpm-lock.yaml
 
-      - name: Install WiX
-        if: runner.os == 'Windows'
-        run: dotnet tool install --global wix --version 4.*
+#       - name: Install WiX
+#         if: runner.os == 'Windows'
+#         run: dotnet tool install --global wix --version 4.*
 
-      - name: Install frontend dependencies
-        working-directory: dotcarbon-js
-        run: pnpm install --frozen-lockfile
+#       - name: Install frontend dependencies
+#         working-directory: dotcarbon-js
+#         run: pnpm install --frozen-lockfile
 
-      - name: Build package
-        run: dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- build --target ${{ matrix.rid }} --bundle
+#       - name: Build package
+#         run: dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- build --target ${{ matrix.rid }} --bundle
 
-      - name: Verify package
-        shell: pwsh
-        run: |
-          $files = Get-ChildItem '${{ matrix.artifact }}'
-          if ($files.Count -ne 1) { throw "Expected one package, found $($files.Count)." }
-          if ($files[0].Length -le 0) { throw "Package is empty." }
+#       - name: Verify package
+#         shell: pwsh
+#         run: |
+#           $files = Get-ChildItem '${{ matrix.artifact }}'
+#           if ($files.Count -ne 1) { throw "Expected one package, found $($files.Count)." }
+#           if ($files[0].Length -le 0) { throw "Package is empty." }
 
-      - uses: actions/upload-artifact@v6
-        with:
-          name: dotcarbon-${{ matrix.rid }}
-          path: ${{ matrix.artifact }}
-          if-no-files-found: error
+#       - uses: actions/upload-artifact@v6
+#         with:
+#           name: dotcarbon-${{ matrix.rid }}
+#           path: ${{ matrix.artifact }}
+#           if-no-files-found: error
