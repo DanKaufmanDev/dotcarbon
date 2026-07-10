@@ -72,9 +72,9 @@ public static class BuildCommand
         if (target.StartsWith("osx"))
             artifact = await BundleMac(config, workingDir, target) ?? artifact;
         else if (target.StartsWith("win"))
-            Console.WriteLine("[Carbon] Windows .exe is in the output. Build a .msi with WiX/velopack if you need an installer.");
+            artifact = await BundleWindows(config, workingDir, target) ?? artifact;
         else if (target.StartsWith("linux"))
-            Console.WriteLine("[Carbon] Linux binary is in the output. Package an .AppImage with appimagetool if you need one.");
+            artifact = await BundleLinux(config, workingDir, target) ?? artifact;
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($"\n✅ Build complete → {artifact}");
@@ -151,6 +151,120 @@ public static class BuildCommand
             Directory.CreateDirectory(d.Replace(src, dst));
         foreach (var f in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
             File.Copy(f, f.Replace(src, dst), true);
+    }
+
+    private static async Task<string?> BundleWindows(CarbonConfig config, string workingDir, string target)
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        var outDir = Path.Combine(workingDir, "out", target);
+        var exe = Directory.GetFiles(outDir, "*.exe").FirstOrDefault();
+        if (exe is null) return null;
+        if (!ToolExists("wix"))
+        {
+            Console.WriteLine("[Carbon] The .exe is in the output. For a .msi: dotnet tool install --global wix --version 4.* then rebuild.");
+            return null;
+        }
+
+        Console.WriteLine("\n[Carbon] Packaging Windows .msi (WiX)...");
+        var name = string.IsNullOrWhiteSpace(config.App.Name) ? Path.GetFileNameWithoutExtension(exe) : config.App.Name;
+        var wxs = Path.Combine(workingDir, "out", "installer.wxs");
+        var msi = Path.Combine(workingDir, "out", name + ".msi");
+        await File.WriteAllTextAsync(wxs,
+            "<Wix xmlns=\"http://wixtoolset.org/schemas/v4/wxs\">\n" +
+            $"  <Package Name=\"{name}\" Manufacturer=\"{config.App.Name}\" Version=\"{MsiVersion(config.App.Version)}\" UpgradeCode=\"{StableGuid(config.App.Identifier)}\">\n" +
+            "    <MajorUpgrade DowngradeErrorMessage=\"A newer version is already installed.\" />\n" +
+            "    <MediaTemplate EmbedCab=\"yes\" />\n" +
+            "    <StandardDirectory Id=\"ProgramFiles64Folder\">\n" +
+            $"      <Directory Id=\"INSTALLFOLDER\" Name=\"{name}\">\n" +
+            $"        <Files Include=\"{outDir}\\**\" />\n" +
+            "      </Directory>\n" +
+            "    </StandardDirectory>\n" +
+            "  </Package>\n</Wix>\n");
+        await RunProcessToCompletion("wix", $"build \"{wxs}\" -o \"{msi}\"", outDir, "[pkg]", ConsoleColor.Blue);
+        return File.Exists(msi) ? $"out/{name}.msi" : null;
+    }
+
+    private static async Task<string?> BundleLinux(CarbonConfig config, string workingDir, string target)
+    {
+        if (!OperatingSystem.IsLinux()) return null;
+        var outDir = Path.Combine(workingDir, "out", target);
+        var exe = Directory.GetFiles(outDir).FirstOrDefault(f => Path.GetExtension(f).Length == 0 && !f.EndsWith(".so"));
+        if (exe is null) return null;
+        var tool = await EnsureAppImageTool(workingDir);
+        if (tool is null)
+        {
+            Console.WriteLine("[Carbon] The binary is in the output. Install appimagetool for an .AppImage.");
+            return null;
+        }
+
+        Console.WriteLine("\n[Carbon] Packaging Linux .AppImage...");
+        var exeName = Path.GetFileName(exe);
+        var name = string.IsNullOrWhiteSpace(config.App.Name) ? exeName : config.App.Name;
+        var slug = new string(name.ToLowerInvariant().Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
+        var appdir = Path.Combine(outDir, "AppDir");
+        if (Directory.Exists(appdir)) Directory.Delete(appdir, true);
+        var bin = Path.Combine(appdir, "usr", "bin");
+        Directory.CreateDirectory(bin);
+
+        foreach (var f in Directory.GetFiles(outDir)) File.Copy(f, Path.Combine(bin, Path.GetFileName(f)), true);
+        var dist = Path.Combine(outDir, config.Build.FrontendDist);
+        if (Directory.Exists(dist)) CopyDir(dist, Path.Combine(bin, config.Build.FrontendDist));
+
+        await File.WriteAllTextAsync(Path.Combine(appdir, "AppRun"),
+            "#!/bin/sh\nHERE=\"$(dirname \"$(readlink -f \"$0\")\")\"\ncd \"$HERE/usr/bin\"\nexec \"./" + exeName + "\" \"$@\"\n");
+        await File.WriteAllTextAsync(Path.Combine(appdir, slug + ".desktop"),
+            "[Desktop Entry]\nType=Application\nName=" + name + "\nExec=" + exeName + "\nIcon=" + slug + "\nCategories=Utility;\n");
+        await File.WriteAllBytesAsync(Path.Combine(appdir, slug + ".png"), Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="));
+
+        await RunProcessToCompletion("chmod", $"+x \"{Path.Combine(appdir, "AppRun")}\" \"{Path.Combine(bin, exeName)}\"", outDir, "[pkg]", ConsoleColor.Blue);
+        Environment.SetEnvironmentVariable("ARCH", "x86_64");
+        Environment.SetEnvironmentVariable("APPIMAGE_EXTRACT_AND_RUN", "1");
+        var appimage = Path.Combine(outDir, name + ".AppImage");
+        await RunProcessToCompletion(tool, $"\"{appdir}\" \"{appimage}\"", outDir, "[pkg]", ConsoleColor.Blue);
+        return File.Exists(appimage) ? $"out/{target}/{name}.AppImage" : null;
+    }
+
+    private static async Task<string?> EnsureAppImageTool(string workingDir)
+    {
+        if (ToolExists("appimagetool")) return "appimagetool";
+        var local = Path.Combine(workingDir, "out", "appimagetool");
+        if (!File.Exists(local))
+        {
+            Console.WriteLine("[Carbon] Downloading appimagetool...");
+            var code = await RunProcessToCompletion("curl",
+                $"-fsSL -o \"{local}\" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage",
+                workingDir, "[pkg]", ConsoleColor.Blue);
+            if (code != 0 || !File.Exists(local)) return null;
+            await RunProcessToCompletion("chmod", $"+x \"{local}\"", workingDir, "[pkg]", ConsoleColor.Blue);
+        }
+        return local;
+    }
+
+    private static bool ToolExists(string tool)
+    {
+        try
+        {
+            using var p = Process.Start(new ProcessStartInfo(tool, "--version")
+            { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false });
+            p!.WaitForExit(5000);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    private static string MsiVersion(string? v)
+    {
+        var nums = (v ?? "0.0.0").Split('.')
+            .Select(p => int.TryParse(new string(p.TakeWhile(char.IsDigit).ToArray()), out var n) ? n : 0).ToList();
+        while (nums.Count < 4) nums.Add(0);
+        return string.Join(".", nums.Take(4));
+    }
+
+    private static Guid StableGuid(string s)
+    {
+        using var md5 = System.Security.Cryptography.MD5.Create();
+        return new Guid(md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(s ?? "com.example.app")));
     }
 
     private static async Task<bool> BuildFrontend(CarbonConfig config, string workingDir)
