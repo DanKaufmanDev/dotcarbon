@@ -56,7 +56,7 @@ jobs:
 
       - name: Install
         working-directory: dotcarbon-js
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --allow-scripts
 
       - name: Publish
         working-directory: dotcarbon-js
