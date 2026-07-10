@@ -6,7 +6,9 @@
     },
     "build": {
         "devCommand": "pnpm dev",
+        "buildCommand": "npm run build",
         "devUrl": "http://localhost:5173",
-        "frontendDist": "dotcarbon-js/packages/ui/dist"
+        "frontendDist": "dotcarbon-js/packages/ui/dist",
+        "backendProject": "src/DotCarbon.Host/DotCarbon.Host.csproj"
     }
 }
