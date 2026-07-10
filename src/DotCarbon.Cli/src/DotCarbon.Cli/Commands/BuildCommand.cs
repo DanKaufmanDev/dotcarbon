@@ -1,5 +1,8 @@
 using System.CommandLine;
 using System.Diagnostics;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
+using System.Text.Json;
 using System.Xml.Linq;
 using DotCarbon.Core.Config;
 
@@ -96,6 +99,13 @@ public static class BuildCommand
         }
 
         var outputDir = Path.Combine(workingDir, "out", target);
+        if (!HasEmbeddedAssetRuntime(hostProject, out var runtimeError))
+        {
+            Directory.Delete(outputDir, recursive: true);
+            WriteError(runtimeError);
+            return 1;
+        }
+
         RemovePublishSymbols(outputDir);
         var executable = FindExecutable(outputDir, target);
         if (executable is null)
@@ -387,6 +397,49 @@ public static class BuildCommand
 
         foreach (var directory in Directory.EnumerateDirectories(outputDir, "*.dSYM", SearchOption.TopDirectoryOnly))
             Directory.Delete(directory, recursive: true);
+    }
+
+    private static bool HasEmbeddedAssetRuntime(string hostProject, out string error)
+    {
+        error = string.Empty;
+        var assetsPath = Path.Combine(Path.GetDirectoryName(hostProject)!, "obj", "project.assets.json");
+        if (!File.Exists(assetsPath)) return true;
+
+        using var assets = JsonDocument.Parse(File.ReadAllBytes(assetsPath));
+        if (!assets.RootElement.TryGetProperty("libraries", out var libraries)) return true;
+
+        foreach (var library in libraries.EnumerateObject())
+        {
+            if (!library.Name.StartsWith("DotCarbon.Core/", StringComparison.OrdinalIgnoreCase)) continue;
+            if (library.Value.TryGetProperty("type", out var type) && type.GetString() == "project") return true;
+            if (!library.Value.TryGetProperty("path", out var pathElement)) break;
+            if (!assets.RootElement.TryGetProperty("packageFolders", out var folders)) break;
+
+            var packageRoot = folders.EnumerateObject().Select(folder => folder.Name).FirstOrDefault();
+            if (packageRoot is null) break;
+            var packagePath = Path.Combine(packageRoot, pathElement.GetString()!);
+            var coreAssembly = Directory.EnumerateFiles(packagePath, "DotCarbon.Core.dll", SearchOption.AllDirectories)
+                .FirstOrDefault();
+            if (coreAssembly is null) break;
+
+            using var stream = File.OpenRead(coreAssembly);
+            using var pe = new PEReader(stream);
+            var metadata = pe.GetMetadataReader();
+            var supportsEmbeddedAssets = metadata.TypeDefinitions
+                .Select(metadata.GetTypeDefinition)
+                .Any(definition =>
+                    metadata.GetString(definition.Namespace) == "DotCarbon.Core.Host" &&
+                    metadata.GetString(definition.Name) == "EmbeddedAssetStore");
+
+            if (supportsEmbeddedAssets) return true;
+
+            var version = library.Name[(library.Name.IndexOf('/') + 1)..];
+            error = $"The app resolved DotCarbon.Core {version}, which cannot load embedded frontend assets. " +
+                    "Update DotCarbon.Core to the same release as the Carbon CLI, then rebuild.";
+            return false;
+        }
+
+        return true;
     }
 
     private static bool IsUnixExecutable(string path)
