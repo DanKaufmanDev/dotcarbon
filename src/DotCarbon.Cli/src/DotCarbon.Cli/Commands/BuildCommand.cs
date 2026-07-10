@@ -66,9 +66,91 @@ public static class BuildCommand
         Console.WriteLine("\n[Carbon] Step 2/2 — Publishing .NET host...");
         await PublishHost(workingDir, target, aot: !noAot);
 
+        BundleFrontend(config, workingDir, target);
+
+        var artifact = $"out/{target}/";
+        if (target.StartsWith("osx"))
+            artifact = await BundleMac(config, workingDir, target) ?? artifact;
+        else if (target.StartsWith("win"))
+            Console.WriteLine("[Carbon] Windows .exe is in the output. Build a .msi with WiX/velopack if you need an installer.");
+        else if (target.StartsWith("linux"))
+            Console.WriteLine("[Carbon] Linux binary is in the output. Package an .AppImage with appimagetool if you need one.");
+
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine($"\n✅ Build complete → out/{target}/");
+        Console.WriteLine($"\n✅ Build complete → {artifact}");
         Console.ResetColor();
+    }
+
+    private static void BundleFrontend(CarbonConfig config, string workingDir, string target)
+    {
+        var src = Path.GetFullPath(Path.Combine(workingDir, config.Build.FrontendDist));
+        if (!Directory.Exists(src))
+        {
+            Console.WriteLine("[Carbon] Warning: frontend dist not found — the app would show the fallback screen.");
+            return;
+        }
+        CopyDir(src, Path.Combine(workingDir, "out", target, config.Build.FrontendDist));
+        Console.WriteLine($"[Carbon] Bundled web UI → out/{target}/{config.Build.FrontendDist}");
+    }
+
+    private static async Task<string?> BundleMac(CarbonConfig config, string workingDir, string target)
+    {
+        if (!OperatingSystem.IsMacOS()) return null;
+
+        var outDir = Path.Combine(workingDir, "out", target);
+        var exe = Directory.GetFiles(outDir)
+            .FirstOrDefault(f => Path.GetExtension(f).Length == 0 && !f.EndsWith(".dylib"));
+        if (exe is null) return null;
+
+        var exeName = Path.GetFileName(exe);
+        var appName = string.IsNullOrWhiteSpace(config.App.Name) ? exeName : config.App.Name;
+        Console.WriteLine("\n[Carbon] Packaging macOS .app + .dmg...");
+
+        var app = Path.Combine(outDir, appName + ".app");
+        var dmg = Path.Combine(outDir, appName + ".dmg");
+        if (Directory.Exists(app)) Directory.Delete(app, true);
+        if (File.Exists(dmg)) File.Delete(dmg);
+
+        var macos = Path.Combine(app, "Contents", "MacOS");
+        Directory.CreateDirectory(macos);
+        Directory.CreateDirectory(Path.Combine(app, "Contents", "Resources"));
+
+        foreach (var f in Directory.GetFiles(outDir))
+            File.Copy(f, Path.Combine(macos, Path.GetFileName(f)), true);
+        var dist = Path.Combine(outDir, config.Build.FrontendDist);
+        if (Directory.Exists(dist))
+            CopyDir(dist, Path.Combine(macos, config.Build.FrontendDist));
+
+        await File.WriteAllTextAsync(Path.Combine(app, "Contents", "Info.plist"), InfoPlist(config, exeName, appName));
+        await RunProcessToCompletion("chmod", $"+x \"{Path.Combine(macos, exeName)}\"", outDir, "[pkg]", ConsoleColor.Blue);
+        await RunProcessToCompletion("hdiutil",
+            $"create -volname \"{appName}\" -srcfolder \"{app}\" -ov -format UDZO \"{dmg}\"",
+            outDir, "[pkg]", ConsoleColor.Blue);
+
+        return File.Exists(dmg) ? $"out/{target}/{appName}.dmg" : null;
+    }
+
+    private static string InfoPlist(CarbonConfig config, string exeName, string appName) =>
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+        "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n" +
+        "<plist version=\"1.0\">\n<dict>\n" +
+        $"    <key>CFBundleName</key><string>{appName}</string>\n" +
+        $"    <key>CFBundleDisplayName</key><string>{config.App.Name}</string>\n" +
+        $"    <key>CFBundleIdentifier</key><string>{config.App.Identifier}</string>\n" +
+        $"    <key>CFBundleVersion</key><string>{config.App.Version}</string>\n" +
+        $"    <key>CFBundleShortVersionString</key><string>{config.App.Version}</string>\n" +
+        $"    <key>CFBundleExecutable</key><string>{exeName}</string>\n" +
+        "    <key>CFBundlePackageType</key><string>APPL</string>\n" +
+        "    <key>NSHighResolutionCapable</key><true/>\n" +
+        "</dict>\n</plist>\n";
+
+    private static void CopyDir(string src, string dst)
+    {
+        Directory.CreateDirectory(dst);
+        foreach (var d in Directory.GetDirectories(src, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(d.Replace(src, dst));
+        foreach (var f in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
+            File.Copy(f, f.Replace(src, dst), true);
     }
 
     private static async Task<bool> BuildFrontend(CarbonConfig config, string workingDir)
