@@ -58,8 +58,10 @@
             "description": "Dev-server and build wiring.",
             "properties": {
                 "devCommand": { "type": "string", "description": "Command that starts your frontend dev server.", "default": "pnpm dev" },
+                "buildCommand": { "type": ["string", "null"], "description": "Command that builds the frontend. When omitted, DotCarbon derives it from devCommand." },
                 "devUrl": { "type": "string", "format": "uri", "description": "URL the dev server serves on.", "default": "http://localhost:5173" },
-                "frontendDist": { "type": "string", "description": "Path to the built frontend, relative to the project.", "default": "ui/dist" }
+                "frontendDist": { "type": "string", "description": "Path to the built frontend, relative to the project.", "default": "ui/dist" },
+                "backendProject": { "type": ["string", "null"], "description": "Path to the executable .csproj (or its directory), relative to the project. Recommended when a repository contains multiple executable projects." }
             }
         }
     }

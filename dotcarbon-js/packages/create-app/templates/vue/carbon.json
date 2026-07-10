@@ -21,7 +21,9 @@
     },
     "build": {
         "devCommand": "{{PM}} run dev",
+        "buildCommand": "{{PM}} run build",
         "devUrl": "http://localhost:5173",
-        "frontendDist": "ui/dist"
+        "frontendDist": "ui/dist",
+        "backendProject": "src-carbon"
     }
 }
