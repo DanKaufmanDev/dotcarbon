@@ -69,7 +69,8 @@ public class CarbonHost
             _registry.RegisterPlugin(factory(_window));
 
         var devUrl = _config.Build.DevUrl;
-        var distPath = Path.GetFullPath(_config.Build.FrontendDist);
+        var beside = Path.Combine(AppContext.BaseDirectory, _config.Build.FrontendDist);
+        var distPath = Directory.Exists(beside) ? beside : Path.GetFullPath(_config.Build.FrontendDist);
 
         if (IsDevServerRunning(devUrl))
         {
