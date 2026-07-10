@@ -23,6 +23,7 @@ public static class ConfigLoader
 
     private static string? FindConfigFile()
     {
+        // Dev: walk up from the working directory (carbon dev runs at the project root).
         var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
 
         while (dir != null)
@@ -34,7 +35,9 @@ public static class ConfigLoader
             dir = dir.Parent;
         }
 
-        return null;
+        // Prod: a distributed app runs with cwd=/ — carbon.json ships next to the exe.
+        var beside = Path.Combine(AppContext.BaseDirectory, "carbon.json");
+        return File.Exists(beside) ? beside : null;
     }
 }
 
