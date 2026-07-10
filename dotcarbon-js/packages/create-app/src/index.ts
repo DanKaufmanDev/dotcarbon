@@ -105,6 +105,8 @@ async function main() {
 
     await replaceInDir(targetDir, '{{APP_NAME}}', name)
     await replaceInDir(targetDir, '{{PM}}', pm)
+    const packageMetadata = JSON.parse(await readFile(join(__dirname, '..', 'package.json'), 'utf-8')) as { version: string }
+    await replaceInDir(targetDir, '{{DOTCARBON_VERSION}}', packageMetadata.version)
 
     const oldCsproj = join(targetDir, 'src-carbon', 'APP_NAME.csproj')
     if (existsSync(oldCsproj)) {

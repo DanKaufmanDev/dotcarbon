@@ -10,7 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="Photino.NET" Version="4.0.16" />
-    <PackageReference Include="DotCarbon.Core" Version="0.1.0" />
+    <PackageReference Include="DotCarbon.Core" Version="{{DOTCARBON_VERSION}}" />
   </ItemGroup>
 
 </Project>
