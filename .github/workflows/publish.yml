@@ -66,7 +66,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.13
+          node-version: 24
           registry-url: https://registry.npmjs.org
 
       - name: Install
@@ -91,6 +91,4 @@ jobs:
 
       - name: Publish
         working-directory: dotcarbon-js
-        run: pnpm -r publish --access public --no-git-checks --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm -r publish --access public --no-git-checks
