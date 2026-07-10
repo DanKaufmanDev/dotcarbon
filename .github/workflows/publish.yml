@@ -26,6 +26,18 @@ jobs:
           VERSION="${VERSION#v}"
           dotnet pack DotCarbon.slnx -c Release -o artifacts -p:Version="$VERSION"
 
+          for id in \
+            DotCarbon.Cli DotCarbon.Core \
+            DotCarbon.Plugins.Clipboard DotCarbon.Plugins.Dialog \
+            DotCarbon.Plugins.FileSystem DotCarbon.Plugins.Notification \
+            DotCarbon.Plugins.Shell DotCarbon.Plugins.Window
+          do
+            test -f "artifacts/$id.$VERSION.nupkg" || {
+              echo "Missing expected package: $id.$VERSION.nupkg"
+              exit 1
+            }
+          done
+
       - name: NuGet login
         uses: NuGet/login@v1
         id: login
@@ -33,14 +45,17 @@ jobs:
           user: ${{ vars.NUGET_USER }}
 
       - name: Push
-        run: >
-          dotnet nuget push "artifacts/*.nupkg"
-          --api-key ${{ steps.login.outputs.NUGET_API_KEY }}
-          --source https://api.nuget.org/v3/index.json
-          --skip-duplicate
+        run: |
+          for package in artifacts/*.nupkg; do
+            dotnet nuget push "$package" \
+              --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done
 
   npm:
     name: Publish to npm
+    needs: nuget
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,6 +72,22 @@ jobs:
       - name: Install
         working-directory: dotcarbon-js
         run: pnpm install --no-frozen-lockfile --allow-scripts
+
+      - name: Set package versions
+        working-directory: dotcarbon-js
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          node -e '
+            const fs = require("node:fs");
+            for (const dir of fs.readdirSync("packages")) {
+              const path = `packages/${dir}/package.json`;
+              if (!fs.existsSync(path)) continue;
+              const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+              pkg.version = process.argv[1];
+              fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+            }
+          ' "$VERSION"
 
       - name: Publish
         working-directory: dotcarbon-js
