@@ -26,7 +26,9 @@ DotCarbon lets you build native desktop applications using the web stack you alr
 - **End-to-end type safety** — Your C# commands are projected into TypeScript types, so `invoke()` calls are autocompleted and checked at compile time.
 - **C# backend** — Use the entire .NET ecosystem for your application logic, file access, networking, and native OS integration.
 - **Application runtime** — Managed state and DI, labeled multi-window apps, lifecycle hooks, and typed cross-webview events.
-- **Built-in capabilities** — Clipboard, dialogs, file system, notifications, shell, and window management, available as opt-in plugins.
+- **Production permissions** — Tauri-style capability files restrict which commands each window can call.
+- **NuGet-ready plugins** — Plugins can initialize, read config, emit events, declare permissions, handle lifecycle, and expose generated metadata.
+- **Built-in capabilities** — Clipboard, dialogs, file system, notifications, shell, window management, Store, Opener, DeepLink, SingleInstance, GlobalShortcut, and Updater, available as opt-in plugins.
 - **Batteries-included CLI** — One command to develop, one to ship.
 
 ## Quick start
@@ -110,20 +112,58 @@ const message = await invoke('app:greet', { name: 'World' })
 // message: string  →  "Hello, World!"
 ```
 
-Run `carbon types` to (re)generate `ui/src/carbon.d.ts` from your commands — arguments and return values become real TypeScript types, so typos and mismatched payloads are caught before you run.
+`carbon dev` automatically generates and watches `ui/src/carbon.d.ts` from your commands — arguments and return values become real TypeScript types, so typos and mismatched payloads are caught before you run. It also keeps local app commands synced into `src-carbon/capabilities/main.json`, so normal `[CarbonCommand]` methods work with security enabled. Use `carbon types` when you want a one-shot generation and capability sync step for CI or scripts.
 
 For application state, dependency injection, additional windows, lifecycle events, and the typed event
 bus, see [Application runtime](RUNTIME.md).
+
+For production command allowlists, per-window permissions, and Tauri-style
+`src-carbon/capabilities/*.json` files, see [Capabilities and permissions](CAPABILITIES.md).
+
+For secure defaults, bridge hardening, CSP, trusted origins, and the hardening roadmap, see
+[Security and hardening](SECURITY.md).
+
+For plugin authoring, NuGet package guidance, lifecycle hooks, plugin config, and generated metadata,
+see [Plugin contract v2](PLUGINS.md).
 
 ## CLI
 
 | Command | Description |
 |---------|-------------|
-| `carbon dev` | Run the frontend and C# host together with live reload |
+| `carbon dev` | Run the frontend and C# host together with live reload, including watched `carbon.d.ts` and capability sync |
+| `carbon add nuget <package>` | Add any NuGet package to the C# backend |
+| `carbon add plugin <name-or-package>` | Add a DotCarbon plugin, wire the backend, frontend package, and capabilities |
 | `carbon build` | Compile a native, self-contained app into `out/` |
 | `carbon icon` | Generate optimized Windows, macOS, and Linux icons |
 | `carbon signer generate` | Generate an updater signing key pair |
-| `carbon types` | Generate `carbon.d.ts` from your `[CarbonCommand]` methods |
+| `carbon types` | Generate `carbon.d.ts` from your `[CarbonCommand]` methods and sync app command capabilities once |
+
+Use any NuGet package in C#:
+
+```bash
+carbon add nuget SharpHook
+```
+
+Then call it from your own `[CarbonCommand]` methods. For frontend-facing DotCarbon plugins:
+
+```bash
+carbon add plugin Notification
+```
+
+Known first-party aliases wire NuGet, npm, `Program.cs`, and capabilities automatically. Third-party
+DotCarbon plugins can be added by package id:
+
+```bash
+carbon add plugin Acme.DotCarbon.Foo \
+  --class FooPlugin \
+  --using Acme.DotCarbon.Foo \
+  --namespace foo \
+  --npm acme/dotcarbon-foo \
+  '--command=foo:*'
+```
+
+Scoped npm packages can be written without the leading `@`; Carbon normalizes
+`acme/dotcarbon-foo` to `@acme/dotcarbon-foo`.
 
 ## Configuration
 
@@ -195,9 +235,19 @@ Native capabilities are opt-in — add the C# package, register the plugin, and 
 | Clipboard | `DotCarbon.Plugins.Clipboard` | `@dotcarbon/plugin-clipboard` |
 | Dialogs | `DotCarbon.Plugins.Dialog` | `@dotcarbon/plugin-dialog` |
 | File system | `DotCarbon.Plugins.FileSystem` | `@dotcarbon/plugin-fs` |
+| Global shortcuts | `DotCarbon.Plugins.GlobalShortcut` | `@dotcarbon/plugin-global-shortcut` |
+| Deep links | `DotCarbon.Plugins.DeepLink` | `@dotcarbon/plugin-deep-link` |
 | Notifications | `DotCarbon.Plugins.Notification` | `@dotcarbon/plugin-notification` |
+| Opener | `DotCarbon.Plugins.Opener` | `@dotcarbon/plugin-opener` |
 | Shell | `DotCarbon.Plugins.Shell` | `@dotcarbon/plugin-shell` |
+| Single instance | `DotCarbon.Plugins.SingleInstance` | `@dotcarbon/plugin-single-instance` |
+| Store | `DotCarbon.Plugins.Store` | `@dotcarbon/plugin-store` |
+| Updater | `DotCarbon.Plugins.Updater` | `@dotcarbon/plugin-updater` |
 | Window | `DotCarbon.Plugins.Window` | `@dotcarbon/plugin-window` |
+
+`Shell` is intentionally scoped: `shell:execute` requires `plugins.shell.allowedPrograms`, working
+directories are allowlisted with `allowedCwds`, URL schemes default to `http`, `https`, and `mailto`,
+and opening local paths requires `allowOpenPaths: true`.
 
 ## Packages
 
