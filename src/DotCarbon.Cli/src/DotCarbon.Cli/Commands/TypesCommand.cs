@@ -26,6 +26,15 @@ public static class TypesCommand
     private static void Run(DirectoryInfo? projectDir, FileInfo? outFile)
     {
         var root = projectDir?.FullName ?? Directory.GetCurrentDirectory();
+        var result = Generate(root, outFile?.FullName);
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine($"⚡ Generated {result.CommandCount} command type(s) → {result.TargetPath}");
+        Console.ResetColor();
+    }
+
+    internal static TypesGenerationResult Generate(string root, string? outPath = null)
+    {
         var carbonDir = Path.Combine(root, "src-carbon");
         var searchDir = Directory.Exists(carbonDir) ? carbonDir : root;
 
@@ -79,13 +88,13 @@ public static class TypesCommand
         }
 
         var dts = Emit(commands.OrderBy(c => c.Name).ToList(), plugins, records);
-        var target = outFile?.FullName ?? Path.Combine(root, "ui", "src", "carbon.d.ts");
-        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        var target = outPath ?? Path.Combine(root, "ui", "src", "carbon.d.ts");
+        var targetDir = Path.GetDirectoryName(target);
+        if (!string.IsNullOrWhiteSpace(targetDir))
+            Directory.CreateDirectory(targetDir);
         File.WriteAllText(target, dts);
 
-        Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine($"⚡ Generated {commands.Count} command type(s) → {target}");
-        Console.ResetColor();
+        return new TypesGenerationResult(commands.Count, target);
     }
 
     private static string? ExtractNamespace(ClassDeclarationSyntax cls)
@@ -184,3 +193,5 @@ public static class TypesCommand
     private static string Camel(string s) =>
         string.IsNullOrEmpty(s) ? s : char.ToLowerInvariant(s[0]) + s[1..];
 }
+
+internal readonly record struct TypesGenerationResult(int CommandCount, string TargetPath);

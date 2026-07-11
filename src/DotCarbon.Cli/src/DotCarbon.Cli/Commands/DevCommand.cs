@@ -13,14 +13,24 @@ public static class DevCommand
             name: "--project",
             description: "Path to the Carbon project (default: current directory)"
         );
+        var noTypesOption = new Option<bool>(
+            name: "--no-types",
+            description: "Do not generate ui/src/carbon.d.ts while dev mode is running"
+        );
+        var typesOutOption = new Option<FileInfo?>(
+            name: "--types-out",
+            description: "Output path for generated TypeScript declarations (default: ui/src/carbon.d.ts)"
+        );
 
         command.AddOption(projectOption);
-        command.SetHandler(Run, projectOption);
+        command.AddOption(noTypesOption);
+        command.AddOption(typesOutOption);
+        command.SetHandler(Run, projectOption, noTypesOption, typesOutOption);
 
         return command;
     }
 
-    private static async Task Run(DirectoryInfo? projectDir)
+    private static async Task Run(DirectoryInfo? projectDir, bool noTypes, FileInfo? typesOut)
     {
         var workingDir = projectDir?.FullName ?? Directory.GetCurrentDirectory();
         var configPath = Path.Combine(workingDir, "carbon.json");
@@ -40,6 +50,9 @@ public static class DevCommand
         Console.ResetColor();
 
         using var cts = new CancellationTokenSource();
+        using var typeWatcher = noTypes
+            ? null
+            : StartTypesGeneration(workingDir, typesOut?.FullName, cts.Token);
 
         Console.CancelKeyPress += (_, e) =>
         {
@@ -54,6 +67,60 @@ public static class DevCommand
 
         cts.Cancel();
         Console.WriteLine("[Carbon] Done.");
+    }
+
+    private static IDisposable? StartTypesGeneration(string workingDir, string? outPath, CancellationToken ct)
+    {
+        GenerateTypes(workingDir, outPath);
+
+        var carbonDir = Path.Combine(workingDir, "src-carbon");
+        var watchDir = Directory.Exists(carbonDir) ? carbonDir : workingDir;
+        var watcher = new FileSystemWatcher(watchDir, "*.cs")
+        {
+            IncludeSubdirectories = true,
+            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.CreationTime,
+            EnableRaisingEvents = true,
+        };
+        var debounce = new DebouncedAction(TimeSpan.FromMilliseconds(250), ct, () =>
+            GenerateTypes(workingDir, outPath));
+
+        FileSystemEventHandler onChange = (_, e) =>
+        {
+            if (IsIgnoredPath(e.FullPath)) return;
+            debounce.Schedule();
+        };
+        RenamedEventHandler onRename = (_, e) =>
+        {
+            if (IsIgnoredPath(e.FullPath)) return;
+            debounce.Schedule();
+        };
+
+        watcher.Created += onChange;
+        watcher.Changed += onChange;
+        watcher.Deleted += onChange;
+        watcher.Renamed += onRename;
+
+        Console.WriteLine($"[Carbon] Watching C# commands for type generation: {watchDir}");
+        return new CompositeDisposable(watcher, debounce);
+    }
+
+    private static void GenerateTypes(string workingDir, string? outPath)
+    {
+        try
+        {
+            var result = TypesCommand.Generate(workingDir, outPath);
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.Write("[Types] ");
+            Console.ResetColor();
+            Console.WriteLine($"Generated {result.CommandCount} command type(s) -> {result.TargetPath}");
+        }
+        catch (Exception ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Write("[Types] ");
+            Console.ResetColor();
+            Console.WriteLine($"Type generation skipped: {ex.Message}");
+        }
     }
 
     private static async Task RunFrontend(CarbonConfig config, string workingDir, CancellationToken ct)
@@ -169,4 +236,71 @@ public static class DevCommand
         return null;
     }
 
+    private static bool IsIgnoredPath(string path)
+    {
+        var parts = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return parts.Any(part => part is "bin" or "obj" or "node_modules" or "out");
+    }
+
+    private sealed class DebouncedAction : IDisposable
+    {
+        private readonly TimeSpan _delay;
+        private readonly CancellationToken _ct;
+        private readonly Action _action;
+        private readonly object _lock = new();
+        private CancellationTokenSource? _pending;
+
+        public DebouncedAction(TimeSpan delay, CancellationToken ct, Action action)
+        {
+            _delay = delay;
+            _ct = ct;
+            _action = action;
+        }
+
+        public void Schedule()
+        {
+            lock (_lock)
+            {
+                _pending?.Cancel();
+                _pending?.Dispose();
+                _pending = CancellationTokenSource.CreateLinkedTokenSource(_ct);
+                _ = RunAsync(_pending.Token);
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (_lock)
+            {
+                _pending?.Cancel();
+                _pending?.Dispose();
+                _pending = null;
+            }
+        }
+
+        private async Task RunAsync(CancellationToken ct)
+        {
+            try
+            {
+                await Task.Delay(_delay, ct);
+                _action();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+    }
+
+    private sealed class CompositeDisposable : IDisposable
+    {
+        private readonly IDisposable[] _items;
+
+        public CompositeDisposable(params IDisposable[] items) => _items = items;
+
+        public void Dispose()
+        {
+            foreach (var item in _items)
+                item.Dispose();
+        }
+    }
 }
