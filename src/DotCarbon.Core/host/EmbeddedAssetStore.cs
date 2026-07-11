@@ -31,7 +31,7 @@ internal static class EmbeddedAssetStore
 
     public static Stream? OpenConfig() => EntryAssembly.GetManifestResourceStream(ConfigResource);
 
-    public static Stream Open(object sender, string scheme, string url, out string contentType)
+    public static Stream Open(string url, out string contentType)
     {
         var path = GetPath(url);
         if (!_security.AllowSourceMaps &&

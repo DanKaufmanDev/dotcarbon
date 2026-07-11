@@ -16,11 +16,14 @@ internal static class ProjectLocator
             .Where(item => item.Project is not null && IsExecutable(item.Project))
             .ToList();
 
-        var photinoHosts = projects
-            .Where(item => References(item.Project!, "Photino.NET") || References(item.Project!, "DotCarbon.Host"))
+        var desktopHosts = projects
+            .Where(item =>
+                References(item.Project!, "DotCarbon.Host.Desktop") ||
+                References(item.Project!, "Photino.NET") ||
+                References(item.Project!, "DotCarbon.Host"))
             .Select(item => item.Path)
             .ToList();
-        if (photinoHosts.Count == 1) return photinoHosts[0];
+        if (desktopHosts.Count == 1) return desktopHosts[0];
 
         var carbonHosts = projects
             .Where(item => References(item.Project!, "DotCarbon.Core"))

@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Photino.NET" Version="4.0.16" />
     <ProjectReference Include="..\DotCarbon.Core\DotCarbon.Core.csproj" />
   </ItemGroup>
 

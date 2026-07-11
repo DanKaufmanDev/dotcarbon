@@ -3,6 +3,7 @@
     <Project Path="src/DotCarbon.Cli/DotCarbon.Cli.csproj" />
     <Project Path="src/DotCarbon.Core/DotCarbon.Core.csproj" />
     <Project Path="src/DotCarbon.Host/DotCarbon.Host.csproj" />
+    <Project Path="src/DotCarbon.Host.Desktop/DotCarbon.Host.Desktop.csproj" />
     <Project Path="src/DotCarbon.Plugins.Clipboard/DotCarbon.Plugins.Clipboard.csproj" />
     <Project Path="src/DotCarbon.Plugins.DeepLink/DotCarbon.Plugins.DeepLink.csproj" />
     <Project Path="src/DotCarbon.Plugins.Dialog/DotCarbon.Plugins.Dialog.csproj" />

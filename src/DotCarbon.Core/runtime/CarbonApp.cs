@@ -24,6 +24,7 @@ public sealed class CarbonApp
     private readonly List<Action<AppHandle>> _setupHandlers = [];
     private readonly List<Action<CarbonLifecycleEvent>> _lifecycleHandlers = [];
     private IServiceProvider? _serviceProvider;
+    private ICarbonPlatformHost? _platformHost;
     private AppHandle? _handle;
     private CarbonWindow? _mainWindow;
     private bool _ready;
@@ -65,6 +66,18 @@ public sealed class CarbonApp
             "The application handle is available during setup and after CarbonApp.Run begins.");
 
     public event EventHandler<CarbonLifecycleEvent>? Lifecycle;
+
+    /// <summary>
+    /// Supply the platform that creates windows and runs the message loop. Provided by a
+    /// host package — e.g. <c>DotCarbon.Host.Desktop</c>'s <c>UseDesktop()</c> extension.
+    /// </summary>
+    public CarbonApp UsePlatform(ICarbonPlatformHost platformHost)
+    {
+        EnsureNotRunning();
+        ArgumentNullException.ThrowIfNull(platformHost);
+        _platformHost = platformHost;
+        return this;
+    }
 
     public CarbonApp Manage<TState>(TState state) where TState : class
     {
@@ -151,6 +164,10 @@ public sealed class CarbonApp
     public void Run()
     {
         EnsureNotRunning();
+        if (_platformHost is null)
+            throw new InvalidOperationException(
+                "No platform host is configured. Add the DotCarbon.Host.Desktop package and call " +
+                "UseDesktop() before Run() (or supply an ICarbonPlatformHost via UsePlatform).");
         _hasRun = true;
         _serviceProvider = Services.BuildServiceProvider();
         _handle = new AppHandle(this, _config, _serviceProvider, JsonOptions);
@@ -193,7 +210,7 @@ public sealed class CarbonApp
 
             _ready = true;
             RaiseLifecycle(CarbonLifecycleEventKind.Ready);
-            mainWindow.NativeWindow.WaitForClose();
+            _platformHost!.Run(mainWindow.Native);
         }
         finally
         {
@@ -230,7 +247,7 @@ public sealed class CarbonApp
             throw new InvalidOperationException(
                 $"A Carbon window with label '{options.Label}' already exists.");
 
-        var window = new CarbonWindow(this, options, parent);
+        var window = new CarbonWindow(this, _platformHost!, options, parent?.Native);
         _handle.AddWindow(window);
         if (_ready) LoadWindow(window);
         return window;
@@ -399,7 +416,7 @@ public sealed class CarbonApp
 
         try
         {
-            await window.NativeWindow.SendWebMessageAsync(response);
+            await window.Native.SendMessageAsync(response);
         }
         catch (Exception ex)
         {
@@ -519,7 +536,7 @@ public sealed class CarbonApp
                 window.Load(distUri);
                 break;
             default:
-                window.NativeWindow.LoadRawString(FallbackHtml());
+                window.Native.LoadString(FallbackHtml());
                 window.MarkLoaded();
                 break;
         }

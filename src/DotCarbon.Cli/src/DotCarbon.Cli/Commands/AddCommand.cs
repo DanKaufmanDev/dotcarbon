@@ -37,7 +37,7 @@ public static class AddCommand
                 "DialogPlugin",
                 "dialog",
                 ["dialog:*"],
-                WindowPluginFactory: "(_, window) => new DialogPlugin(window.NativeWindow)"),
+                WindowPluginFactory: "(_, window) => new DialogPlugin(window.Photino())"),
             ["fs"] = new(
                 ["fs", "filesystem", "file-system", "DotCarbon.Plugins.FileSystem"],
                 "DotCarbon.Plugins.FileSystem",

@@ -1,13 +1,13 @@
-using Photino.NET;
 using DotCarbon.Core.Config;
 using DotCarbon.Core.Plugins;
 using DotCarbon.Core.Runtime;
+using Photino.NET;
 
-namespace DotCarbon.Core.Host;
+namespace DotCarbon.Host.Desktop;
 
 /// <summary>
-/// Compatibility facade for the original single-window API. New applications should use
-/// <see cref="CarbonApp"/> directly.
+/// Compatibility facade for the original single-window desktop API. New applications
+/// should use <see cref="CarbonApp"/> directly with <c>UseDesktop()</c>.
 /// </summary>
 public sealed class CarbonHost
 {
@@ -15,12 +15,12 @@ public sealed class CarbonHost
 
     public CarbonHost(CarbonConfig config)
     {
-        _app = CarbonApp.Create(config);
+        _app = CarbonApp.Create(config).UseDesktop();
     }
 
     public AppHandle App => _app.Handle;
 
-    public PhotinoWindow Window => App.GetWindow(App.Config.Window.Label).NativeWindow;
+    public PhotinoWindow Window => App.GetWindow(App.Config.Window.Label).Photino();
 
     public CarbonHost WithPlugin(IPlugin plugin)
     {
@@ -30,7 +30,7 @@ public sealed class CarbonHost
 
     public CarbonHost WithPlugin(Func<PhotinoWindow, IPlugin> factory)
     {
-        _app.WithWindowPlugin((_, window) => factory(window.NativeWindow));
+        _app.WithWindowPlugin((_, window) => factory(window.Photino()));
         return this;
     }
 

@@ -9,8 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Photino.NET" Version="4.0.16" />
-    <PackageReference Include="DotCarbon.Core" Version="{{DOTCARBON_VERSION}}" />
+    <PackageReference Include="DotCarbon.Host.Desktop" Version="{{DOTCARBON_VERSION}}" />
   </ItemGroup>
 
 </Project>

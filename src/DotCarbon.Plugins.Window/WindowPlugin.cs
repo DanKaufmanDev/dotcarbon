@@ -1,7 +1,7 @@
 using DotCarbon.Core.Bridge;
+using DotCarbon.Core.Host;
 using DotCarbon.Core.Plugins;
 using DotCarbon.Core.Runtime;
-using Photino.NET;
 
 namespace DotCarbon.Plugins.Window;
 
@@ -9,17 +9,11 @@ namespace DotCarbon.Plugins.Window;
 [CarbonPermission("window:default", "Allow all window commands.", Commands = new[] { "window:*" })]
 public partial class WindowPlugin : IPlugin
 {
-    private readonly AppHandle? _app;
-    private readonly PhotinoWindow? _legacyWindow;
+    private readonly AppHandle _app;
 
     public WindowPlugin(AppHandle app)
     {
         _app = app;
-    }
-
-    public WindowPlugin(PhotinoWindow window)
-    {
-        _legacyWindow = window;
     }
 
     public string Namespace => "window";
@@ -27,14 +21,13 @@ public partial class WindowPlugin : IPlugin
     [CarbonCommand("create")]
     public Task<WindowState> Create(CreateWindowArgs args)
     {
-        var app = RequireApp();
-        var window = app.CreateWindow(new CarbonWindowOptions
+        var window = _app.CreateWindow(new CarbonWindowOptions
         {
             Label = args.Label,
             Url = args.Url,
             ParentLabel = args.ParentLabel,
             Capabilities = args.Capabilities is null ? [] : [.. args.Capabilities],
-            Title = args.Title ?? app.Config.App.Name,
+            Title = args.Title ?? _app.Config.App.Name,
             Width = args.Width ?? 800,
             Height = args.Height ?? 600,
             MinWidth = args.MinWidth,
@@ -54,14 +47,14 @@ public partial class WindowPlugin : IPlugin
             ContextMenu = args.ContextMenu ?? true,
             Icon = args.Icon,
         });
-        return Task.FromResult(ToState(window.Label, window.NativeWindow));
+        return Task.FromResult(ToState(window.Label, window.Native));
     }
 
     [CarbonCommand("get_all")]
     public Task<List<WindowState>> GetAll()
     {
-        var states = RequireApp().Windows
-            .Select(window => ToState(window.Label, window.NativeWindow))
+        var states = _app.Windows
+            .Select(window => ToState(window.Label, window.Native))
             .ToList();
         return Task.FromResult(states);
     }
@@ -69,38 +62,37 @@ public partial class WindowPlugin : IPlugin
     [CarbonCommand("get_by_label")]
     public Task<WindowState?> GetByLabel(TargetWindowArgs args)
     {
-        var app = RequireApp();
         return Task.FromResult(!string.IsNullOrWhiteSpace(args.Label) &&
-            app.TryGetWindow(args.Label, out var window)
-            ? ToState(window.Label, window.NativeWindow)
+            _app.TryGetWindow(args.Label, out var window)
+            ? ToState(window.Label, window.Native)
             : null);
     }
 
     [CarbonCommand("set_title")]
     public Task SetTitle(SetTitleArgs args)
     {
-        Resolve(args.Label).Window.SetTitle(args.Title);
+        Resolve(args.Label).View.SetTitle(args.Title);
         return Task.CompletedTask;
     }
 
     [CarbonCommand("set_size")]
     public Task SetSize(SetSizeArgs args)
     {
-        Resolve(args.Label).Window.SetSize(args.Width, args.Height);
+        Resolve(args.Label).View.SetSize(args.Width, args.Height);
         return Task.CompletedTask;
     }
 
     [CarbonCommand("set_position")]
     public Task SetPosition(SetPositionArgs args)
     {
-        Resolve(args.Label).Window.SetLocation(new System.Drawing.Point(args.X, args.Y));
+        Resolve(args.Label).View.SetPosition(args.X, args.Y);
         return Task.CompletedTask;
     }
 
     [CarbonCommand("center")]
     public Task Center(TargetWindowArgs args)
     {
-        Resolve(args.Label).Window.SetUseOsDefaultLocation(true);
+        Resolve(args.Label).View.Center();
         return Task.CompletedTask;
     }
 
@@ -109,7 +101,7 @@ public partial class WindowPlugin : IPlugin
     [CarbonCommand("minimize")]
     public Task Minimize(TargetWindowArgs args)
     {
-        Resolve(args.Label).Window.SetMinimized(true);
+        Resolve(args.Label).View.SetMinimized(true);
         return Task.CompletedTask;
     }
 
@@ -118,7 +110,7 @@ public partial class WindowPlugin : IPlugin
     [CarbonCommand("maximize")]
     public Task Maximize(TargetWindowArgs args)
     {
-        Resolve(args.Label).Window.SetMaximized(true);
+        Resolve(args.Label).View.SetMaximized(true);
         return Task.CompletedTask;
     }
 
@@ -127,7 +119,7 @@ public partial class WindowPlugin : IPlugin
     [CarbonCommand("unmaximize")]
     public Task Unmaximize(TargetWindowArgs args)
     {
-        Resolve(args.Label).Window.SetMaximized(false);
+        Resolve(args.Label).View.SetMaximized(false);
         return Task.CompletedTask;
     }
 
@@ -136,28 +128,28 @@ public partial class WindowPlugin : IPlugin
     [CarbonCommand("set_fullscreen")]
     public Task SetFullscreen(SetFullscreenArgs args)
     {
-        Resolve(args.Label).Window.SetFullScreen(args.Fullscreen);
+        Resolve(args.Label).View.SetFullscreen(args.Fullscreen);
         return Task.CompletedTask;
     }
 
     [CarbonCommand("set_always_on_top")]
     public Task SetAlwaysOnTop(SetAlwaysOnTopArgs args)
     {
-        Resolve(args.Label).Window.SetTopMost(args.AlwaysOnTop);
+        Resolve(args.Label).View.SetAlwaysOnTop(args.AlwaysOnTop);
         return Task.CompletedTask;
     }
 
     [CarbonCommand("set_resizable")]
     public Task SetResizable(SetResizableArgs args)
     {
-        Resolve(args.Label).Window.SetResizable(args.Resizable);
+        Resolve(args.Label).View.SetResizable(args.Resizable);
         return Task.CompletedTask;
     }
 
     [CarbonCommand("close")]
     public Task Close(TargetWindowArgs args)
     {
-        Resolve(args.Label).Window.Close();
+        Resolve(args.Label).View.Close();
         return Task.CompletedTask;
     }
 
@@ -167,44 +159,29 @@ public partial class WindowPlugin : IPlugin
     public Task<WindowState> GetState(TargetWindowArgs args)
     {
         var resolved = Resolve(args.Label);
-        return Task.FromResult(ToState(resolved.Label, resolved.Window));
+        return Task.FromResult(ToState(resolved.Label, resolved.View));
     }
 
     public Task<WindowState> GetState() => GetState(new TargetWindowArgs());
 
-    private (string Label, PhotinoWindow Window) Resolve(string? label)
+    private (string Label, ICarbonWebView View) Resolve(string? label)
     {
-        if (_app is not null)
-        {
-            var window = string.IsNullOrWhiteSpace(label)
-                ? _app.CurrentWindow
-                : _app.GetWindow(label);
-            return (window.Label, window.NativeWindow);
-        }
-
-        return ("main", _legacyWindow
-            ?? throw new InvalidOperationException("WindowPlugin has no application or window."));
+        var window = string.IsNullOrWhiteSpace(label)
+            ? _app.CurrentWindow
+            : _app.GetWindow(label);
+        return (window.Label, window.Native);
     }
 
-    private AppHandle RequireApp() => _app
-        ?? throw new InvalidOperationException(
-            "This command requires WindowPlugin(AppHandle). CarbonHost's PhotinoWindow constructor only supports the current window.");
-
-    private static WindowState ToState(string label, PhotinoWindow window)
-    {
-        var size = window.Size;
-        var location = window.Location;
-        return new WindowState(
-            Label: label,
-            Title: window.Title,
-            Width: size.Width,
-            Height: size.Height,
-            X: location.X,
-            Y: location.Y,
-            Fullscreen: window.FullScreen,
-            Maximized: window.Maximized,
-            Minimized: window.Minimized,
-            AlwaysOnTop: window.Topmost,
-            Resizable: window.Resizable);
-    }
+    private static WindowState ToState(string label, ICarbonWebView window) => new(
+        Label: label,
+        Title: window.Title,
+        Width: window.Width,
+        Height: window.Height,
+        X: window.X,
+        Y: window.Y,
+        Fullscreen: window.IsFullscreen,
+        Maximized: window.IsMaximized,
+        Minimized: window.IsMinimized,
+        AlwaysOnTop: window.IsAlwaysOnTop,
+        Resizable: window.IsResizable);
 }

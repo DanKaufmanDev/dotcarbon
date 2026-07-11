@@ -1440,15 +1440,4 @@ public static class BuildCommand
         if (OperatingSystem.IsWindows()) return "win-x64";
         return "linux-x64";
     }
-
-private static string? FindHostProject(string workingDir)
-{
-    return Directory
-        .GetFiles(workingDir, "*.csproj", SearchOption.AllDirectories)
-        .FirstOrDefault(proj => {
-            var content = File.ReadAllText(proj);
-            return content.Contains("Photino") &&
-                   content.Contains("<OutputType>Exe</OutputType>");
-        });
-}
 }

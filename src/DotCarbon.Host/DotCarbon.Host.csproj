@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotCarbon.Core\DotCarbon.Core.csproj" />
+    <ProjectReference Include="..\DotCarbon.Host.Desktop\DotCarbon.Host.Desktop.csproj" />
     <ProjectReference Include="..\DotCarbon.Plugins.FileSystem\DotCarbon.Plugins.FileSystem.csproj" />
     <ProjectReference Include="..\DotCarbon.Plugins.Dialog\DotCarbon.Plugins.Dialog.csproj" />
     <ProjectReference Include="..\DotCarbon.Plugins.Shell\DotCarbon.Plugins.Shell.csproj" />
