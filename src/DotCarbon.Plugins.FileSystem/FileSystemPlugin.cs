@@ -3,6 +3,8 @@ using DotCarbon.Core.Plugins;
 
 namespace DotCarbon.Plugins.FileSystem;
 
+[CarbonPlugin("File system", description: "Read and write files and directories.")]
+[CarbonPermission("fs:default", "Allow all file-system commands.", Commands = new[] { "fs:*" })]
 public partial class FileSystemPlugin : IPlugin
 {
     public string Namespace => "fs";

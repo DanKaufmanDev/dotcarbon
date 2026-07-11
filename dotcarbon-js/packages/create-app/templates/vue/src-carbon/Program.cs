@@ -7,7 +7,7 @@ var config = ConfigLoader.Load();
 
 CarbonApp.Create(config)
     .Manage(new AppState())
-    .WithPlugin<AppCommands>()
+    .UsePlugin<AppCommands>()
     .Run();
 
 public record GreetRequest(string Name);

@@ -5,6 +5,8 @@ using Photino.NET;
 
 namespace DotCarbon.Plugins.Window;
 
+[CarbonPlugin("Window", description: "Create and control labeled windows and webviews.")]
+[CarbonPermission("window:default", "Allow all window commands.", Commands = new[] { "window:*" })]
 public partial class WindowPlugin : IPlugin
 {
     private readonly AppHandle? _app;

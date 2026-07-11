@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace DotCarbon.Core.Config;
 
 public class CarbonConfig
@@ -6,6 +8,7 @@ public class CarbonConfig
     public WindowConfig Window { get; set; } = new();
     public List<WindowConfig> Windows { get; set; } = [];
     public SecurityConfig Security { get; set; } = new();
+    public Dictionary<string, JsonElement> Plugins { get; set; } = [];
     public BuildConfig Build { get; set; } = new();
     public BundleConfig Bundle { get; set; } = new();
 }

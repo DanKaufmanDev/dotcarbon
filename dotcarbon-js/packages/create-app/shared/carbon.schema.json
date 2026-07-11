@@ -16,6 +16,12 @@
             "description": "Additional labeled windows/webviews created when the application starts."
         },
         "security": { "$ref": "#/definitions/Security" },
+        "plugins": {
+            "type": "object",
+            "additionalProperties": true,
+            "default": {},
+            "description": "Plugin-specific configuration keyed by plugin namespace, e.g. { \"shell\": { ... } }."
+        },
         "build": { "$ref": "#/definitions/Build" },
         "bundle": { "$ref": "#/definitions/Bundle" }
     },

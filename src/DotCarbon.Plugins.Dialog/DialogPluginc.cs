@@ -4,6 +4,8 @@ using Photino.NET;
 
 namespace DotCarbon.Plugins.Dialog;
 
+[CarbonPlugin("Dialogs", description: "Open native file, folder, message, and confirmation dialogs.")]
+[CarbonPermission("dialog:default", "Allow all dialog commands.", Commands = new[] { "dialog:*" })]
 public partial class DialogPlugin : IPlugin
 {
     public string Namespace => "dialog";

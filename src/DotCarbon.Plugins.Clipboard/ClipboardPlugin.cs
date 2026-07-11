@@ -4,6 +4,8 @@ using DotCarbon.Core.Plugins;
 
 namespace DotCarbon.Plugins.Clipboard;
 
+[CarbonPlugin("Clipboard", description: "Read, write, and clear clipboard text.")]
+[CarbonPermission("clipboard:default", "Allow all clipboard commands.", Commands = new[] { "clipboard:*" })]
 public partial class ClipboardPlugin : IPlugin
 {
     public string Namespace => "clipboard";

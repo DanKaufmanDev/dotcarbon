@@ -17,6 +17,7 @@ public sealed class CarbonApp
     private readonly CapabilityManager _capabilities;
     private readonly AppHandleAccessor _handleAccessor = new();
     private readonly List<IPlugin> _plugins = [];
+    private readonly List<IPlugin> _activePlugins = [];
     private readonly List<Func<IServiceProvider, IPlugin>> _pluginFactories = [];
     private readonly List<Func<AppHandle, CarbonWindow, IPlugin>> _windowPluginFactories = [];
     private readonly List<Action<AppHandle>> _setupHandlers = [];
@@ -103,6 +104,13 @@ public sealed class CarbonApp
         return this;
     }
 
+    public CarbonApp UsePlugin(IPlugin plugin) => WithPlugin(plugin);
+
+    public CarbonApp UsePlugin<
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPlugin>()
+        where TPlugin : class, IPlugin =>
+        WithPlugin<TPlugin>();
+
     public CarbonApp WithPluginFactory(Func<IServiceProvider, IPlugin> factory)
     {
         EnsureNotRunning();
@@ -159,11 +167,18 @@ public sealed class CarbonApp
             foreach (var configuredWindow in _config.Windows)
                 CreateWindow(CarbonWindowOptions.FromConfig(configuredWindow));
 
-            foreach (var plugin in _plugins) _registry.RegisterPlugin(plugin);
+            _activePlugins.AddRange(_plugins);
             foreach (var factory in _pluginFactories)
-                _registry.RegisterPlugin(factory(_serviceProvider));
+                _activePlugins.Add(factory(_serviceProvider));
             foreach (var factory in _windowPluginFactories)
-                _registry.RegisterPlugin(factory(_handle, mainWindow));
+                _activePlugins.Add(factory(_handle, mainWindow));
+
+            foreach (var plugin in _activePlugins)
+            {
+                InvokePluginInitialize(plugin);
+                _registry.RegisterPlugin(plugin);
+            }
+            _handle.SetPlugins(_activePlugins.Select(plugin => plugin.Metadata));
 
             foreach (var setup in _setupHandlers) setup(_handle);
             foreach (var window in _handle.Windows.Where(window => !window.IsLoaded))
@@ -181,7 +196,14 @@ public sealed class CarbonApp
             }
             finally
             {
-                (_serviceProvider as IDisposable)?.Dispose();
+                try
+                {
+                    DisposePlugins();
+                }
+                finally
+                {
+                    (_serviceProvider as IDisposable)?.Dispose();
+                }
             }
         }
     }
@@ -246,6 +268,8 @@ public sealed class CarbonApp
         object? data = null)
     {
         var lifecycleEvent = new CarbonLifecycleEvent(kind, Handle, window, data);
+        foreach (var plugin in _activePlugins.ToArray())
+            InvokePluginLifecycle(plugin, lifecycleEvent);
         foreach (var handler in _lifecycleHandlers.ToArray())
             InvokeLifecycleHandler(handler, lifecycleEvent);
         if (Lifecycle is not null)
@@ -279,6 +303,58 @@ public sealed class CarbonApp
             Console.Error.WriteLine(
                 $"[Carbon] Lifecycle handler '{lifecycleEvent.Kind}' failed: {ex.Message}");
         }
+    }
+
+    private void InvokePluginInitialize(IPlugin plugin)
+    {
+        try
+        {
+            var configuration = _config.Plugins.TryGetValue(plugin.Namespace, out var value)
+                ? value
+                : (JsonElement?)null;
+            plugin.InitializeAsync(new PluginContext(Handle, configuration))
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Plugin '{plugin.Namespace}' failed during initialization: {ex.Message}",
+                ex);
+        }
+    }
+
+    private static void InvokePluginLifecycle(
+        IPlugin plugin,
+        CarbonLifecycleEvent lifecycleEvent)
+    {
+        try
+        {
+            plugin.OnLifecycleAsync(lifecycleEvent).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(
+                $"[Carbon] Plugin '{plugin.Namespace}' lifecycle handler '{lifecycleEvent.Kind}' failed: {ex.Message}");
+        }
+    }
+
+    private void DisposePlugins()
+    {
+        for (var i = _activePlugins.Count - 1; i >= 0; i--)
+        {
+            var plugin = _activePlugins[i];
+            try
+            {
+                plugin.DisposeAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(
+                    $"[Carbon] Plugin '{plugin.Namespace}' teardown failed: {ex.Message}");
+            }
+        }
+        _activePlugins.Clear();
     }
 
     internal async void HandleMessage(CarbonWindow window, string message)

@@ -26,6 +26,35 @@ type BridgeEvent = {
 export interface CarbonCommands {}
 export interface CarbonEvents {}
 
+export interface CarbonCommandMetadata {
+    name: string;
+    fullName: string;
+    arguments: string | null;
+    result: string | null;
+}
+
+export interface CarbonPermissionMetadata {
+    identifier: string;
+    description: string | null;
+    commands: readonly string[];
+}
+
+export interface CarbonEventMetadata {
+    name: string;
+    payloadType: string | null;
+    description: string | null;
+}
+
+export interface CarbonPluginMetadata {
+    namespace: string;
+    name: string;
+    version: string | null;
+    description: string | null;
+    commands: readonly CarbonCommandMetadata[];
+    permissions: readonly CarbonPermissionMetadata[];
+    events: readonly CarbonEventMetadata[];
+}
+
 export interface CarbonEvent<T> {
     id: number;
     event: string;

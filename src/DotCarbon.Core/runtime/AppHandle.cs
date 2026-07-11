@@ -4,6 +4,7 @@ using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using DotCarbon.Core.Bridge;
 using DotCarbon.Core.Config;
+using DotCarbon.Core.Plugins;
 
 namespace DotCarbon.Core.Runtime;
 
@@ -12,6 +13,8 @@ public sealed class AppHandle
     private readonly object _windowsGate = new();
     private readonly Dictionary<string, CarbonWindow> _windows =
         new(StringComparer.Ordinal);
+    private readonly object _pluginsGate = new();
+    private readonly List<PluginMetadata> _plugins = [];
     private readonly AsyncLocal<CarbonCommandContext?> _currentInvocation = new();
     private readonly CarbonApp _app;
 
@@ -32,6 +35,14 @@ public sealed class AppHandle
     public IServiceProvider Services { get; }
     public JsonSerializerOptions JsonOptions { get; }
     public CarbonEventBus Events { get; }
+
+    public IReadOnlyList<PluginMetadata> Plugins
+    {
+        get
+        {
+            lock (_pluginsGate) return _plugins.ToArray();
+        }
+    }
 
     public IReadOnlyList<CarbonWindow> Windows
     {
@@ -102,6 +113,15 @@ public sealed class AppHandle
             if (!_windows.TryAdd(window.Label, window))
                 throw new InvalidOperationException(
                     $"A Carbon window with label '{window.Label}' already exists.");
+        }
+    }
+
+    internal void SetPlugins(IEnumerable<PluginMetadata> plugins)
+    {
+        lock (_pluginsGate)
+        {
+            _plugins.Clear();
+            _plugins.AddRange(plugins);
         }
     }
 

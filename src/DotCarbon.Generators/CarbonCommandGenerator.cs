@@ -12,6 +12,9 @@ namespace DotCarbon.Generators;
 public sealed class CarbonCommandGenerator : IIncrementalGenerator
 {
     private const string AttributeName = "DotCarbon.Core.Bridge.CarbonCommandAttribute";
+    private const string PluginAttributeName = "DotCarbon.Core.Plugins.CarbonPluginAttribute";
+    private const string PermissionAttributeName = "DotCarbon.Core.Plugins.CarbonPermissionAttribute";
+    private const string EventAttributeName = "DotCarbon.Core.Plugins.CarbonEventAttribute";
     private const string ContextBase = "System.Text.Json.Serialization.JsonSerializerContext";
 
     private static readonly DiagnosticDescriptor NotPartial = new(
@@ -70,6 +73,7 @@ public sealed class CarbonCommandGenerator : IIncrementalGenerator
 
         var em = new Emitter(spc, contextFq);
         var reg = new StringBuilder();
+        var metadataCommands = new StringBuilder();
 
         foreach (var method in commands)
         {
@@ -77,13 +81,24 @@ public sealed class CarbonCommandGenerator : IIncrementalGenerator
             if (name is null) continue;
 
             var hasArg = method.Parameters.Length == 1;
+            var argType = hasArg
+                ? method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                : null;
             var argDecl = hasArg
                 ? "                var __arg = " + em.Read(method.Parameters[0].Type, "__p") + ";\n"
                 : string.Empty;
             var call = "this." + method.Name + "(" + (hasArg ? "__arg" : "") + ")";
             var (kind, inner) = ClassifyReturn(method);
+            var resultType = inner?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                ?? (kind == ReturnKind.Task || kind == ReturnKind.Void
+                    ? "void"
+                    : method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
 
             reg.Append("            registry.Add(this.Namespace + \":" + name + "\", ");
+            metadataCommands.Append("                new global::DotCarbon.Core.Plugins.PluginCommandMetadata(")
+                .Append(Literal(name)).Append(", this.Namespace + \":").Append(name).Append("\", ")
+                .Append(LiteralOrNull(argType)).Append(", ")
+                .Append(Literal(resultType)).AppendLine("),");
             switch (kind)
             {
                 case ReturnKind.SyncValue:
@@ -123,12 +138,73 @@ public sealed class CarbonCommandGenerator : IIncrementalGenerator
         sb.AppendLine("        {");
         sb.Append(reg);
         sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.Append(EmitMetadata(type, metadataCommands.ToString()));
         sb.Append(em.Helpers);
         sb.AppendLine("    }");
         if (ns is not null) sb.AppendLine("}");
 
         var hint = (ns is null ? "" : ns + ".") + type.Name + ".Carbon.g.cs";
         spc.AddSource(hint, SourceText.From(sb.ToString(), Encoding.UTF8));
+    }
+
+    private static string EmitMetadata(INamedTypeSymbol type, string commands)
+    {
+        var attr = type.GetAttributes()
+            .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == PluginAttributeName);
+        var name = GetConstructorString(attr, 0) ?? type.Name;
+        var version = GetConstructorString(attr, 1);
+        var description = GetConstructorString(attr, 2);
+
+        var permissions = new StringBuilder();
+        foreach (var permission in type.GetAttributes()
+                     .Where(a => a.AttributeClass?.ToDisplayString() == PermissionAttributeName))
+        {
+            var identifier = GetConstructorString(permission, 0);
+            if (identifier is null) continue;
+            var permissionDescription = GetConstructorString(permission, 1);
+            var commandValues = GetNamedStringArray(permission, "Commands");
+
+            permissions.Append("                new global::DotCarbon.Core.Plugins.PluginPermissionMetadata(")
+                .Append(Literal(identifier)).Append(", ")
+                .Append(LiteralOrNull(permissionDescription)).Append(", ")
+                .Append(StringArray(commandValues)).AppendLine("),");
+        }
+
+        var events = new StringBuilder();
+        foreach (var evt in type.GetAttributes()
+                     .Where(a => a.AttributeClass?.ToDisplayString() == EventAttributeName))
+        {
+            var eventName = GetConstructorString(evt, 0);
+            if (eventName is null) continue;
+            var payloadType = GetConstructorString(evt, 1);
+            var eventDescription = GetConstructorString(evt, 2);
+
+            events.Append("                new global::DotCarbon.Core.Plugins.PluginEventMetadata(")
+                .Append(Literal(eventName)).Append(", ")
+                .Append(LiteralOrNull(payloadType)).Append(", ")
+                .Append(LiteralOrNull(eventDescription)).AppendLine("),");
+        }
+
+        return
+            "        public global::DotCarbon.Core.Plugins.PluginMetadata Metadata =>\n" +
+            "            new global::DotCarbon.Core.Plugins.PluginMetadata(\n" +
+            "                this.Namespace,\n" +
+            "                " + Literal(name) + ",\n" +
+            "                " + LiteralOrNull(version) + ",\n" +
+            "                " + LiteralOrNull(description) + ",\n" +
+            "                new global::DotCarbon.Core.Plugins.PluginCommandMetadata[]\n" +
+            "                {\n" +
+            commands +
+            "                },\n" +
+            "                new global::DotCarbon.Core.Plugins.PluginPermissionMetadata[]\n" +
+            "                {\n" +
+            permissions +
+            "                },\n" +
+            "                new global::DotCarbon.Core.Plugins.PluginEventMetadata[]\n" +
+            "                {\n" +
+            events +
+            "                });\n\n";
     }
 
     private static bool IsJsonContext(INamedTypeSymbol type)
@@ -143,6 +219,35 @@ public sealed class CarbonCommandGenerator : IIncrementalGenerator
         var attr = method.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == AttributeName);
         return attr is null || attr.ConstructorArguments.Length == 0 ? null : attr.ConstructorArguments[0].Value as string;
     }
+
+    private static string? GetConstructorString(AttributeData? attr, int index)
+    {
+        if (attr is null || attr.ConstructorArguments.Length <= index) return null;
+        return attr.ConstructorArguments[index].Value as string;
+    }
+
+    private static IReadOnlyList<string> GetNamedStringArray(AttributeData attr, string name)
+    {
+        foreach (var argument in attr.NamedArguments)
+        {
+            if (argument.Key != name) continue;
+            return argument.Value.Values
+                .Select(value => value.Value as string)
+                .Where(value => value is not null)
+                .Cast<string>()
+                .ToArray();
+        }
+        return [];
+    }
+
+    private static string LiteralOrNull(string? value) =>
+        value is null ? "null" : Literal(value);
+
+    private static string Literal(string value) =>
+        "@\"" + value.Replace("\"", "\"\"") + "\"";
+
+    private static string StringArray(IReadOnlyList<string> values) =>
+        "new string[] { " + string.Join(", ", values.Select(Literal)) + " }";
 
     private enum ReturnKind { Void, SyncValue, Task, TaskValue }
 
