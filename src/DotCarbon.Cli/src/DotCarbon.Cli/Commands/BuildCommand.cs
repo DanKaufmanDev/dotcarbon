@@ -57,7 +57,7 @@ public static class BuildCommand
         return command;
     }
 
-    private static async Task<int> Run(
+    internal static async Task<int> Run(
         DirectoryInfo? projectDir, string target, bool aot, bool bundle, bool updaterArtifacts)
     {
         var workingDir = projectDir?.FullName ?? Directory.GetCurrentDirectory();
@@ -1428,7 +1428,7 @@ public static class BuildCommand
         return null;
     }
 
-    private static string GetDefaultTarget()
+    internal static string GetDefaultTarget()
     {
         if (OperatingSystem.IsMacOS())
         {

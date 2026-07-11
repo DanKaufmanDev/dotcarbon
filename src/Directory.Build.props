@@ -13,7 +13,7 @@
     <PackageTags>desktop;webview;photino;tauri;cross-platform;dotnet</PackageTags>
     <RepositoryUrl>https://github.com/DanKaufmanDev/dotcarbon</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/DanKaufmanDev/dotcarbon</PackageProjectUrl>
+    <PackageProjectUrl>https://dotcarbon.dev</PackageProjectUrl>
     <IsPackable>true</IsPackable>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>

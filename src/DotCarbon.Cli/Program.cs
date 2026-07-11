@@ -5,7 +5,8 @@ var root = new RootCommand("⚡ Carbon — C# desktop app framework");
 
 root.AddCommand(DevCommand.Build());
 root.AddCommand(AddCommand.Build());
-root.AddCommand(BuildCommand.Build());
+root.AddCommand(BundleCommand.Build());
+root.AddCommand(BuildCommand.Build()); // alias for `carbon bundle desktop` — same engine
 root.AddCommand(TypesCommand.Build());
 root.AddCommand(IconCommand.Build());
 root.AddCommand(SignerCommand.Build());
