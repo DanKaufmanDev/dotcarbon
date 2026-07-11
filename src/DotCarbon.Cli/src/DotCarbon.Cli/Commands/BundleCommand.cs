@@ -16,7 +16,7 @@ public static class BundleCommand
         var bundle = new Command("bundle", "Package a Carbon app for a platform target");
 
         bundle.AddCommand(DesktopSubcommand());
-        bundle.AddCommand(ReservedSubcommand(new AndroidBundler()));
+        bundle.AddCommand(AndroidSubcommand());
         bundle.AddCommand(ReservedSubcommand(new IosBundler()));
 
         // `carbon bundle` with no subcommand → desktop with sensible defaults.
@@ -69,6 +69,48 @@ public static class BundleCommand
                 package: !context.ParseResult.GetValueForOption(noPackage),
                 updaterArtifacts: context.ParseResult.GetValueForOption(updaterArtifacts),
                 dryRun: context.ParseResult.GetValueForOption(dryRun));
+        });
+
+        return cmd;
+    }
+
+    private static Command AndroidSubcommand()
+    {
+        var cmd = new Command("android", "Bundle for Android (APK/AAB via .NET Android)");
+
+        var project = new Option<DirectoryInfo?>(
+            "--project", "Path to the Carbon project (default: current directory)");
+        var aab = new Option<bool>("--aab", "Produce an AAB (Play Store bundle) instead of an APK");
+        var apk = new Option<bool>("--apk", "Produce an APK (the default)");
+        var debug = new Option<bool>("--debug", "Build the Debug configuration");
+        var release = new Option<bool>("--release", "Build the Release configuration (the default)");
+        var dryRun = new Option<bool>("--dry-run", "Print the bundle plan without executing it");
+
+        cmd.AddOption(project);
+        cmd.AddOption(aab);
+        cmd.AddOption(apk);
+        cmd.AddOption(debug);
+        cmd.AddOption(release);
+        cmd.AddOption(dryRun);
+
+        cmd.SetHandler(async context =>
+        {
+            var projectDir = context.ParseResult.GetValueForOption(project);
+            var workingDir = projectDir?.FullName ?? Directory.GetCurrentDirectory();
+            var configPath = Path.Combine(workingDir, "carbon.json");
+            if (!File.Exists(configPath))
+            {
+                WriteError($"No carbon.json found in {workingDir}");
+                context.ExitCode = 1;
+                return;
+            }
+
+            var format = context.ParseResult.GetValueForOption(aab) ? "aab" : "apk";
+            var isRelease = !context.ParseResult.GetValueForOption(debug);
+            var config = ConfigLoader.Load(configPath);
+            context.ExitCode = await new AndroidBundler().ExecuteAsync(
+                config, workingDir, format, isRelease,
+                context.ParseResult.GetValueForOption(dryRun));
         });
 
         return cmd;

@@ -1294,7 +1294,7 @@ public static class BuildCommand
         string LinuxDirectory,
         string Linux512);
 
-    private static async Task<bool> BuildFrontend(CarbonConfig config, string workingDir)
+    internal static async Task<bool> BuildFrontend(CarbonConfig config, string workingDir)
     {
         var buildCommand = string.IsNullOrWhiteSpace(config.Build.BuildCommand)
             ? config.Build.DevCommand.Replace("run dev", "run build").Replace(" dev", " build")
@@ -1565,7 +1565,7 @@ public static class BuildCommand
         catch (PlatformNotSupportedException) { return false; }
     }
 
-    private static async Task<int> RunProcessToCompletion(
+    internal static async Task<int> RunProcessToCompletion(
         string command, string args, string workingDir,
         string prefix, ConsoleColor color)
     {

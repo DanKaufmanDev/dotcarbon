@@ -163,7 +163,28 @@
                 "macOS": { "$ref": "#/definitions/MacOSBundle" },
                 "windows": { "$ref": "#/definitions/WindowsBundle" },
                 "linux": { "$ref": "#/definitions/LinuxBundle" },
+                "android": { "$ref": "#/definitions/AndroidBundle" },
+                "ios": { "$ref": "#/definitions/IosBundle" },
                 "updater": { "$ref": "#/definitions/UpdaterBundle" }
+            }
+        },
+        "AndroidBundle": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "package": { "type": ["string", "null"], "description": "Android application id. Defaults to app.identifier." },
+                "minSdk": { "type": "integer", "default": 24 },
+                "targetSdk": { "type": "integer", "default": 34 },
+                "compileSdk": { "type": "integer", "default": 34 }
+            }
+        },
+        "IosBundle": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "bundleIdentifier": { "type": ["string", "null"], "description": "iOS bundle identifier. Defaults to app.identifier." },
+                "minimumOSVersion": { "type": "string", "default": "15.0" },
+                "developmentTeam": { "type": ["string", "null"], "description": "Apple developer team id for signing." }
             }
         },
         "FileAssociation": {

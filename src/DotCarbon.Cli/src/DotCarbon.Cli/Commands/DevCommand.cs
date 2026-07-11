@@ -32,7 +32,34 @@ public static class DevCommand
         command.AddOption(noCapabilitiesOption);
         command.SetHandler(Run, projectOption, noTypesOption, typesOutOption, noCapabilitiesOption);
 
+        command.AddCommand(AndroidSubcommand());
+
         return command;
+    }
+
+    private static Command AndroidSubcommand()
+    {
+        var cmd = new Command("android", "Build and run the Android app on a device or emulator");
+        var project = new Option<DirectoryInfo?>(
+            "--project", "Path to the Carbon project (default: current directory)");
+        cmd.AddOption(project);
+        cmd.SetHandler(async context =>
+        {
+            var projectDir = context.ParseResult.GetValueForOption(project);
+            var workingDir = projectDir?.FullName ?? Directory.GetCurrentDirectory();
+            var configPath = Path.Combine(workingDir, "carbon.json");
+            if (!File.Exists(configPath))
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[Carbon] No carbon.json found in {workingDir}");
+                Console.ResetColor();
+                context.ExitCode = 1;
+                return;
+            }
+            var config = ConfigLoader.Load(configPath);
+            context.ExitCode = await new Bundling.AndroidBundler().DevAsync(config, workingDir);
+        });
+        return cmd;
     }
 
     private static async Task Run(DirectoryInfo? projectDir, bool noTypes, FileInfo? typesOut, bool noCapabilities)

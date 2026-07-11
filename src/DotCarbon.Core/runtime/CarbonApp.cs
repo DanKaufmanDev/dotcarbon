@@ -29,6 +29,7 @@ public sealed class CarbonApp
     private CarbonWindow? _mainWindow;
     private bool _ready;
     private bool _hasRun;
+    private bool _shutdown;
     private int _exitLifecycleRaised;
     private ContentMode _contentMode;
     private string? _distIndexPath;
@@ -161,73 +162,100 @@ public sealed class CarbonApp
         return this;
     }
 
-    public void Run()
+    /// <summary>
+    /// Build services, register commands, create windows, initialize plugins and load content —
+    /// then return without blocking. A host that drives its own loop (desktop's message pump, or an
+    /// Android <c>Activity</c> / iOS <c>UIApplication</c>) calls this, then owns the lifetime and
+    /// calls <see cref="Shutdown"/> when the platform tears the app down. Desktop uses <see cref="Run"/>.
+    /// </summary>
+    public AppHandle Start()
     {
         EnsureNotRunning();
         if (_platformHost is null)
             throw new InvalidOperationException(
-                "No platform host is configured. Add the DotCarbon.Host.Desktop package and call " +
-                "UseDesktop() before Run() (or supply an ICarbonPlatformHost via UsePlatform).");
+                "No platform host is configured. Add a host package (e.g. DotCarbon.Host.Desktop) and call " +
+                "UseDesktop() before Run()/Start() (or supply an ICarbonPlatformHost via UsePlatform).");
         _hasRun = true;
         _serviceProvider = Services.BuildServiceProvider();
         _handle = new AppHandle(this, _config, _serviceProvider, JsonOptions);
         _handleAccessor.Handle = _handle;
 
+        RegisterRuntimeCommands();
+        PrepareContentMode();
+        _capabilities.Configure(_contentMode == ContentMode.DevServer);
+        _bridgePolicy.Configure(_contentMode == ContentMode.DevServer);
+        EmbeddedAssetStore.Configure(_config.Security);
+        EmbeddedAssetStore.ConfigureLocalAssets(_contentMode == ContentMode.Dist ? _distAssetRoot : null);
+        RaiseLifecycle(CarbonLifecycleEventKind.Starting);
+
+        var mainOptions = CarbonWindowOptions.FromConfig(_config.Window);
+        if (string.IsNullOrWhiteSpace(mainOptions.Label)) mainOptions.Label = "main";
+        _config.Window.Label = mainOptions.Label;
+        var mainWindow = _mainWindow = CreateWindow(mainOptions);
+
+        foreach (var configuredWindow in _config.Windows)
+            CreateWindow(CarbonWindowOptions.FromConfig(configuredWindow));
+
+        _activePlugins.AddRange(_plugins);
+        foreach (var factory in _pluginFactories)
+            _activePlugins.Add(factory(_serviceProvider));
+        foreach (var factory in _windowPluginFactories)
+            _activePlugins.Add(factory(_handle, mainWindow));
+
+        foreach (var plugin in _activePlugins)
+        {
+            InvokePluginInitialize(plugin);
+            _registry.RegisterPlugin(plugin);
+        }
+        _handle.SetPlugins(_activePlugins.Select(plugin => plugin.Metadata));
+
+        foreach (var setup in _setupHandlers) setup(_handle);
+        foreach (var window in _handle.Windows.Where(window => !window.IsLoaded))
+            LoadWindow(window);
+
+        _ready = true;
+        RaiseLifecycle(CarbonLifecycleEventKind.Ready);
+        return _handle;
+    }
+
+    /// <summary>
+    /// Desktop entry point: <see cref="Start"/>, block on the platform message loop until the main
+    /// window closes, then tear down. Mobile hosts call <see cref="Start"/>/<see cref="Shutdown"/> instead.
+    /// </summary>
+    public void Run()
+    {
         try
         {
-            RegisterRuntimeCommands();
-            PrepareContentMode();
-            _capabilities.Configure(_contentMode == ContentMode.DevServer);
-            _bridgePolicy.Configure(_contentMode == ContentMode.DevServer);
-            EmbeddedAssetStore.Configure(_config.Security);
-            EmbeddedAssetStore.ConfigureLocalAssets(_contentMode == ContentMode.Dist ? _distAssetRoot : null);
-            RaiseLifecycle(CarbonLifecycleEventKind.Starting);
+            Start();
+            _platformHost!.Run(_mainWindow!.Native);
+        }
+        finally
+        {
+            Shutdown();
+        }
+    }
 
-            var mainOptions = CarbonWindowOptions.FromConfig(_config.Window);
-            if (string.IsNullOrWhiteSpace(mainOptions.Label)) mainOptions.Label = "main";
-            _config.Window.Label = mainOptions.Label;
-            var mainWindow = _mainWindow = CreateWindow(mainOptions);
-
-            foreach (var configuredWindow in _config.Windows)
-                CreateWindow(CarbonWindowOptions.FromConfig(configuredWindow));
-
-            _activePlugins.AddRange(_plugins);
-            foreach (var factory in _pluginFactories)
-                _activePlugins.Add(factory(_serviceProvider));
-            foreach (var factory in _windowPluginFactories)
-                _activePlugins.Add(factory(_handle, mainWindow));
-
-            foreach (var plugin in _activePlugins)
-            {
-                InvokePluginInitialize(plugin);
-                _registry.RegisterPlugin(plugin);
-            }
-            _handle.SetPlugins(_activePlugins.Select(plugin => plugin.Metadata));
-
-            foreach (var setup in _setupHandlers) setup(_handle);
-            foreach (var window in _handle.Windows.Where(window => !window.IsLoaded))
-                LoadWindow(window);
-
-            _ready = true;
-            RaiseLifecycle(CarbonLifecycleEventKind.Ready);
-            _platformHost!.Run(mainWindow.Native);
+    /// <summary>
+    /// Raise the exit lifecycle and dispose plugins and services. Called automatically by
+    /// <see cref="Run"/>; mobile hosts call it when the platform destroys the app.
+    /// </summary>
+    public void Shutdown()
+    {
+        if (_shutdown) return;
+        _shutdown = true;
+        try
+        {
+            RaiseExitLifecycle();
         }
         finally
         {
             try
             {
-                RaiseExitLifecycle();
+                DisposePlugins();
             }
             finally
             {
-                try
-                {
-                    DisposePlugins();
-                }
-                finally
-                {
-                    (_serviceProvider as IDisposable)?.Dispose();
-                }
+                (_serviceProvider as IDisposable)?.Dispose();
             }
         }
     }

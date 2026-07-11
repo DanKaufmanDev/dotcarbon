@@ -1,0 +1,67 @@
+using System.Text.Json;
+using Android.Webkit;
+using DotCarbon.Core.Host;
+
+namespace DotCarbon.Host.Android;
+
+/// <summary>
+/// The Android <see cref="ICarbonWebView"/>: an adapter over a native <see cref="WebView"/>.
+/// Desktop-only window operations (min/max/fullscreen/position) are no-ops — a mobile app is a
+/// single, full-screen surface. Bridge messages flow JS→native via <see cref="CarbonJsBridge"/>
+/// (which calls <see cref="DispatchMessage"/>) and native→JS via <see cref="SendMessageAsync"/>.
+/// </summary>
+public sealed class AndroidWebView : ICarbonWebView
+{
+    private CarbonWebViewCallbacks? _callbacks;
+    private string _title = string.Empty;
+
+    /// <summary>The underlying native Android WebView.</summary>
+    public WebView Native { get; }
+
+    public AndroidWebView(WebView native) => Native = native;
+
+    internal void Attach(CarbonWebViewCallbacks callbacks) => _callbacks = callbacks;
+
+    /// <summary>Called by the JS bridge when the frontend posts a message.</summary>
+    public void DispatchMessage(string message) => _callbacks?.MessageReceived?.Invoke(message);
+
+    internal void RaiseCreated() => _callbacks?.Created?.Invoke();
+    internal void RaiseFocused() => _callbacks?.Focused?.Invoke();
+    internal void RaiseBlurred() => _callbacks?.Blurred?.Invoke();
+
+    public string Title => _title;
+    public int Width => Native.Width;
+    public int Height => Native.Height;
+    public int X => 0;
+    public int Y => 0;
+    public bool IsFullscreen => true;
+    public bool IsMaximized => true;
+    public bool IsMinimized => false;
+    public bool IsAlwaysOnTop => false;
+    public bool IsResizable => false;
+
+    public void SetTitle(string title) => _title = title; // no OS title bar on Android
+    public void SetSize(int width, int height) { }
+    public void SetPosition(int x, int y) { }
+    public void Center() { }
+    public void SetMinimized(bool minimized) { }
+    public void SetMaximized(bool maximized) { }
+    public void SetFullscreen(bool fullscreen) { }
+    public void SetAlwaysOnTop(bool alwaysOnTop) { }
+    public void SetResizable(bool resizable) { }
+
+    public void LoadUri(Uri uri) => Native.Post(() => Native.LoadUrl(uri.ToString()));
+
+    public void LoadString(string html) =>
+        Native.Post(() => Native.LoadData(html, "text/html", "utf-8"));
+
+    public Task SendMessageAsync(string message)
+    {
+        // Deliver on the UI thread; encode as a JS string literal for window.__carbonReceive.
+        var literal = JsonSerializer.Serialize(message);
+        Native.Post(() => Native.EvaluateJavascript($"window.__carbonReceive({literal})", null));
+        return Task.CompletedTask;
+    }
+
+    public void Close() { } // the Activity owns the lifetime; finishing it is up to the app.
+}

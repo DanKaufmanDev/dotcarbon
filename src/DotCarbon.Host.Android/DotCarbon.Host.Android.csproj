@@ -1,0 +1,25 @@
+<!--
+  DotCarbon.Host.Android — the .NET Android host (Android WebView + JS<->C# bridge).
+
+  Targets net10.0-android, so it requires the Android workload to restore/build:
+      dotnet workload install android
+  It is intentionally NOT part of DotCarbon.slnx so the desktop solution builds without
+  that workload. Publish it (and build android apps) on a machine/CI with the workload.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>24</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Description>Android host for DotCarbon apps: the Android WebView adapter, JS-to-C# bridge, and CarbonActivity.</Description>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Xamarin.AndroidX.Webkit" Version="1.11.0.3" />
+    <ProjectReference Include="..\DotCarbon.Core\DotCarbon.Core.csproj" />
+  </ItemGroup>
+
+</Project>
