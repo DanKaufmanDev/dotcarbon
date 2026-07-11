@@ -22,8 +22,7 @@
         "capabilities": ["main"]
     },
     "security": {
-        "enabled": true,
-        "devAllowAll": true
+        "enabled": true
     },
     "build": {
         "devCommand": "{{PM}} run dev",

@@ -15,6 +15,7 @@ public sealed class CarbonApp
     private readonly CarbonConfig _config;
     private readonly CommandRegistry _registry = new();
     private readonly CapabilityManager _capabilities;
+    private readonly BridgeSecurityPolicy _bridgePolicy;
     private readonly AppHandleAccessor _handleAccessor = new();
     private readonly List<IPlugin> _plugins = [];
     private readonly List<IPlugin> _activePlugins = [];
@@ -29,17 +30,18 @@ public sealed class CarbonApp
     private bool _hasRun;
     private int _exitLifecycleRaised;
     private ContentMode _contentMode;
-    private string? _looseFrontendDirectory;
 
     private CarbonApp(CarbonConfig config)
     {
         _config = config;
         _capabilities = new CapabilityManager(config);
+        _bridgePolicy = new BridgeSecurityPolicy(config);
         JsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         Services = new ServiceCollection();
         Services.AddSingleton(config);
         Services.AddSingleton(this);
         Services.AddSingleton(_capabilities);
+        Services.AddSingleton(_bridgePolicy);
         Services.AddSingleton(_handleAccessor);
         Services.AddSingleton(serviceProvider =>
             serviceProvider.GetRequiredService<AppHandleAccessor>().Handle);
@@ -157,6 +159,8 @@ public sealed class CarbonApp
             RegisterRuntimeCommands();
             PrepareContentMode();
             _capabilities.Configure(_contentMode == ContentMode.DevServer);
+            _bridgePolicy.Configure(_contentMode == ContentMode.DevServer);
+            EmbeddedAssetStore.Configure(_config.Security);
             RaiseLifecycle(CarbonLifecycleEventKind.Starting);
 
             var mainOptions = CarbonWindowOptions.FromConfig(_config.Window);
@@ -369,6 +373,9 @@ public sealed class CarbonApp
             if (bridgeMessage is null) return;
             requestId = bridgeMessage.Id;
 
+            _bridgePolicy.EnsureBridgeMessageAllowed(window, message);
+            _bridgePolicy.EnsureRequestIdAllowed(bridgeMessage.Id);
+            _bridgePolicy.EnsureCommandNameAllowed(bridgeMessage.Command);
             _capabilities.EnsureCommandAllowed(window, bridgeMessage.Command);
             var data = await _registry.InvokeAsync(
                 bridgeMessage.Command,
@@ -401,12 +408,17 @@ public sealed class CarbonApp
     {
         _registry.Add("__carbon:event_emit", async payload =>
         {
+            _bridgePolicy.EnsureEventEmitPayloadAllowed(payload);
             var eventName = payload.GetProperty("event").GetString();
             ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
             var eventPayload = payload.TryGetProperty("payload", out var value)
                 ? JsonNode.Parse(value.GetRawText())
                 : null;
             var target = ParseEventTarget(payload);
+            if (target.Kind == CarbonEventTargetKind.Window &&
+                !Handle.TryGetWindow(target.Label!, out _))
+                throw new KeyNotFoundException(
+                    $"No Carbon window is registered with label '{target.Label}'.");
             await Handle.Events.EmitJsonAsync(
                 eventName,
                 eventPayload,
@@ -460,14 +472,6 @@ public sealed class CarbonApp
             return;
         }
 
-        if (TryFindLooseFrontend(out var directory))
-        {
-            _contentMode = ContentMode.Loose;
-            _looseFrontendDirectory = directory;
-            Console.WriteLine($"[Carbon] Production mode -> {directory}");
-            return;
-        }
-
         _contentMode = ContentMode.Fallback;
         Console.WriteLine("[Carbon] No development server or frontend assets found");
     }
@@ -478,6 +482,7 @@ public sealed class CarbonApp
         if (!string.IsNullOrWhiteSpace(path) &&
             Uri.TryCreate(path, UriKind.Absolute, out var absolute))
         {
+            _bridgePolicy.EnsureNavigationAllowed(absolute);
             window.Load(absolute);
             return;
         }
@@ -486,29 +491,21 @@ public sealed class CarbonApp
         switch (_contentMode)
         {
             case ContentMode.Embedded:
-                window.Load(new Uri("carbon://localhost/" + path));
+                var embeddedUri = new Uri("carbon://localhost/" + path);
+                _bridgePolicy.EnsureNavigationAllowed(embeddedUri);
+                window.Load(embeddedUri);
                 break;
             case ContentMode.DevServer:
                 var baseUrl = _config.Build.DevUrl.TrimEnd('/') + "/";
-                window.Load(new Uri(new Uri(baseUrl), path == "index.html" ? string.Empty : path));
-                break;
-            case ContentMode.Loose:
-                window.Load(Path.Combine(_looseFrontendDirectory!, path));
+                var devUri = new Uri(new Uri(baseUrl), path == "index.html" ? string.Empty : path);
+                _bridgePolicy.EnsureNavigationAllowed(devUri);
+                window.Load(devUri);
                 break;
             default:
                 window.NativeWindow.LoadRawString(FallbackHtml());
                 window.MarkLoaded();
                 break;
         }
-    }
-
-    private bool TryFindLooseFrontend(out string directory)
-    {
-        var beside = Path.Combine(AppContext.BaseDirectory, _config.Build.FrontendDist);
-        directory = Directory.Exists(beside)
-            ? Path.GetFullPath(beside)
-            : Path.GetFullPath(_config.Build.FrontendDist);
-        return File.Exists(Path.Combine(directory, "index.html"));
     }
 
     private static bool IsDevServerRunning(string url)
@@ -545,7 +542,6 @@ public sealed class CarbonApp
     {
         Embedded,
         DevServer,
-        Loose,
         Fallback,
     }
 

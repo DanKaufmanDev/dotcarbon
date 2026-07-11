@@ -82,6 +82,7 @@ public sealed class CarbonWindow
     public CarbonWindowOptions Options { get; }
     public PhotinoWindow NativeWindow { get; }
     public bool IsLoaded { get; private set; }
+    public Uri? CurrentUri { get; private set; }
 
     public string Title => NativeWindow.Title;
     public Size Size => NativeWindow.Size;
@@ -107,14 +108,23 @@ public sealed class CarbonWindow
 
     public CarbonWindow Load(string url)
     {
-        if (Uri.TryCreate(url, UriKind.Absolute, out var uri)) NativeWindow.Load(uri);
-        else NativeWindow.Load(url);
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            CurrentUri = uri;
+            NativeWindow.Load(uri);
+        }
+        else
+        {
+            CurrentUri = null;
+            NativeWindow.Load(url);
+        }
         IsLoaded = true;
         return this;
     }
 
     public CarbonWindow Load(Uri uri)
     {
+        CurrentUri = uri;
         NativeWindow.Load(uri);
         IsLoaded = true;
         return this;

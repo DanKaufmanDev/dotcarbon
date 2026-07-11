@@ -60,8 +60,25 @@ public class WindowConfig
 
 public class SecurityConfig
 {
-    public bool Enabled { get; set; }
-    public bool DevAllowAll { get; set; } = true;
+    public bool Enabled { get; set; } = true;
+    public bool DevAllowAll { get; set; }
+    public bool AllowExternalUrls { get; set; }
+    public bool AllowSourceMaps { get; set; }
+    public int MaxBridgeMessageBytes { get; set; } = 1024 * 1024;
+    public int MaxEventPayloadBytes { get; set; } = 256 * 1024;
+    public string? ContentSecurityPolicy { get; set; } =
+        "default-src 'self'; " +
+        "script-src 'self'; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: blob:; " +
+        "font-src 'self' data:; " +
+        "connect-src 'self'; " +
+        "media-src 'self' blob:; " +
+        "worker-src 'self' blob:; " +
+        "object-src 'none'; " +
+        "base-uri 'none'; " +
+        "frame-ancestors 'none'";
+    public List<string> AllowedOrigins { get; set; } = [];
     public List<string> DefaultCapabilities { get; set; } = [];
     public Dictionary<string, CapabilityConfig> Capabilities { get; set; } = [];
 }

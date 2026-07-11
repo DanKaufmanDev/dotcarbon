@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Text;
+using DotCarbon.Core.Config;
 
 namespace DotCarbon.Core.Host;
 
@@ -6,6 +8,7 @@ internal static class EmbeddedAssetStore
 {
     private const string AssetPrefix = "DotCarbon.Assets/";
     private const string ConfigResource = "DotCarbon.Config/carbon.json";
+    private static SecurityConfig _security = new();
 
     private static readonly Assembly EntryAssembly = Assembly.GetEntryAssembly()
         ?? throw new InvalidOperationException("DotCarbon could not locate the application assembly.");
@@ -20,11 +23,17 @@ internal static class EmbeddedAssetStore
 
     public static bool HasAssets => Assets.Count > 0;
 
+    public static void Configure(SecurityConfig security) => _security = security;
+
     public static Stream? OpenConfig() => EntryAssembly.GetManifestResourceStream(ConfigResource);
 
     public static Stream Open(object sender, string scheme, string url, out string contentType)
     {
         var path = GetPath(url);
+        if (!_security.AllowSourceMaps &&
+            path.EndsWith(".map", StringComparison.OrdinalIgnoreCase))
+            path = "__invalid__";
+
         if (!TryOpen(path, out var stream) && ShouldUseSpaFallback(path))
         {
             path = "index.html";
@@ -32,6 +41,10 @@ internal static class EmbeddedAssetStore
         }
 
         contentType = GetContentType(stream is null ? ".txt" : Path.GetExtension(path));
+        if (stream is not null &&
+            Path.GetExtension(path).Equals(".html", StringComparison.OrdinalIgnoreCase))
+            return InjectCsp(stream);
+
         return stream ?? new MemoryStream("Not found"u8.ToArray(), writable: false);
     }
 
@@ -46,10 +59,15 @@ internal static class EmbeddedAssetStore
     private static string GetPath(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-            return "index.html";
+            return "__invalid__";
+
+        if (uri.Scheme != "carbon" ||
+            !string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase))
+            return "__invalid__";
 
         var path = Uri.UnescapeDataString(uri.AbsolutePath).TrimStart('/').Replace('\\', '/');
         if (string.IsNullOrEmpty(path)) return "index.html";
+        if (path.Length > 512) return "__invalid__";
 
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         return parts.Any(part => part is "." or "..") ? "__invalid__" : string.Join('/', parts);
@@ -80,4 +98,25 @@ internal static class EmbeddedAssetStore
         ".txt" => "text/plain; charset=utf-8",
         _ => "application/octet-stream",
     };
+
+    private static Stream InjectCsp(Stream stream)
+    {
+        if (string.IsNullOrWhiteSpace(_security.ContentSecurityPolicy))
+            return stream;
+
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        var html = reader.ReadToEnd();
+        if (html.Contains("http-equiv=\"Content-Security-Policy\"", StringComparison.OrdinalIgnoreCase))
+            return new MemoryStream(Encoding.UTF8.GetBytes(html), writable: false);
+
+        var escaped = _security.ContentSecurityPolicy
+            .Replace("&", "&amp;", StringComparison.Ordinal)
+            .Replace("\"", "&quot;", StringComparison.Ordinal);
+        var meta = $"<meta http-equiv=\"Content-Security-Policy\" content=\"{escaped}\">";
+        var head = html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
+        html = head >= 0
+            ? html.Insert(head + "<head>".Length, meta)
+            : meta + html;
+        return new MemoryStream(Encoding.UTF8.GetBytes(html), writable: false);
+    }
 }

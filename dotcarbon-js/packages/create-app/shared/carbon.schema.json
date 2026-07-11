@@ -70,7 +70,7 @@
                 "alwaysOnTop": { "type": "boolean", "default": false },
                 "decorations": { "type": "boolean", "default": true, "description": "Window chrome (title bar + border). Set false for a frameless window." },
                 "transparent": { "type": "boolean", "default": false, "description": "Transparent window background." },
-                "devtools": { "type": "boolean", "default": true, "description": "Allow opening the webview dev tools." },
+                "devtools": { "type": "boolean", "default": false, "description": "Allow opening the webview dev tools." },
                 "contextMenu": { "type": "boolean", "default": true, "description": "Allow the webview's right-click context menu." },
                 "icon": { "type": ["string", "null"], "description": "Path to a square PNG icon (1024x1024 recommended), relative to the project root. DotCarbon generates platform-specific icons from this source." }
             }
@@ -80,8 +80,22 @@
             "additionalProperties": false,
             "description": "Bridge command permissions for production apps.",
             "properties": {
-                "enabled": { "type": "boolean", "default": false, "description": "When true, frontend command calls are denied unless allowed by a capability." },
-                "devAllowAll": { "type": "boolean", "default": true, "description": "When true, development-server mode bypasses capability checks while production still enforces them." },
+                "enabled": { "type": "boolean", "default": true, "description": "When true, frontend command calls are denied unless allowed by a capability." },
+                "devAllowAll": { "type": "boolean", "default": false, "description": "When true, development-server mode bypasses capability checks while production still enforces them." },
+                "allowExternalUrls": { "type": "boolean", "default": false, "description": "Allow windows to load absolute URLs outside carbon://localhost, the dev server, and allowedOrigins." },
+                "allowSourceMaps": { "type": "boolean", "default": false, "description": "Serve embedded .map files from the carbon:// asset protocol." },
+                "maxBridgeMessageBytes": { "type": "integer", "minimum": 1024, "default": 1048576 },
+                "maxEventPayloadBytes": { "type": "integer", "minimum": 1024, "default": 262144 },
+                "contentSecurityPolicy": {
+                    "type": ["string", "null"],
+                    "description": "CSP injected into embedded HTML. Set null to disable injection."
+                },
+                "allowedOrigins": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "uri" },
+                    "default": [],
+                    "description": "Additional trusted origins allowed to load windows and use the bridge."
+                },
                 "defaultCapabilities": {
                     "type": "array",
                     "items": { "type": "string" },
