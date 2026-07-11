@@ -112,7 +112,26 @@ public class BundleConfig
     public MacOsBundleConfig MacOS { get; set; } = new();
     public WindowsBundleConfig Windows { get; set; } = new();
     public LinuxBundleConfig Linux { get; set; } = new();
+    public AndroidBundleConfig Android { get; set; } = new();
+    public IosBundleConfig Ios { get; set; } = new();
     public UpdaterBundleConfig Updater { get; set; } = new();
+}
+
+public class AndroidBundleConfig
+{
+    /// <summary>Android application id. Defaults to app.identifier.</summary>
+    public string? Package { get; set; }
+    public int MinSdk { get; set; } = 24;
+    public int TargetSdk { get; set; } = 34;
+    public int CompileSdk { get; set; } = 34;
+}
+
+public class IosBundleConfig
+{
+    /// <summary>iOS bundle identifier. Defaults to app.identifier.</summary>
+    public string? BundleIdentifier { get; set; }
+    public string MinimumOSVersion { get; set; } = "15.0";
+    public string? DevelopmentTeam { get; set; }
 }
 
 public class FileAssociationConfig

@@ -7,6 +7,7 @@ root.AddCommand(DevCommand.Build());
 root.AddCommand(AddCommand.Build());
 root.AddCommand(BundleCommand.Build());
 root.AddCommand(BuildCommand.Build()); // alias for `carbon bundle desktop` — same engine
+root.AddCommand(PlatformCommand.Build());
 root.AddCommand(TypesCommand.Build());
 root.AddCommand(IconCommand.Build());
 root.AddCommand(SignerCommand.Build());
