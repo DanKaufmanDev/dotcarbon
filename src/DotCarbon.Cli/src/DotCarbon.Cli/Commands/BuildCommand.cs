@@ -72,6 +72,15 @@ public static class BuildCommand
         var config = ConfigLoader.Load(configPath);
         var effectiveConfigPath = WriteEffectiveConfig(config, workingDir);
 
+        if (!ValidateProductionConfig(
+                config, workingDir, target, bundle,
+                updaterArtifacts || config.Bundle.Updater.CreateArtifacts,
+                out var validationError))
+        {
+            WriteError(validationError);
+            return 1;
+        }
+
         if (!TryPrepareIcons(config, workingDir, out var icons, out var iconError))
         {
             WriteError(iconError);
@@ -136,6 +145,12 @@ public static class BuildCommand
         }
 
         RemovePublishSymbols(outputDir);
+        if (!aot && !VerifySingleFileOutput(outputDir, out var singleFileError))
+        {
+            WriteError(singleFileError);
+            return 1;
+        }
+
         var executable = FindExecutable(outputDir, target);
         if (executable is null)
         {
@@ -156,6 +171,11 @@ public static class BuildCommand
                 updaterArtifacts || config.Bundle.Updater.CreateArtifacts))
             return 1;
 
+        await WriteBuildManifest(
+            config, workingDir, target, artifact, bundle, aot,
+            updaterArtifacts || config.Bundle.Updater.CreateArtifacts,
+            icons);
+
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($"\n[Carbon] Build complete -> {artifact}");
         Console.ResetColor();
@@ -167,6 +187,145 @@ public static class BuildCommand
         Console.ForegroundColor = ConsoleColor.Red;
         Console.WriteLine($"[Carbon] {message}");
         Console.ResetColor();
+    }
+
+    private static void WriteWarning(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine($"[Carbon] {message}");
+        Console.ResetColor();
+    }
+
+    private static bool ValidateProductionConfig(
+        CarbonConfig config,
+        string workingDir,
+        string target,
+        bool bundle,
+        bool updaterArtifacts,
+        out string error)
+    {
+        error = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(config.App.Name))
+        {
+            error = "app.name is required for production builds.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.App.Identifier) ||
+            !config.App.Identifier.Contains('.') ||
+            config.App.Identifier.Any(ch =>
+                !(char.IsLetterOrDigit(ch) || ch is '.' or '-' or '_')))
+        {
+            error = "app.identifier must be a valid reverse-DNS identifier, e.g. com.example.app.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.App.Version))
+        {
+            error = "app.version is required for production builds.";
+            return false;
+        }
+
+        if (bundle && string.IsNullOrWhiteSpace(config.Window.Icon))
+            WriteWarning("No window.icon configured; platform packages will use fallback/default icons.");
+
+        foreach (var resource in config.Bundle.Resources)
+        {
+            var path = Path.GetFullPath(Path.Combine(workingDir, resource));
+            if (!File.Exists(path) && !Directory.Exists(path))
+            {
+                error = $"Configured bundle resource does not exist: {path}";
+                return false;
+            }
+        }
+
+        var duplicateExtensions = config.Bundle.FileAssociations
+            .SelectMany(association => association.Extensions)
+            .Select(extension => extension.TrimStart('.').ToLowerInvariant())
+            .Where(extension => extension.Length > 0)
+            .GroupBy(extension => extension)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicateExtensions is not null)
+        {
+            error = $"Duplicate file association extension: {duplicateExtensions.Key}";
+            return false;
+        }
+
+        var duplicateSchemes = config.Bundle.Protocols
+            .SelectMany(protocol => protocol.Schemes)
+            .Select(scheme => scheme.ToLowerInvariant())
+            .Where(scheme => scheme.Length > 0)
+            .GroupBy(scheme => scheme)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicateSchemes is not null)
+        {
+            error = $"Duplicate protocol scheme: {duplicateSchemes.Key}";
+            return false;
+        }
+
+        if (bundle && target.StartsWith("osx", StringComparison.OrdinalIgnoreCase))
+        {
+            var signingIdentity = config.Bundle.MacOS.SigningIdentity
+                ?? Environment.GetEnvironmentVariable("APPLE_SIGNING_IDENTITY");
+            var notarizationProfile = config.Bundle.MacOS.NotarizationProfile
+                ?? Environment.GetEnvironmentVariable("APPLE_NOTARIZATION_PROFILE");
+
+            if (!string.IsNullOrWhiteSpace(notarizationProfile) &&
+                string.IsNullOrWhiteSpace(signingIdentity))
+            {
+                error = "macOS notarization requires bundle.macOS.signingIdentity or APPLE_SIGNING_IDENTITY.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(config.Bundle.MacOS.Entitlements))
+            {
+                var entitlements = Path.GetFullPath(
+                    Path.Combine(workingDir, config.Bundle.MacOS.Entitlements));
+                if (!File.Exists(entitlements))
+                {
+                    error = $"macOS entitlements file does not exist: {entitlements}";
+                    return false;
+                }
+            }
+        }
+
+        if (bundle &&
+            target.StartsWith("win", StringComparison.OrdinalIgnoreCase) &&
+            config.Bundle.Windows.WebView2InstallMode == "offlineInstaller")
+        {
+            if (string.IsNullOrWhiteSpace(config.Bundle.Windows.WebView2InstallerPath))
+            {
+                error = "bundle.windows.webView2InstallerPath is required for offlineInstaller mode.";
+                return false;
+            }
+
+            var webView2 = Path.GetFullPath(
+                Path.Combine(workingDir, config.Bundle.Windows.WebView2InstallerPath));
+            if (!File.Exists(webView2))
+            {
+                error = $"WebView2 offline installer not found: {webView2}";
+                return false;
+            }
+        }
+
+        if (config.Bundle.Updater.Active && config.Bundle.Updater.Endpoints.Count == 0)
+        {
+            error = "bundle.updater.active requires at least one updater endpoint.";
+            return false;
+        }
+
+        if (config.Bundle.Updater.Active &&
+            string.IsNullOrWhiteSpace(config.Bundle.Updater.PublicKey))
+        {
+            error = "bundle.updater.active requires bundle.updater.publicKey.";
+            return false;
+        }
+
+        if (updaterArtifacts && config.Bundle.Updater.Endpoints.Count == 0)
+            WriteWarning("Updater artifacts will be signed without an endpoint URL.");
+
+        return true;
     }
 
     private static string WriteEffectiveConfig(CarbonConfig config, string workingDir)
@@ -232,6 +391,12 @@ public static class BuildCommand
                 config, workingDir, "osx-universal", artifact,
                 updaterArtifacts || config.Bundle.Updater.CreateArtifacts))
             return 1;
+
+        await WriteBuildManifest(
+            config, workingDir, "osx-universal", artifact,
+            bundled: true, aot,
+            updaterArtifacts || config.Bundle.Updater.CreateArtifacts,
+            icons);
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($"\n[Carbon] Build complete -> {artifact}");
@@ -311,6 +476,7 @@ public static class BuildCommand
                 "hdiutil", $"create -volname \"{appName}\" -srcfolder \"{app}\" -ov -format UDZO \"{dmg}\"",
                 outputDir, "[pkg]", ConsoleColor.Blue) != 0)
             return null;
+        if (!await SignMacDmg(config, outputDir, dmg)) return null;
         if (!await NotarizeMacDmg(config, outputDir, dmg)) return null;
         return File.Exists(dmg) ? $"out/osx-universal/{appName}.dmg" : null;
     }
@@ -357,6 +523,7 @@ public static class BuildCommand
             outDir, "[pkg]", ConsoleColor.Blue) != 0)
             return null;
 
+        if (!await SignMacDmg(config, outDir, dmg)) return null;
         if (!await NotarizeMacDmg(config, outDir, dmg)) return null;
 
         return File.Exists(dmg) ? $"out/{target}/{appName}.dmg" : null;
@@ -365,8 +532,7 @@ public static class BuildCommand
     private static async Task<bool> SignMacApp(
         CarbonConfig config, string workingDir, string outputDir, string app)
     {
-        var signingIdentity = config.Bundle.MacOS.SigningIdentity
-            ?? Environment.GetEnvironmentVariable("APPLE_SIGNING_IDENTITY");
+        var signingIdentity = GetMacSigningIdentity(config);
         if (string.IsNullOrWhiteSpace(signingIdentity)) return true;
 
         var entitlements = string.IsNullOrWhiteSpace(config.Bundle.MacOS.Entitlements)
@@ -377,6 +543,21 @@ public static class BuildCommand
             $"--force --deep --options runtime --timestamp --sign \"{signingIdentity}\"{entitlements} \"{app}\"",
             outputDir, "[sign]", ConsoleColor.DarkCyan) == 0;
     }
+
+    private static async Task<bool> SignMacDmg(CarbonConfig config, string outputDir, string dmg)
+    {
+        var signingIdentity = GetMacSigningIdentity(config);
+        if (string.IsNullOrWhiteSpace(signingIdentity)) return true;
+
+        return await RunProcessToCompletion(
+            "codesign",
+            $"--force --timestamp --sign \"{signingIdentity}\" \"{dmg}\"",
+            outputDir, "[sign]", ConsoleColor.DarkCyan) == 0;
+    }
+
+    private static string? GetMacSigningIdentity(CarbonConfig config) =>
+        config.Bundle.MacOS.SigningIdentity
+        ?? Environment.GetEnvironmentVariable("APPLE_SIGNING_IDENTITY");
 
     private static async Task<bool> NotarizeMacDmg(
         CarbonConfig config, string outputDir, string dmg)
@@ -423,6 +604,10 @@ public static class BuildCommand
                 AddPlist(item, "CFBundleTypeExtensions",
                     new XElement("array", association.Extensions.Select(extension =>
                         new XElement("string", extension.TrimStart('.')))));
+                if (!string.IsNullOrWhiteSpace(association.MimeType))
+                    AddPlist(item, "CFBundleTypeMIMETypes",
+                        new XElement("array", new XElement("string", association.MimeType)));
+                if (hasIcon) AddPlist(item, "CFBundleTypeIconFile", new XElement("string", "icon.icns"));
                 associations.Add(item);
             }
             AddPlist(dict, "CFBundleDocumentTypes", associations);
@@ -1025,6 +1210,114 @@ public static class BuildCommand
 
         foreach (var directory in Directory.EnumerateDirectories(outputDir, "*.dSYM", SearchOption.TopDirectoryOnly))
             Directory.Delete(directory, recursive: true);
+    }
+
+    private static bool VerifySingleFileOutput(string outputDir, out string error)
+    {
+        error = string.Empty;
+        var files = Directory.GetFiles(outputDir, "*", SearchOption.TopDirectoryOnly);
+        if (files.Length == 1) return true;
+
+        error = "Single-file publish produced extra files: " +
+                string.Join(", ", files.Select(Path.GetFileName)) +
+                ". Use --aot for the experimental sidecar mode, or check the host project's publish settings.";
+        return false;
+    }
+
+    private static async Task WriteBuildManifest(
+        CarbonConfig config,
+        string workingDir,
+        string target,
+        string artifactRelative,
+        bool bundled,
+        bool aot,
+        bool updaterArtifacts,
+        IconAssets? icons)
+    {
+        var artifact = Path.GetFullPath(Path.Combine(workingDir, artifactRelative));
+        if (!File.Exists(artifact)) return;
+
+        var manifestDir = Path.Combine(workingDir, "out", "manifests");
+        Directory.CreateDirectory(manifestDir);
+        var manifestPath = Path.Combine(manifestDir, target + ".build.json");
+        var artifactInfo = new FileInfo(artifact);
+        var signature = artifact + ".sig";
+        var updateMetadata = artifact + ".update.json";
+
+        var manifest = new
+        {
+            format = "dotcarbon-build-manifest-v1",
+            builtAt = DateTimeOffset.UtcNow,
+            app = new
+            {
+                config.App.Name,
+                config.App.Version,
+                config.App.Identifier,
+            },
+            target,
+            artifact = new
+            {
+                path = Path.GetRelativePath(workingDir, artifact),
+                fileName = Path.GetFileName(artifact),
+                size = artifactInfo.Length,
+                sha256 = await Sha256FileAsync(artifact),
+                packageType = GetArtifactKind(artifact),
+                bundled,
+                aot,
+            },
+            icons = icons is null ? null : new
+            {
+                source = Path.GetRelativePath(workingDir, icons.Source),
+                ico = Path.GetRelativePath(workingDir, icons.Ico),
+                icns = Path.GetRelativePath(workingDir, icons.Icns),
+                linux = Path.GetRelativePath(workingDir, icons.LinuxDirectory),
+            },
+            bundle = new
+            {
+                resources = config.Bundle.Resources,
+                fileAssociations = config.Bundle.FileAssociations.Count,
+                protocols = config.Bundle.Protocols.SelectMany(protocol => protocol.Schemes).ToArray(),
+                updaterArtifacts,
+            },
+            updater = new
+            {
+                signature = File.Exists(signature)
+                    ? Path.GetRelativePath(workingDir, signature)
+                    : null,
+                metadata = File.Exists(updateMetadata)
+                    ? Path.GetRelativePath(workingDir, updateMetadata)
+                    : null,
+            },
+        };
+
+        await File.WriteAllTextAsync(
+            manifestPath,
+            JsonSerializer.Serialize(manifest, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            }) +
+            Environment.NewLine);
+        Console.WriteLine($"[Carbon] Build manifest -> {Path.GetRelativePath(workingDir, manifestPath)}");
+    }
+
+    private static string GetArtifactKind(string artifact)
+    {
+        var extension = Path.GetExtension(artifact).ToLowerInvariant();
+        return extension switch
+        {
+            ".dmg" => "macos-dmg",
+            ".msi" => "windows-msi",
+            ".appimage" => "linux-appimage",
+            ".exe" => "windows-executable",
+            _ => "executable",
+        };
+    }
+
+    private static async Task<string> Sha256FileAsync(string path)
+    {
+        await using var stream = File.OpenRead(path);
+        return Convert.ToHexString(await SHA256.HashDataAsync(stream)).ToLowerInvariant();
     }
 
     private static bool HasEmbeddedAssetRuntime(string hostProject, out string error)
