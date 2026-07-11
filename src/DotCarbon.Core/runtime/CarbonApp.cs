@@ -30,6 +30,8 @@ public sealed class CarbonApp
     private bool _hasRun;
     private int _exitLifecycleRaised;
     private ContentMode _contentMode;
+    private string? _distIndexPath;
+    private string? _distAssetRoot;
 
     private CarbonApp(CarbonConfig config)
     {
@@ -161,6 +163,7 @@ public sealed class CarbonApp
             _capabilities.Configure(_contentMode == ContentMode.DevServer);
             _bridgePolicy.Configure(_contentMode == ContentMode.DevServer);
             EmbeddedAssetStore.Configure(_config.Security);
+            EmbeddedAssetStore.ConfigureLocalAssets(_contentMode == ContentMode.Dist ? _distAssetRoot : null);
             RaiseLifecycle(CarbonLifecycleEventKind.Starting);
 
             var mainOptions = CarbonWindowOptions.FromConfig(_config.Window);
@@ -472,6 +475,15 @@ public sealed class CarbonApp
             return;
         }
 
+        _distIndexPath = ResolveFrontendDistIndex();
+        if (_distIndexPath is not null)
+        {
+            _distAssetRoot = Path.GetDirectoryName(_distIndexPath);
+            _contentMode = ContentMode.Dist;
+            Console.WriteLine($"[Carbon] Local dist mode -> {_distIndexPath}");
+            return;
+        }
+
         _contentMode = ContentMode.Fallback;
         Console.WriteLine("[Carbon] No development server or frontend assets found");
     }
@@ -501,6 +513,11 @@ public sealed class CarbonApp
                 _bridgePolicy.EnsureNavigationAllowed(devUri);
                 window.Load(devUri);
                 break;
+            case ContentMode.Dist:
+                var distUri = new Uri("carbon://localhost/" + path);
+                _bridgePolicy.EnsureNavigationAllowed(distUri);
+                window.Load(distUri);
+                break;
             default:
                 window.NativeWindow.LoadRawString(FallbackHtml());
                 window.MarkLoaded();
@@ -519,6 +536,32 @@ public sealed class CarbonApp
         {
             return false;
         }
+    }
+
+    private string? ResolveFrontendDistIndex()
+    {
+        var frontendDist = _config.Build.FrontendDist;
+        if (string.IsNullOrWhiteSpace(frontendDist))
+            return null;
+
+        if (Path.IsPathRooted(frontendDist))
+        {
+            var index = Path.Combine(frontendDist, "index.html");
+            return File.Exists(index) ? Path.GetFullPath(index) : null;
+        }
+
+        var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+        while (dir is not null)
+        {
+            var index = Path.Combine(dir.FullName, frontendDist, "index.html");
+            if (File.Exists(index))
+                return Path.GetFullPath(index);
+
+            dir = dir.Parent;
+        }
+
+        var appBaseIndex = Path.Combine(AppContext.BaseDirectory, frontendDist, "index.html");
+        return File.Exists(appBaseIndex) ? Path.GetFullPath(appBaseIndex) : null;
     }
 
     private void EnsureNotRunning()
@@ -542,6 +585,7 @@ public sealed class CarbonApp
     {
         Embedded,
         DevServer,
+        Dist,
         Fallback,
     }
 

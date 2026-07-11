@@ -21,16 +21,21 @@ public static class DevCommand
             name: "--types-out",
             description: "Output path for generated TypeScript declarations (default: ui/src/carbon.d.ts)"
         );
+        var noCapabilitiesOption = new Option<bool>(
+            name: "--no-capabilities",
+            description: "Do not sync discovered commands into src-carbon/capabilities/main.json"
+        );
 
         command.AddOption(projectOption);
         command.AddOption(noTypesOption);
         command.AddOption(typesOutOption);
-        command.SetHandler(Run, projectOption, noTypesOption, typesOutOption);
+        command.AddOption(noCapabilitiesOption);
+        command.SetHandler(Run, projectOption, noTypesOption, typesOutOption, noCapabilitiesOption);
 
         return command;
     }
 
-    private static async Task Run(DirectoryInfo? projectDir, bool noTypes, FileInfo? typesOut)
+    private static async Task Run(DirectoryInfo? projectDir, bool noTypes, FileInfo? typesOut, bool noCapabilities)
     {
         var workingDir = projectDir?.FullName ?? Directory.GetCurrentDirectory();
         var configPath = Path.Combine(workingDir, "carbon.json");
@@ -52,7 +57,7 @@ public static class DevCommand
         using var cts = new CancellationTokenSource();
         using var typeWatcher = noTypes
             ? null
-            : StartTypesGeneration(workingDir, typesOut?.FullName, cts.Token);
+            : StartTypesGeneration(workingDir, typesOut?.FullName, !noCapabilities, cts.Token);
 
         Console.CancelKeyPress += (_, e) =>
         {
@@ -69,9 +74,13 @@ public static class DevCommand
         Console.WriteLine("[Carbon] Done.");
     }
 
-    private static IDisposable? StartTypesGeneration(string workingDir, string? outPath, CancellationToken ct)
+    private static IDisposable? StartTypesGeneration(
+        string workingDir,
+        string? outPath,
+        bool syncCapabilities,
+        CancellationToken ct)
     {
-        GenerateTypes(workingDir, outPath);
+        GenerateTypes(workingDir, outPath, syncCapabilities);
 
         var carbonDir = Path.Combine(workingDir, "src-carbon");
         var watchDir = Directory.Exists(carbonDir) ? carbonDir : workingDir;
@@ -82,7 +91,7 @@ public static class DevCommand
             EnableRaisingEvents = true,
         };
         var debounce = new DebouncedAction(TimeSpan.FromMilliseconds(250), ct, () =>
-            GenerateTypes(workingDir, outPath));
+            GenerateTypes(workingDir, outPath, syncCapabilities));
 
         FileSystemEventHandler onChange = (_, e) =>
         {
@@ -104,15 +113,22 @@ public static class DevCommand
         return new CompositeDisposable(watcher, debounce);
     }
 
-    private static void GenerateTypes(string workingDir, string? outPath)
+    private static void GenerateTypes(string workingDir, string? outPath, bool syncCapabilities)
     {
         try
         {
-            var result = TypesCommand.Generate(workingDir, outPath);
+            var result = TypesCommand.Generate(workingDir, outPath, syncCapabilities);
             Console.ForegroundColor = ConsoleColor.Blue;
             Console.Write("[Types] ");
             Console.ResetColor();
             Console.WriteLine($"Generated {result.CommandCount} command type(s) -> {result.TargetPath}");
+            if (result.SyncedCapabilityCount > 0 && result.CapabilityPath is not null)
+            {
+                Console.ForegroundColor = ConsoleColor.Blue;
+                Console.Write("[Types] ");
+                Console.ResetColor();
+                Console.WriteLine($"Synced {result.SyncedCapabilityCount} command(s) -> {result.CapabilityPath}");
+            }
         }
         catch (Exception ex)
         {

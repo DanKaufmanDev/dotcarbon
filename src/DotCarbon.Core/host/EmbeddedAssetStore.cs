@@ -9,6 +9,7 @@ internal static class EmbeddedAssetStore
     private const string AssetPrefix = "DotCarbon.Assets/";
     private const string ConfigResource = "DotCarbon.Config/carbon.json";
     private static SecurityConfig _security = new();
+    private static string? _localAssetRoot;
 
     private static readonly Assembly EntryAssembly = Assembly.GetEntryAssembly()
         ?? throw new InvalidOperationException("DotCarbon could not locate the application assembly.");
@@ -24,6 +25,9 @@ internal static class EmbeddedAssetStore
     public static bool HasAssets => Assets.Count > 0;
 
     public static void Configure(SecurityConfig security) => _security = security;
+
+    public static void ConfigureLocalAssets(string? root) =>
+        _localAssetRoot = string.IsNullOrWhiteSpace(root) ? null : Path.GetFullPath(root);
 
     public static Stream? OpenConfig() => EntryAssembly.GetManifestResourceStream(ConfigResource);
 
@@ -50,10 +54,28 @@ internal static class EmbeddedAssetStore
 
     private static bool TryOpen(string path, out Stream? stream)
     {
-        stream = Assets.TryGetValue(path, out var resource)
-            ? EntryAssembly.GetManifestResourceStream(resource)
-            : null;
+        stream = null;
+        if (Assets.TryGetValue(path, out var resource))
+            stream = EntryAssembly.GetManifestResourceStream(resource);
+        else if (_localAssetRoot is not null)
+            stream = TryOpenLocal(path);
+
         return stream is not null;
+    }
+
+    private static Stream? TryOpenLocal(string path)
+    {
+        var root = _localAssetRoot;
+        if (root is null) return null;
+
+        var target = Path.GetFullPath(Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar)));
+        var relative = Path.GetRelativePath(root, target);
+        if (relative.StartsWith("..", StringComparison.Ordinal) ||
+            Path.IsPathRooted(relative) ||
+            !File.Exists(target))
+            return null;
+
+        return File.OpenRead(target);
     }
 
     private static string GetPath(string url)

@@ -1,5 +1,7 @@
 using System.CommandLine;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -16,24 +18,32 @@ public static class TypesCommand
             "--project", "Path to the Carbon project (default: current directory)");
         var outOption = new Option<FileInfo?>(
             "--out", "Output path (default: ui/src/carbon.d.ts)");
+        var noCapabilitiesOption = new Option<bool>(
+            "--no-capabilities", "Do not sync discovered commands into src-carbon/capabilities/main.json");
 
         command.AddOption(projectOption);
         command.AddOption(outOption);
-        command.SetHandler(Run, projectOption, outOption);
+        command.AddOption(noCapabilitiesOption);
+        command.SetHandler(Run, projectOption, outOption, noCapabilitiesOption);
         return command;
     }
 
-    private static void Run(DirectoryInfo? projectDir, FileInfo? outFile)
+    private static void Run(DirectoryInfo? projectDir, FileInfo? outFile, bool noCapabilities)
     {
         var root = projectDir?.FullName ?? Directory.GetCurrentDirectory();
-        var result = Generate(root, outFile?.FullName);
+        var result = Generate(root, outFile?.FullName, !noCapabilities);
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($"⚡ Generated {result.CommandCount} command type(s) → {result.TargetPath}");
         Console.ResetColor();
+        if (result.SyncedCapabilityCount > 0 && result.CapabilityPath is not null)
+            Console.WriteLine($"⚡ Synced {result.SyncedCapabilityCount} command(s) → {result.CapabilityPath}");
     }
 
-    internal static TypesGenerationResult Generate(string root, string? outPath = null)
+    internal static TypesGenerationResult Generate(
+        string root,
+        string? outPath = null,
+        bool syncCapabilities = true)
     {
         var carbonDir = Path.Combine(root, "src-carbon");
         var searchDir = Directory.Exists(carbonDir) ? carbonDir : root;
@@ -56,7 +66,7 @@ public static class TypesCommand
             records[r.Identifier.Text] = props;
         }
 
-        var commands = new List<(string Namespace, string LocalName, string Name, string? ArgType, string ReturnType)>();
+        var commands = new List<CarbonCommandInfo>();
         var plugins = new Dictionary<string, string>();
 
         foreach (var cls in roots.SelectMany(r => r.DescendantNodes().OfType<ClassDeclarationSyntax>()))
@@ -83,7 +93,7 @@ public static class TypesCommand
                     ? method.ParameterList.Parameters[0].Type!.ToString()
                     : null;
 
-                commands.Add((ns, localName, cmd, argType, method.ReturnType.ToString()));
+                commands.Add(new CarbonCommandInfo(ns, localName, cmd, argType, method.ReturnType.ToString()));
             }
         }
 
@@ -94,7 +104,15 @@ public static class TypesCommand
             Directory.CreateDirectory(targetDir);
         File.WriteAllText(target, dts);
 
-        return new TypesGenerationResult(commands.Count, target);
+        var syncResult = syncCapabilities
+            ? SyncMainCapability(root, commands)
+            : new CapabilitySyncResult(0, null);
+
+        return new TypesGenerationResult(
+            commands.Count,
+            target,
+            syncResult.AddedCommandCount,
+            syncResult.CapabilityPath);
     }
 
     private static string? ExtractNamespace(ClassDeclarationSyntax cls)
@@ -109,7 +127,7 @@ public static class TypesCommand
     }
 
     private static string Emit(
-        List<(string Namespace, string LocalName, string Name, string? ArgType, string ReturnType)> commands,
+        List<CarbonCommandInfo> commands,
         Dictionary<string, string> plugins,
         Dictionary<string, List<(string Name, string Type)>> records)
     {
@@ -159,6 +177,87 @@ public static class TypesCommand
         return sb.ToString();
     }
 
+    private static CapabilitySyncResult SyncMainCapability(string root, IReadOnlyCollection<CarbonCommandInfo> commands)
+    {
+        if (commands.Count == 0)
+            return new CapabilitySyncResult(0, null);
+
+        var carbonDir = Path.Combine(root, "src-carbon");
+        if (!Directory.Exists(carbonDir))
+            return new CapabilitySyncResult(0, null);
+
+        var capabilityDir = Path.Combine(carbonDir, "capabilities");
+        Directory.CreateDirectory(capabilityDir);
+
+        var capabilityPath = Path.Combine(capabilityDir, "main.json");
+        var document = LoadOrCreateMainCapability(capabilityPath);
+        var commandsNode = document["commands"] as JsonArray;
+        if (commandsNode is null)
+        {
+            commandsNode = [];
+            document["commands"] = commandsNode;
+        }
+
+        var existing = commandsNode
+            .Select(node => node?.GetValue<string>())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var added = 0;
+        foreach (var command in commands.OrderBy(command => command.Name))
+        {
+            if (existing.Contains(command.Name) || IsCoveredByWildcard(existing, command.Name))
+                continue;
+
+            commandsNode.Add(command.Name);
+            existing.Add(command.Name);
+            added++;
+        }
+
+        if (added > 0 || !File.Exists(capabilityPath))
+        {
+            var json = document.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(capabilityPath, json + Environment.NewLine);
+        }
+
+        return new CapabilitySyncResult(added, capabilityPath);
+    }
+
+    private static JsonObject LoadOrCreateMainCapability(string capabilityPath)
+    {
+        if (File.Exists(capabilityPath))
+        {
+            try
+            {
+                return JsonNode.Parse(File.ReadAllText(capabilityPath)) as JsonObject
+                    ?? CreateMainCapability();
+            }
+            catch (JsonException)
+            {
+                return CreateMainCapability();
+            }
+        }
+
+        return CreateMainCapability();
+    }
+
+    private static JsonObject CreateMainCapability() => new()
+    {
+        ["description"] = "Main window permissions.",
+        ["windows"] = new JsonArray("main"),
+        ["commands"] = new JsonArray()
+    };
+
+    private static bool IsCoveredByWildcard(HashSet<string> existing, string commandName)
+    {
+        var separator = commandName.IndexOf(':', StringComparison.Ordinal);
+        if (separator <= 0) return false;
+
+        var namespaceWildcard = commandName[..separator] + ":*";
+        return existing.Contains(namespaceWildcard) || existing.Contains("*");
+    }
+
     private static string StringLiteralType(string? value) =>
         value is null ? "null" : $"'{value.Replace("'", "\\'")}'";
 
@@ -194,4 +293,17 @@ public static class TypesCommand
         string.IsNullOrEmpty(s) ? s : char.ToLowerInvariant(s[0]) + s[1..];
 }
 
-internal readonly record struct TypesGenerationResult(int CommandCount, string TargetPath);
+internal readonly record struct CarbonCommandInfo(
+    string Namespace,
+    string LocalName,
+    string Name,
+    string? ArgType,
+    string ReturnType);
+
+internal readonly record struct TypesGenerationResult(
+    int CommandCount,
+    string TargetPath,
+    int SyncedCapabilityCount,
+    string? CapabilityPath);
+
+internal readonly record struct CapabilitySyncResult(int AddedCommandCount, string? CapabilityPath);
