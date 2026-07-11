@@ -8,11 +8,23 @@ namespace DotCarbon.Plugins.Shell;
 [CarbonPermission("shell:default", "Allow all shell commands.", Commands = new[] { "shell:*" })]
 public partial class ShellPlugin : IPlugin
 {
+    private ShellOptions _options = new();
+
     public string Namespace => "shell";
+
+    public ValueTask InitializeAsync(PluginContext context)
+    {
+        if (context.HasConfiguration)
+            _options = context.GetConfiguration<ShellOptions>();
+        return ValueTask.CompletedTask;
+    }
 
     [CarbonCommand("execute")]
     public async Task<ShellResult> Execute(ExecuteArgs args)
     {
+        EnsureProgramAllowed(args.Program);
+        EnsureCwdAllowed(args.Cwd);
+
         var psi = new ProcessStartInfo
         {
             FileName = args.Program,
@@ -65,9 +77,16 @@ public partial class ShellPlugin : IPlugin
     [CarbonCommand("open")]
     public Task Open(OpenArgs args)
     {
+        if (!_options.AllowOpenPaths)
+            throw new UnauthorizedAccessException("shell:open requires plugins.shell.allowOpenPaths = true.");
+
+        var path = Path.GetFullPath(args.Path);
+        if (!File.Exists(path) && !Directory.Exists(path))
+            throw new FileNotFoundException($"Path does not exist: {path}");
+
         var psi = new ProcessStartInfo
         {
-            FileName = args.Path,
+            FileName = path,
             UseShellExecute = true,
         };
 
@@ -79,6 +98,11 @@ public partial class ShellPlugin : IPlugin
     public Task OpenUrl(OpenArgs args)
     {
         var url = args.Path;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            throw new ArgumentException("URL must be absolute.");
+        var allowedSchemes = _options.AllowedUrlSchemes ?? ["http", "https", "mailto"];
+        if (!allowedSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException($"URL scheme is not allowed: {uri.Scheme}");
 
         if (OperatingSystem.IsMacOS())
             Process.Start("open", url);
@@ -88,5 +112,35 @@ public partial class ShellPlugin : IPlugin
             Process.Start("xdg-open", url);
 
         return Task.CompletedTask;
+    }
+
+    private void EnsureProgramAllowed(string program)
+    {
+        var allowed = _options.AllowedPrograms ?? [];
+        if (allowed.Length == 0)
+            throw new UnauthorizedAccessException(
+                "shell:execute requires plugins.shell.allowedPrograms to include the requested program.");
+
+        var requested = Path.GetFileName(program);
+        if (!allowed.Any(item =>
+            item.Equals(program, StringComparison.OrdinalIgnoreCase) ||
+            item.Equals(requested, StringComparison.OrdinalIgnoreCase)))
+            throw new UnauthorizedAccessException($"Program is not allowed: {program}");
+    }
+
+    private void EnsureCwdAllowed(string? cwd)
+    {
+        if (string.IsNullOrWhiteSpace(cwd)) return;
+
+        var allowed = _options.AllowedCwds ?? [];
+        if (allowed.Length == 0)
+            throw new UnauthorizedAccessException("Working directories are not allowed by shell configuration.");
+
+        var requested = Path.GetFullPath(cwd);
+        if (!allowed.Select(Path.GetFullPath).Any(root =>
+            requested.Equals(root, StringComparison.OrdinalIgnoreCase) ||
+            requested.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase)))
+            throw new UnauthorizedAccessException($"Working directory is not allowed: {cwd}");
     }
 }

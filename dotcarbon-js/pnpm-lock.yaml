@@ -239,6 +239,16 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  packages/plugin-deep-link:
+    dependencies:
+      '@dotcarbon/api':
+        specifier: workspace:^
+        version: link:../api
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   packages/plugin-dialog:
     dependencies:
       '@dotcarbon/api':
@@ -259,6 +269,16 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  packages/plugin-global-shortcut:
+    dependencies:
+      '@dotcarbon/api':
+        specifier: workspace:^
+        version: link:../api
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   packages/plugin-notification:
     dependencies:
       '@dotcarbon/api':
@@ -269,7 +289,47 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  packages/plugin-opener:
+    dependencies:
+      '@dotcarbon/api':
+        specifier: workspace:^
+        version: link:../api
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   packages/plugin-shell:
+    dependencies:
+      '@dotcarbon/api':
+        specifier: workspace:^
+        version: link:../api
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
+  packages/plugin-single-instance:
+    dependencies:
+      '@dotcarbon/api':
+        specifier: workspace:^
+        version: link:../api
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
+  packages/plugin-store:
+    dependencies:
+      '@dotcarbon/api':
+        specifier: workspace:^
+        version: link:../api
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
+  packages/plugin-updater:
     dependencies:
       '@dotcarbon/api':
         specifier: workspace:^

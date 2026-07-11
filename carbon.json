@@ -3,7 +3,8 @@
         "title": "My Carbon App",
         "width": 800,
         "height": 600,
-        "icon": "dotcarbon-js/packages/create-app/shared/icons/icon.png"
+        "icon": "dotcarbon-js/packages/create-app/shared/icons/icon.png",
+        "capabilities": ["main"]
     },
     "build": {
         "devCommand": "pnpm dev",
@@ -11,6 +12,23 @@
         "devUrl": "http://localhost:5173",
         "frontendDist": "dotcarbon-js/packages/ui/dist",
         "backendProject": "src/DotCarbon.Host/DotCarbon.Host.csproj"
+    },
+    "security": {
+        "enabled": true,
+        "capabilities": {
+            "main": {
+                "windows": ["main"],
+                "commands": [
+                    "clipboard:*",
+                    "core:event_emit",
+                    "dialog:*",
+                    "fs:*",
+                    "notification:*",
+                    "shell:*",
+                    "window:*"
+                ]
+            }
+        }
     },
     "bundle": {
         "category": "DeveloperTool",

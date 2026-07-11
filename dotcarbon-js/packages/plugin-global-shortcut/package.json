@@ -1,0 +1,49 @@
+{
+    "name": "@dotcarbon/plugin-global-shortcut",
+    "version": "0.1.0",
+    "description": "Global shortcut plugin for DotCarbon",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "prepublishOnly": "npm run build"
+    },
+    "dependencies": {
+        "@dotcarbon/api": "workspace:^"
+    },
+    "devDependencies": {
+        "typescript": "^5.0.0"
+    },
+    "author": "DanKaufmanDev",
+    "license": "MIT",
+    "homepage": "https://github.com/DanKaufmanDev/dotcarbon#readme",
+    "bugs": {
+        "url": "https://github.com/DanKaufmanDev/dotcarbon/issues"
+    },
+    "keywords": [
+        "dotcarbon",
+        "desktop",
+        "plugin",
+        "shortcut",
+        "hotkey"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/DanKaufmanDev/dotcarbon.git",
+        "directory": "dotcarbon-js/packages/plugin-global-shortcut"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "files": [
+        "dist"
+    ]
+}
