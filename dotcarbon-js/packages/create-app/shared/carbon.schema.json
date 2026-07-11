@@ -211,7 +211,18 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-                "category": { "type": "string", "default": "Utility" }
+                "category": { "type": "string", "default": "Utility" },
+                "formats": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["appimage", "deb", "rpm"] },
+                    "default": ["appimage", "deb", "rpm"],
+                    "description": "Which Linux packages to produce. Each is skipped with a warning if its tool (appimagetool, dpkg-deb, rpmbuild) is unavailable."
+                },
+                "maintainer": { "type": ["string", "null"], "description": "deb/rpm packager identity, e.g. \"Jane Doe <jane@example.com>\". Falls back to bundle.publisher, then app.name." },
+                "section": { "type": "string", "default": "utils", "description": "Debian archive section." },
+                "priority": { "type": "string", "default": "optional", "description": "Debian package priority." },
+                "depends": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Runtime dependencies (deb Depends / rpm Requires), e.g. \"libwebkit2gtk-4.1-0\"." },
+                "license": { "type": "string", "default": "Proprietary", "description": "rpm License tag." }
             }
         },
         "UpdaterBundle": {

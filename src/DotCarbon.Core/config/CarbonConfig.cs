@@ -149,6 +149,24 @@ public class WindowsBundleConfig
 public class LinuxBundleConfig
 {
     public string Category { get; set; } = "Utility";
+
+    /// <summary>Which Linux packages to produce. Any of: appimage, deb, rpm.</summary>
+    public List<string> Formats { get; set; } = ["appimage", "deb", "rpm"];
+
+    /// <summary>deb/rpm packager identity, e.g. "Jane Doe &lt;jane@example.com&gt;". Falls back to bundle.publisher/app.name.</summary>
+    public string? Maintainer { get; set; }
+
+    /// <summary>Debian archive section (control "Section").</summary>
+    public string Section { get; set; } = "utils";
+
+    /// <summary>Debian priority (control "Priority").</summary>
+    public string Priority { get; set; } = "optional";
+
+    /// <summary>Runtime package dependencies (deb "Depends" / rpm "Requires"), e.g. "libwebkit2gtk-4.1-0".</summary>
+    public List<string> Depends { get; set; } = [];
+
+    /// <summary>rpm license tag.</summary>
+    public string License { get; set; } = "Proprietary";
 }
 
 public class UpdaterBundleConfig

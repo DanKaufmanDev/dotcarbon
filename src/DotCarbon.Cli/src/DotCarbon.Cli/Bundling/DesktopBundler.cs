@@ -36,9 +36,9 @@ internal sealed class DesktopBundler : IBundlerTarget
 
         // Package
         if (ctx.Package)
-            steps.Add(new("Package installer", PackageFormat(os)));
+            steps.Add(new("Package installer", PackageFormat(ctx, os)));
         else
-            steps.Add(new("Package installer", PackageFormat(os), Skipped: true, SkipReason: "--no-package"));
+            steps.Add(new("Package installer", PackageFormat(ctx, os), Skipped: true, SkipReason: "--no-package"));
 
         // Code signing (macOS + Windows have signing; Linux does not here)
         if (os is "osx" or "win")
@@ -73,7 +73,7 @@ internal sealed class DesktopBundler : IBundlerTarget
             TargetId = Id,
             TargetName = $"{DisplayName} ({ctx.Target})",
             Summary = ctx.Package
-                ? $"one Carbon app → {PackageFormat(os)}"
+                ? $"one Carbon app → {PackageFormat(ctx, os)}"
                 : "one Carbon app → self-contained executable (no installer)",
             Steps = steps,
         };
@@ -90,13 +90,24 @@ internal sealed class DesktopBundler : IBundlerTarget
         target.StartsWith("win") ? "win" :
         target.StartsWith("linux") ? "linux" : "unknown";
 
-    private static string PackageFormat(string os) => os switch
+    private static string PackageFormat(BundleContext ctx, string os) => os switch
     {
         "osx" => ".app + .dmg",
         "win" => ".msi (+ .exe)",
-        "linux" => ".AppImage",
+        "linux" => LinuxFormats(ctx),
         _ => "platform installer",
     };
+
+    private static string LinuxFormats(BundleContext ctx)
+    {
+        var formats = ctx.Config.Bundle.Linux.Formats
+            .Select(format => format.Trim().ToLowerInvariant())
+            .Where(format => format is "appimage" or "deb" or "rpm")
+            .Distinct()
+            .Select(format => format == "appimage" ? ".AppImage" : "." + format)
+            .ToList();
+        return formats.Count > 0 ? string.Join(" + ", formats) : ".AppImage";
+    }
 
     private static string SignLabel(string os) => os switch
     {

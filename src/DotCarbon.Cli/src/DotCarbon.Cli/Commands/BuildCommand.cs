@@ -942,17 +942,55 @@ public static class BuildCommand
         var outDir = Path.Combine(workingDir, "out", target);
         var exe = Directory.GetFiles(outDir).FirstOrDefault(IsUnixExecutable);
         if (exe is null) return null;
+
+        var exeName = Path.GetFileName(exe);
+        var name = string.IsNullOrWhiteSpace(config.App.Name) ? exeName : config.App.Name;
+        var slug = LinuxSlug(name);
+
+        var formats = config.Bundle.Linux.Formats
+            .Select(format => format.Trim().ToLowerInvariant())
+            .Where(format => format is "appimage" or "deb" or "rpm")
+            .Distinct()
+            .ToList();
+        if (formats.Count == 0) formats.Add("appimage");
+
+        var produced = new List<string>();
+        string? primary = null;
+
+        if (formats.Contains("appimage"))
+        {
+            var appimage = await BuildAppImage(config, workingDir, outDir, target, name, slug, exeName, icons);
+            if (appimage is not null) { produced.Add(appimage); primary ??= appimage; }
+        }
+        if (formats.Contains("deb"))
+        {
+            var deb = await BuildDeb(config, workingDir, outDir, target, name, slug, exeName, icons);
+            if (deb is not null) produced.Add(deb);
+        }
+        if (formats.Contains("rpm"))
+        {
+            var rpm = await BuildRpm(config, workingDir, outDir, target, name, slug, exeName, icons);
+            if (rpm is not null) produced.Add(rpm);
+        }
+
+        primary ??= produced.FirstOrDefault();
+        if (produced.Count > 0)
+            Console.WriteLine($"[Carbon] Linux packages: {string.Join(", ", produced.Select(Path.GetFileName))}");
+        return primary is null ? null : $"out/{target}/{Path.GetFileName(primary)}";
+    }
+
+    private static async Task<string?> BuildAppImage(
+        CarbonConfig config, string workingDir, string outDir, string target,
+        string name, string slug, string exeName, IconAssets? icons)
+    {
         var tool = await EnsureAppImageTool(workingDir);
         if (tool is null)
         {
-            Console.WriteLine("[Carbon] The binary is in the output. Install appimagetool for an .AppImage.");
+            WriteWarning("Skipping .AppImage: appimagetool is unavailable (the binary is still in the output).");
             return null;
         }
 
         Console.WriteLine("\n[Carbon] Packaging Linux .AppImage...");
-        var exeName = Path.GetFileName(exe);
-        var name = string.IsNullOrWhiteSpace(config.App.Name) ? exeName : config.App.Name;
-        var slug = new string(name.ToLowerInvariant().Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
         var appdir = Path.Combine(outDir, "AppDir");
         if (Directory.Exists(appdir)) Directory.Delete(appdir, true);
         var bin = Path.Combine(appdir, "usr", "bin");
@@ -967,46 +1005,14 @@ public static class BuildCommand
             "#!/bin/sh\nHERE=\"$(dirname \"$(readlink -f \"$0\")\")\"\n" +
             "export CARBON_RESOURCE_DIR=\"$HERE/usr/lib/" + slug + "\"\n" +
             "cd \"$HERE/usr/bin\"\nexec \"./" + exeName + "\" \"$@\"\n");
-        var mimeTypes = config.Bundle.FileAssociations
-            .Select(item => item.MimeType)
-            .Where(item => !string.IsNullOrWhiteSpace(item))
-            .Concat(config.Bundle.Protocols.SelectMany(protocol => protocol.Schemes)
-                .Select(scheme => "x-scheme-handler/" + scheme));
         await File.WriteAllTextAsync(Path.Combine(appdir, slug + ".desktop"),
-            "[Desktop Entry]\nType=Application\nName=" + name + "\nExec=" + exeName + " %U\nIcon=" + slug +
-            "\nCategories=" + config.Bundle.Linux.Category + ";\n" +
-            (mimeTypes.Any() ? "MimeType=" + string.Join(';', mimeTypes) + ";\n" : string.Empty));
+            BuildDesktopEntry(config, name, slug, exeName));
+        WriteLinuxMimePackages(config, Path.Combine(appdir, "usr", "share", "mime", "packages"), slug);
 
-        if (config.Bundle.FileAssociations.Any(item =>
-                !string.IsNullOrWhiteSpace(item.MimeType) && item.Extensions.Count > 0))
-        {
-            var mimeRoot = new XElement("mime-info",
-                new XAttribute("xmlns", "http://www.freedesktop.org/standards/shared-mime-info"));
-            foreach (var association in config.Bundle.FileAssociations.Where(item =>
-                         !string.IsNullOrWhiteSpace(item.MimeType) && item.Extensions.Count > 0))
-            {
-                mimeRoot.Add(new XElement("mime-type",
-                    new XAttribute("type", association.MimeType!),
-                    new XElement("comment", string.IsNullOrWhiteSpace(association.Description)
-                        ? association.Name
-                        : association.Description),
-                    association.Extensions.Select(extension => new XElement("glob",
-                        new XAttribute("pattern", "*." + extension.TrimStart('.'))))));
-            }
-            var mimeDir = Path.Combine(appdir, "usr", "share", "mime", "packages");
-            Directory.CreateDirectory(mimeDir);
-            await File.WriteAllTextAsync(Path.Combine(mimeDir, slug + ".xml"), mimeRoot.ToString());
-        }
         if (icons is not null)
         {
             File.Copy(icons.Linux512, Path.Combine(appdir, slug + ".png"), true);
-            foreach (var icon in Directory.GetFiles(icons.LinuxDirectory, "*.png"))
-            {
-                var size = Path.GetFileNameWithoutExtension(icon);
-                var iconDir = Path.Combine(appdir, "usr", "share", "icons", "hicolor", size, "apps");
-                Directory.CreateDirectory(iconDir);
-                File.Copy(icon, Path.Combine(iconDir, slug + ".png"), true);
-            }
+            CopyLinuxIcons(icons, Path.Combine(appdir, "usr", "share", "icons", "hicolor"), slug);
         }
         else
         {
@@ -1015,12 +1021,197 @@ public static class BuildCommand
         }
 
         await RunProcessToCompletion("chmod", $"+x \"{Path.Combine(appdir, "AppRun")}\" \"{Path.Combine(bin, exeName)}\"", outDir, "[pkg]", ConsoleColor.Blue);
-        Environment.SetEnvironmentVariable("ARCH", "x86_64");
+        Environment.SetEnvironmentVariable("ARCH", AppImageArch(target));
         Environment.SetEnvironmentVariable("APPIMAGE_EXTRACT_AND_RUN", "1");
         var appimage = Path.Combine(outDir, name + ".AppImage");
         await RunProcessToCompletion(tool, $"\"{appdir}\" \"{appimage}\"", outDir, "[pkg]", ConsoleColor.Blue);
-        return File.Exists(appimage) ? $"out/{target}/{name}.AppImage" : null;
+        return File.Exists(appimage) ? appimage : null;
     }
+
+    private static async Task<string?> BuildDeb(
+        CarbonConfig config, string workingDir, string outDir, string target,
+        string name, string slug, string exeName, IconAssets? icons)
+    {
+        if (!ToolExists("dpkg-deb"))
+        {
+            WriteWarning("Skipping .deb: dpkg-deb not found (install the dpkg package).");
+            return null;
+        }
+
+        Console.WriteLine("\n[Carbon] Packaging Linux .deb...");
+        var root = Path.Combine(outDir, "deb-root");
+        if (!await StageFhsPayload(config, workingDir, outDir, root, name, slug, exeName, icons)) return null;
+
+        var arch = DebArch(target);
+        var version = config.App.Version;
+        var debianDir = Path.Combine(root, "DEBIAN");
+        Directory.CreateDirectory(debianDir);
+        var depends = config.Bundle.Linux.Depends.Count > 0
+            ? "Depends: " + string.Join(", ", config.Bundle.Linux.Depends) + "\n"
+            : string.Empty;
+        var control =
+            $"Package: {slug}\n" +
+            $"Version: {version}\n" +
+            $"Section: {config.Bundle.Linux.Section}\n" +
+            $"Priority: {config.Bundle.Linux.Priority}\n" +
+            $"Architecture: {arch}\n" +
+            $"Maintainer: {LinuxMaintainer(config)}\n" +
+            depends +
+            $"Description: {name}\n";
+        await File.WriteAllTextAsync(Path.Combine(debianDir, "control"), control);
+
+        var deb = Path.Combine(outDir, $"{slug}_{version}_{arch}.deb");
+        if (File.Exists(deb)) File.Delete(deb);
+        await RunProcessToCompletion("dpkg-deb",
+            $"--build --root-owner-group \"{root}\" \"{deb}\"", outDir, "[pkg]", ConsoleColor.Blue);
+        return File.Exists(deb) ? deb : null;
+    }
+
+    private static async Task<string?> BuildRpm(
+        CarbonConfig config, string workingDir, string outDir, string target,
+        string name, string slug, string exeName, IconAssets? icons)
+    {
+        if (!ToolExists("rpmbuild"))
+        {
+            WriteWarning("Skipping .rpm: rpmbuild not found (install the rpm/rpm-build package).");
+            return null;
+        }
+
+        Console.WriteLine("\n[Carbon] Packaging Linux .rpm...");
+        var stage = Path.Combine(outDir, "rpm-stage");
+        if (!await StageFhsPayload(config, workingDir, outDir, stage, name, slug, exeName, icons)) return null;
+
+        var arch = RpmArch(target);
+        var version = config.App.Version.Replace('-', '_');
+        var topDir = Path.Combine(outDir, "rpmbuild");
+        if (Directory.Exists(topDir)) Directory.Delete(topDir, true);
+        Directory.CreateDirectory(Path.Combine(topDir, "SPECS"));
+
+        var files = Directory.GetFiles(stage, "*", SearchOption.AllDirectories)
+            .Select(file => "/" + Path.GetRelativePath(stage, file).Replace('\\', '/'))
+            .Select(path => path.Contains(' ') ? $"\"{path}\"" : path);
+        var requires = config.Bundle.Linux.Depends.Count > 0
+            ? "Requires: " + string.Join(", ", config.Bundle.Linux.Depends) + "\n"
+            : string.Empty;
+        var spec =
+            $"Name: {slug}\n" +
+            $"Version: {version}\n" +
+            "Release: 1\n" +
+            $"Summary: {name}\n" +
+            $"License: {config.Bundle.Linux.License}\n" +
+            $"BuildArch: {arch}\n" +
+            requires +
+            "%global __os_install_post %{nil}\n" +
+            "%description\n" + name + "\n" +
+            "%install\nrm -rf %{buildroot}\nmkdir -p %{buildroot}\ncp -a %{_stage}/. %{buildroot}/\n" +
+            "%files\n" + string.Join("\n", files) + "\n";
+        var specPath = Path.Combine(topDir, "SPECS", slug + ".spec");
+        await File.WriteAllTextAsync(specPath, spec);
+
+        await RunProcessToCompletion("rpmbuild",
+            $"-bb --define \"_topdir {topDir}\" --define \"_stage {stage}\" --target {arch} \"{specPath}\"",
+            outDir, "[pkg]", ConsoleColor.Blue);
+
+        var rpmsDir = Path.Combine(topDir, "RPMS");
+        var built = Directory.Exists(rpmsDir)
+            ? Directory.GetFiles(rpmsDir, "*.rpm", SearchOption.AllDirectories).FirstOrDefault()
+            : null;
+        if (built is null) return null;
+        var dest = Path.Combine(outDir, Path.GetFileName(built));
+        File.Copy(built, dest, true);
+        return dest;
+    }
+
+    // Builds the shared FHS payload (/usr/lib/<slug>, a /usr/bin wrapper, .desktop, icons,
+    // mime) that deb and rpm install into the system root.
+    private static async Task<bool> StageFhsPayload(
+        CarbonConfig config, string workingDir, string outDir, string root,
+        string name, string slug, string exeName, IconAssets? icons)
+    {
+        if (Directory.Exists(root)) Directory.Delete(root, true);
+        var libDir = Path.Combine(root, "usr", "lib", slug);
+        Directory.CreateDirectory(libDir);
+        foreach (var f in Directory.GetFiles(outDir)) File.Copy(f, Path.Combine(libDir, Path.GetFileName(f)), true);
+        if (!CopyBundleResources(config.Bundle.Resources, workingDir, libDir)) return false;
+
+        var binDir = Path.Combine(root, "usr", "bin");
+        Directory.CreateDirectory(binDir);
+        var wrapper = Path.Combine(binDir, slug);
+        await File.WriteAllTextAsync(wrapper,
+            $"#!/bin/sh\nexport CARBON_RESOURCE_DIR=\"/usr/lib/{slug}\"\nexec \"/usr/lib/{slug}/{exeName}\" \"$@\"\n");
+
+        var appsDir = Path.Combine(root, "usr", "share", "applications");
+        Directory.CreateDirectory(appsDir);
+        await File.WriteAllTextAsync(Path.Combine(appsDir, slug + ".desktop"),
+            BuildDesktopEntry(config, name, slug, slug));
+
+        WriteLinuxMimePackages(config, Path.Combine(root, "usr", "share", "mime", "packages"), slug);
+        if (icons is not null)
+            CopyLinuxIcons(icons, Path.Combine(root, "usr", "share", "icons", "hicolor"), slug);
+
+        await RunProcessToCompletion("chmod",
+            $"+x \"{wrapper}\" \"{Path.Combine(libDir, exeName)}\"", outDir, "[pkg]", ConsoleColor.Blue);
+        return true;
+    }
+
+    private static string BuildDesktopEntry(CarbonConfig config, string name, string iconSlug, string execCommand)
+    {
+        var mimeTypes = config.Bundle.FileAssociations
+            .Select(item => item.MimeType)
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Concat(config.Bundle.Protocols.SelectMany(protocol => protocol.Schemes)
+                .Select(scheme => "x-scheme-handler/" + scheme))
+            .ToList();
+        return "[Desktop Entry]\nType=Application\nName=" + name + "\nExec=" + execCommand + " %U\nIcon=" + iconSlug +
+            "\nCategories=" + config.Bundle.Linux.Category + ";\n" +
+            (mimeTypes.Count > 0 ? "MimeType=" + string.Join(';', mimeTypes) + ";\n" : string.Empty);
+    }
+
+    private static void WriteLinuxMimePackages(CarbonConfig config, string mimeDir, string slug)
+    {
+        var associations = config.Bundle.FileAssociations
+            .Where(item => !string.IsNullOrWhiteSpace(item.MimeType) && item.Extensions.Count > 0)
+            .ToList();
+        if (associations.Count == 0) return;
+
+        var mimeRoot = new XElement("mime-info",
+            new XAttribute("xmlns", "http://www.freedesktop.org/standards/shared-mime-info"));
+        foreach (var association in associations)
+        {
+            mimeRoot.Add(new XElement("mime-type",
+                new XAttribute("type", association.MimeType!),
+                new XElement("comment", string.IsNullOrWhiteSpace(association.Description)
+                    ? association.Name
+                    : association.Description),
+                association.Extensions.Select(extension => new XElement("glob",
+                    new XAttribute("pattern", "*." + extension.TrimStart('.'))))));
+        }
+        Directory.CreateDirectory(mimeDir);
+        File.WriteAllText(Path.Combine(mimeDir, slug + ".xml"), mimeRoot.ToString());
+    }
+
+    private static void CopyLinuxIcons(IconAssets icons, string hicolorDir, string slug)
+    {
+        foreach (var icon in Directory.GetFiles(icons.LinuxDirectory, "*.png"))
+        {
+            var size = Path.GetFileNameWithoutExtension(icon);
+            var iconDir = Path.Combine(hicolorDir, size, "apps");
+            Directory.CreateDirectory(iconDir);
+            File.Copy(icon, Path.Combine(iconDir, slug + ".png"), true);
+        }
+    }
+
+    private static string LinuxSlug(string name) =>
+        new(name.ToLowerInvariant().Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
+
+    private static string LinuxMaintainer(CarbonConfig config) =>
+        !string.IsNullOrWhiteSpace(config.Bundle.Linux.Maintainer) ? config.Bundle.Linux.Maintainer! :
+        !string.IsNullOrWhiteSpace(config.Bundle.Publisher) ? config.Bundle.Publisher! :
+        config.App.Name;
+
+    private static string AppImageArch(string target) => target.EndsWith("arm64") ? "aarch64" : "x86_64";
+    private static string DebArch(string target) => target.EndsWith("arm64") ? "arm64" : "amd64";
+    private static string RpmArch(string target) => target.EndsWith("arm64") ? "aarch64" : "x86_64";
 
     private static async Task<string?> EnsureAppImageTool(string workingDir)
     {
