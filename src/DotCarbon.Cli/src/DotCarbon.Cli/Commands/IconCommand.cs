@@ -49,11 +49,38 @@ public static class IconCommand
                 return;
             }
 
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"[Carbon] Generated platform icons -> {output}");
-            Console.ResetColor();
+            Write($"Generated desktop icons -> {output}", ConsoleColor.Green);
+
+            // Mobile: write into any generated platform shells (android mipmaps, iOS appiconset).
+            foreach (var platform in new[] { "android", "ios" })
+            {
+                var platformDir = Path.Combine(projectDir, ".carbon", "platforms", platform);
+                if (!Directory.Exists(platformDir)) continue;
+                if (GeneratePlatform(input, platformDir, platform, out var mobileError))
+                    Write($"Generated {platform} icons -> {platformDir}", ConsoleColor.Green);
+                else
+                    Write(mobileError, ConsoleColor.Yellow);
+            }
+
+            if (TryReadWidth(input, out var width) && width < 1024)
+                Write($"Icon is {width}x{width}; 1024x1024 or larger is recommended for iOS and store submission.",
+                    ConsoleColor.Yellow);
         });
         return command;
+    }
+
+    private static void Write(string message, ConsoleColor color)
+    {
+        Console.ForegroundColor = color;
+        Console.WriteLine($"[Carbon] {message}");
+        Console.ResetColor();
+    }
+
+    private static bool TryReadWidth(string path, out int width)
+    {
+        width = 0;
+        try { using var image = Image.Load<Rgba32>(path); width = image.Width; return true; }
+        catch { return false; }
     }
 
     internal static bool Generate(string sourcePath, string outputDir, out string error)
@@ -103,6 +130,93 @@ public static class IconCommand
             error = $"Could not generate icons: {ex.Message}";
             return false;
         }
+    }
+
+    private static readonly (string Dir, int Size)[] AndroidMipmaps =
+    [
+        ("mipmap-mdpi", 48), ("mipmap-hdpi", 72), ("mipmap-xhdpi", 96),
+        ("mipmap-xxhdpi", 144), ("mipmap-xxxhdpi", 192),
+    ];
+
+    /// <summary>Generate the icon (and splash) assets for a mobile platform shell.</summary>
+    internal static bool GeneratePlatform(string sourcePath, string platformDir, string platformId, out string error)
+    {
+        error = string.Empty;
+        if (!File.Exists(sourcePath))
+        {
+            error = $"Icon source not found: {sourcePath}";
+            return false;
+        }
+
+        try
+        {
+            using var source = Image.Load<Rgba32>(sourcePath);
+            if (source.Width != source.Height)
+            {
+                error = $"Icon must be square; received {source.Width}x{source.Height}.";
+                return false;
+            }
+
+            if (platformId == "android") GenerateAndroidIcons(source, platformDir);
+            else if (platformId == "ios") GenerateIosIcons(source, platformDir);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"Could not generate {platformId} icons: {ex.Message}";
+            return false;
+        }
+    }
+
+    private static void GenerateAndroidIcons(Image<Rgba32> source, string platformDir)
+    {
+        foreach (var (dir, size) in AndroidMipmaps)
+        {
+            var target = Path.Combine(platformDir, "Resources", dir);
+            Directory.CreateDirectory(target);
+            File.WriteAllBytes(Path.Combine(target, "appicon.png"), EncodePng(source, size));
+        }
+
+        var drawable = Path.Combine(platformDir, "Resources", "drawable");
+        Directory.CreateDirectory(drawable);
+        File.WriteAllBytes(Path.Combine(drawable, "splash.png"), EncodeSplash(source));
+    }
+
+    private static void GenerateIosIcons(Image<Rgba32> source, string platformDir)
+    {
+        var assets = Path.Combine(platformDir, "Assets.xcassets");
+        Directory.CreateDirectory(assets);
+        File.WriteAllText(Path.Combine(assets, "Contents.json"),
+            "{\n  \"info\" : { \"author\" : \"carbon\", \"version\" : 1 }\n}\n");
+
+        var appIcon = Path.Combine(assets, "AppIcon.appiconset");
+        Directory.CreateDirectory(appIcon);
+        File.WriteAllBytes(Path.Combine(appIcon, "AppIcon-1024.png"), EncodePng(source, 1024));
+        File.WriteAllText(Path.Combine(appIcon, "Contents.json"),
+            "{\n" +
+            "  \"images\" : [\n" +
+            "    { \"filename\" : \"AppIcon-1024.png\", \"idiom\" : \"universal\", \"platform\" : \"ios\", \"size\" : \"1024x1024\" }\n" +
+            "  ],\n" +
+            "  \"info\" : { \"author\" : \"carbon\", \"version\" : 1 }\n" +
+            "}\n");
+
+        File.WriteAllBytes(Path.Combine(platformDir, "splash.png"), EncodeSplash(source));
+    }
+
+    private static byte[] EncodeSplash(Image<Rgba32> source, int canvas = 1024, int icon = 432)
+    {
+        using var scaled = source.Clone(context => context.Resize(new ResizeOptions
+        {
+            Size = new Size(icon, icon),
+            Mode = ResizeMode.Stretch,
+            Sampler = KnownResamplers.Lanczos3,
+        }));
+        using var image = new Image<Rgba32>(canvas, canvas);
+        var offset = (canvas - icon) / 2;
+        image.Mutate(context => context.DrawImage(scaled, new Point(offset, offset), 1f));
+        using var output = new MemoryStream();
+        image.Save(output, new PngEncoder { CompressionLevel = PngCompressionLevel.BestCompression });
+        return output.ToArray();
     }
 
     private static byte[] EncodePng(Image<Rgba32> source, int size)

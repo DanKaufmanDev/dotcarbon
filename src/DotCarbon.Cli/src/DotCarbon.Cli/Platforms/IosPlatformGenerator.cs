@@ -14,7 +14,7 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
     public string ConfigSignature(CarbonConfig config)
     {
         var ios = config.Bundle.Ios;
-        return $"{config.App.Name}|{BundleId(config)}|{config.App.Version}|{ios.MinimumOSVersion}|{ios.DevelopmentTeam}|" +
+        return $"{config.App.Name}|{AppDisplayName(config)}|{BundleId(config)}|{config.App.Version}|{ios.MinimumOSVersion}|{ios.DevelopmentTeam}|" +
                PermissionCatalog.Signature(config);
     }
 
@@ -23,6 +23,7 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
         var config = context.Config;
         var ios = config.Bundle.Ios;
         var name = config.App.Name;
+        var displayName = AppDisplayName(config);
         var ns = Namespace(name);
         var bundleId = BundleId(config);
         var version = config.App.Version;
@@ -94,7 +95,7 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                 "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n" +
                 "<plist version=\"1.0\">\n<dict>\n" +
-                $"    <key>CFBundleDisplayName</key><string>{name}</string>\n" +
+                $"    <key>CFBundleDisplayName</key><string>{displayName}</string>\n" +
                 $"    <key>CFBundleIdentifier</key><string>{bundleId}</string>\n" +
                 $"    <key>CFBundleShortVersionString</key><string>{version}</string>\n" +
                 $"    <key>CFBundleVersion</key><string>{buildNumber}</string>\n" +
@@ -140,6 +141,9 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
         .Replace("&", "&amp;", StringComparison.Ordinal)
         .Replace("<", "&lt;", StringComparison.Ordinal)
         .Replace(">", "&gt;", StringComparison.Ordinal);
+
+    private static string AppDisplayName(CarbonConfig config) =>
+        string.IsNullOrWhiteSpace(config.App.DisplayName) ? config.App.Name : config.App.DisplayName!;
 
     private static string BundleId(CarbonConfig config) =>
         string.IsNullOrWhiteSpace(config.Bundle.Ios.BundleIdentifier)

@@ -38,6 +38,9 @@ public class AppConfig
 {
     public string Name { get; set; } = "Carbon App";
 
+    /// <summary>User-facing app name shown on the home screen / launcher. Defaults to <see cref="Name"/>.</summary>
+    public string? DisplayName { get; set; }
+
     public string Version { get; set; } = "0.1.0";
 
     public string Identifier { get; set; } = "com.example.app";

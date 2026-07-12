@@ -53,6 +53,7 @@
             "description": "App identity.",
             "properties": {
                 "name": { "type": "string", "description": "Human-readable product name.", "default": "Carbon App" },
+                "displayName": { "type": ["string", "null"], "description": "User-facing name on the home screen / launcher. Defaults to name." },
                 "version": { "type": "string", "description": "App version (semver).", "default": "0.1.0" },
                 "identifier": {
                     "type": "string",
