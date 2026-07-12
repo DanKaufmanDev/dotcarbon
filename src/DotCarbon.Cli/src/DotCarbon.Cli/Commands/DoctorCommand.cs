@@ -111,23 +111,57 @@ public static class DoctorCommand
     {
         WriteColor("\n⚡ Carbon doctor\n", ConsoleColor.Cyan);
 
+        var errors = new List<string>();
         var warnings = new List<string>();
-        ReportPlugins(workingDir, warnings);
+        ReportConfig(config, errors, warnings);
+        ReportPlugins(config, workingDir, warnings);
         ReportPermissions(config, workingDir, warnings);
 
         Console.WriteLine();
-        if (warnings.Count == 0)
+        if (errors.Count == 0 && warnings.Count == 0)
         {
             WriteColor("No issues found.", ConsoleColor.Green);
             return 0;
         }
 
-        WriteColor("Warnings:", ConsoleColor.Yellow);
-        foreach (var warning in warnings) WriteColor($"  ⚠ {warning}", ConsoleColor.Yellow);
-        return 0;
+        if (errors.Count > 0)
+        {
+            WriteColor("Errors:", ConsoleColor.Red);
+            foreach (var error in errors) WriteColor($"  ✗ {error}", ConsoleColor.Red);
+        }
+        if (warnings.Count > 0)
+        {
+            WriteColor("Warnings:", ConsoleColor.Yellow);
+            foreach (var warning in warnings) WriteColor($"  ⚠ {warning}", ConsoleColor.Yellow);
+        }
+        return errors.Count > 0 ? 1 : 0;
     }
 
-    private static void ReportPlugins(string workingDir, List<string> warnings)
+    private static void ReportConfig(CarbonConfig config, List<string> errors, List<string> warnings)
+    {
+        var targets = TargetPlatforms(config);
+        Console.WriteLine($"Targets: {string.Join(", ", targets.Count > 0 ? targets : ["desktop"])}\n");
+
+        foreach (var issue in ConfigValidator.Validate(config))
+        {
+            var text = $"{issue.Path} {issue.Message}";
+            if (issue.Severity == ConfigSeverity.Error) errors.Add(text);
+            else warnings.Add(text);
+        }
+    }
+
+    /// <summary>Declared bundle targets as platform ids (desktop/android/ios), defaulting to desktop.</summary>
+    private static IReadOnlyList<string> TargetPlatforms(CarbonConfig config)
+    {
+        var targets = config.Bundle.Targets
+            .Select(t => t.Trim().ToLowerInvariant())
+            .Where(t => PluginCompatibility.Platforms.Contains(t))
+            .Distinct()
+            .ToList();
+        return targets.Count > 0 ? targets : ["desktop"];
+    }
+
+    private static void ReportPlugins(CarbonConfig config, string workingDir, List<string> warnings)
     {
         var plugins = PluginCompatibility.Discover(workingDir);
         if (plugins.Count == 0)
@@ -136,6 +170,7 @@ public static class DoctorCommand
             return;
         }
 
+        var targets = TargetPlatforms(config);
         Console.WriteLine($"Plugins ({plugins.Count} referenced):");
         foreach (var plugin in plugins)
         {
@@ -148,7 +183,8 @@ public static class DoctorCommand
             }
             Console.WriteLine();
 
-            var unsupported = PluginCompatibility.Platforms.Where(p => !plugin.Supports(p)).ToList();
+            // Only warn about targets the app actually builds.
+            var unsupported = targets.Where(p => !plugin.Supports(p)).ToList();
             if (unsupported.Count > 0)
                 warnings.Add($"plugin '{plugin.Namespace}' is not compatible with: {string.Join(", ", unsupported)} " +
                              "(use `carbon bundle <platform> --allow-unsupported-plugins`).");

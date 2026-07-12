@@ -127,6 +127,8 @@ public class BuildConfig
 
 public class BundleConfig
 {
+    /// <summary>Platforms this app targets: any of "desktop", "android", "ios". Defaults to desktop.</summary>
+    public List<string> Targets { get; set; } = ["desktop"];
     public string? Publisher { get; set; }
     public string? Copyright { get; set; }
     public string Category { get; set; } = "Utility";

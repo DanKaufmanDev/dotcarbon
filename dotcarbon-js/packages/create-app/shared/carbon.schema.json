@@ -176,6 +176,12 @@
             "additionalProperties": false,
             "description": "Platform packaging, native integration, signing, and update metadata.",
             "properties": {
+                "targets": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["desktop", "android", "ios"] },
+                    "default": ["desktop"],
+                    "description": "Platforms this app targets. Scopes `carbon doctor` warnings to the platforms you actually build."
+                },
                 "publisher": { "type": ["string", "null"] },
                 "copyright": { "type": ["string", "null"] },
                 "category": { "type": "string", "default": "Utility" },
