@@ -50,6 +50,7 @@ export interface CarbonPluginMetadata {
     name: string;
     version: string | null;
     description: string | null;
+    platforms: readonly string[];
     commands: readonly CarbonCommandMetadata[];
     permissions: readonly CarbonPermissionMetadata[];
     events: readonly CarbonEventMetadata[];

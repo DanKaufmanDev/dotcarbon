@@ -8,6 +8,7 @@ using SharpHook.Providers;
 namespace DotCarbon.Plugins.GlobalShortcut;
 
 [CarbonPlugin("GlobalShortcut", description: "Register global keyboard shortcuts.")]
+[CarbonPluginPlatform("desktop")]
 [CarbonPermission("global-shortcut:default", "Allow global shortcut commands.", Commands = new[] { "global-shortcut:*" })]
 [CarbonEvent("global-shortcut:pressed", nameof(GlobalShortcutPressed), "Raised when a registered shortcut is pressed.")]
 public partial class GlobalShortcutPlugin : IPlugin

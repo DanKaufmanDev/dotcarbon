@@ -54,9 +54,34 @@ internal static class MobileBundleSupport
         }
     }
 
-    public static void Error(string message)
+    /// <summary>
+    /// Fails the bundle if the app references plugins that don't support the target platform,
+    /// unless <paramref name="allowUnsupported"/> (then it only warns). Returns true to proceed.
+    /// </summary>
+    public static bool EnsurePluginsCompatible(string workingDir, string platform, bool allowUnsupported)
     {
-        Console.ForegroundColor = ConsoleColor.Red;
+        var incompatible = PluginCompatibility.Incompatible(workingDir, platform);
+        if (incompatible.Count == 0) return true;
+
+        var names = string.Join(", ", incompatible.Select(plugin => plugin.Namespace));
+        if (allowUnsupported)
+        {
+            Warn($"Bundling {platform} with {incompatible.Count} unsupported plugin(s): {names}");
+            return true;
+        }
+
+        Error($"These plugins do not support {platform}: {names}.");
+        Error($"Remove them for {platform} or pass --allow-unsupported-plugins to bundle anyway. See `carbon doctor`.");
+        return false;
+    }
+
+    public static void Error(string message) => Write(message, ConsoleColor.Red);
+
+    public static void Warn(string message) => Write(message, ConsoleColor.Yellow);
+
+    private static void Write(string message, ConsoleColor color)
+    {
+        Console.ForegroundColor = color;
         Console.WriteLine($"[Carbon] {message}");
         Console.ResetColor();
     }

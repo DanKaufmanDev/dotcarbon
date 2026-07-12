@@ -33,7 +33,8 @@ internal sealed class IosBundler
         };
     }
 
-    public async Task<int> ExecuteAsync(CarbonConfig config, string workingDir, string mode, bool dryRun)
+    public async Task<int> ExecuteAsync(
+        CarbonConfig config, string workingDir, string mode, bool dryRun, bool allowUnsupported)
     {
         var iosDir = PlatformService.PlatformDir(workingDir, "ios");
         var project = FindProject(iosDir);
@@ -50,6 +51,8 @@ internal sealed class IosBundler
         }
 
         Plan(config, mode).Render(dryRun: false);
+
+        if (!MobileBundleSupport.EnsurePluginsCompatible(workingDir, "ios", allowUnsupported)) return 1;
 
         if (!OperatingSystem.IsMacOS())
         {

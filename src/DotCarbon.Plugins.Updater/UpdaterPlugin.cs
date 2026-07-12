@@ -6,6 +6,7 @@ using DotCarbon.Core.Plugins;
 namespace DotCarbon.Plugins.Updater;
 
 [CarbonPlugin("Updater", description: "Check signed updater manifests.")]
+[CarbonPluginPlatform("desktop")]
 [CarbonPermission("updater:default", "Allow updater commands.", Commands = new[] { "updater:*" })]
 public partial class UpdaterPlugin : IPlugin
 {

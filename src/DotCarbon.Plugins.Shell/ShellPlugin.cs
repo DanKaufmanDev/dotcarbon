@@ -5,6 +5,7 @@ using DotCarbon.Core.Plugins;
 namespace DotCarbon.Plugins.Shell;
 
 [CarbonPlugin("Shell", description: "Run processes and open paths or URLs.")]
+[CarbonPluginPlatform("desktop")]
 [CarbonPermission("shell:default", "Allow all shell commands.", Commands = new[] { "shell:*" })]
 public partial class ShellPlugin : IPlugin
 {

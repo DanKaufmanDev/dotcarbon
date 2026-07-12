@@ -85,6 +85,8 @@ public static class BundleCommand
         var debug = new Option<bool>("--debug", "Build the Debug configuration");
         var release = new Option<bool>("--release", "Build the Release configuration (the default)");
         var dryRun = new Option<bool>("--dry-run", "Print the bundle plan without executing it");
+        var allowUnsupported = new Option<bool>(
+            "--allow-unsupported-plugins", "Bundle even if referenced plugins do not support Android");
 
         cmd.AddOption(project);
         cmd.AddOption(aab);
@@ -92,6 +94,7 @@ public static class BundleCommand
         cmd.AddOption(debug);
         cmd.AddOption(release);
         cmd.AddOption(dryRun);
+        cmd.AddOption(allowUnsupported);
 
         cmd.SetHandler(async context =>
         {
@@ -110,7 +113,8 @@ public static class BundleCommand
             var config = ConfigLoader.Load(configPath);
             context.ExitCode = await new AndroidBundler().ExecuteAsync(
                 config, workingDir, format, isRelease,
-                context.ParseResult.GetValueForOption(dryRun));
+                context.ParseResult.GetValueForOption(dryRun),
+                context.ParseResult.GetValueForOption(allowUnsupported));
         });
 
         return cmd;
@@ -126,12 +130,15 @@ public static class BundleCommand
         var device = new Option<bool>("--device", "Build for a physical device (needs signing)");
         var archive = new Option<bool>("--archive", "Produce a signed .ipa archive for distribution");
         var dryRun = new Option<bool>("--dry-run", "Print the bundle plan without executing it");
+        var allowUnsupported = new Option<bool>(
+            "--allow-unsupported-plugins", "Bundle even if referenced plugins do not support iOS");
 
         cmd.AddOption(project);
         cmd.AddOption(simulator);
         cmd.AddOption(device);
         cmd.AddOption(archive);
         cmd.AddOption(dryRun);
+        cmd.AddOption(allowUnsupported);
 
         cmd.SetHandler(async context =>
         {
@@ -150,7 +157,9 @@ public static class BundleCommand
                 : "simulator";
             var config = ConfigLoader.Load(configPath);
             context.ExitCode = await new IosBundler().ExecuteAsync(
-                config, workingDir, mode, context.ParseResult.GetValueForOption(dryRun));
+                config, workingDir, mode,
+                context.ParseResult.GetValueForOption(dryRun),
+                context.ParseResult.GetValueForOption(allowUnsupported));
         });
 
         return cmd;

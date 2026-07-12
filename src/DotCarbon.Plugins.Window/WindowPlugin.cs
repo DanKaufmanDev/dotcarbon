@@ -6,6 +6,7 @@ using DotCarbon.Core.Runtime;
 namespace DotCarbon.Plugins.Window;
 
 [CarbonPlugin("Window", description: "Create and control labeled windows and webviews.")]
+[CarbonPluginPlatform("desktop")]
 [CarbonPermission("window:default", "Allow all window commands.", Commands = new[] { "window:*" })]
 public partial class WindowPlugin : IPlugin
 {

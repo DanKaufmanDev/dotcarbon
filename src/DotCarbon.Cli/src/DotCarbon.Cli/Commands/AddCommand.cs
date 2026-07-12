@@ -37,7 +37,8 @@ public static class AddCommand
                 "DialogPlugin",
                 "dialog",
                 ["dialog:*"],
-                WindowPluginFactory: "(_, window) => new DialogPlugin(window.Photino())"),
+                WindowPluginFactory: "(_, window) => new DialogPlugin(window.Photino())",
+                Platforms: ["desktop"]),
             ["fs"] = new(
                 ["fs", "filesystem", "file-system", "DotCarbon.Plugins.FileSystem"],
                 "DotCarbon.Plugins.FileSystem",
@@ -53,7 +54,8 @@ public static class AddCommand
                 "DotCarbon.Plugins.GlobalShortcut",
                 "GlobalShortcutPlugin",
                 "global-shortcut",
-                ["global-shortcut:*"]),
+                ["global-shortcut:*"],
+                Platforms: ["desktop"]),
             ["notification"] = new(
                 ["notification", "notifications", "notify", "DotCarbon.Plugins.Notification"],
                 "DotCarbon.Plugins.Notification",
@@ -77,7 +79,8 @@ public static class AddCommand
                 "DotCarbon.Plugins.Shell",
                 "ShellPlugin",
                 "shell",
-                ["shell:*"]),
+                ["shell:*"],
+                Platforms: ["desktop"]),
             ["single-instance"] = new(
                 ["single-instance", "singleinstance", "single", "instance", "DotCarbon.Plugins.SingleInstance"],
                 "DotCarbon.Plugins.SingleInstance",
@@ -85,7 +88,8 @@ public static class AddCommand
                 "DotCarbon.Plugins.SingleInstance",
                 "SingleInstancePlugin",
                 "single-instance",
-                ["single-instance:*"]),
+                ["single-instance:*"],
+                Platforms: ["desktop"]),
             ["store"] = new(
                 ["store", "settings", "kv", "DotCarbon.Plugins.Store"],
                 "DotCarbon.Plugins.Store",
@@ -101,7 +105,8 @@ public static class AddCommand
                 "DotCarbon.Plugins.Updater",
                 "UpdaterPlugin",
                 "updater",
-                ["updater:*"]),
+                ["updater:*"],
+                Platforms: ["desktop"]),
             ["window"] = new(
                 ["window", "windows", "webview", "DotCarbon.Plugins.Window"],
                 "DotCarbon.Plugins.Window",
@@ -109,7 +114,8 @@ public static class AddCommand
                 "DotCarbon.Plugins.Window",
                 "WindowPlugin",
                 "window",
-                ["window:*"]),
+                ["window:*"],
+                Platforms: ["desktop"]),
         };
 
     public static Command Build()
@@ -458,7 +464,10 @@ public static class AddCommand
         return char.IsDigit(identifier[0]) ? "_" + identifier : identifier;
     }
 
-    private sealed record PluginDefinition(
+    /// <summary>First-party plugin catalog, exposed for `carbon doctor` and the bundler compat gate.</summary>
+    internal static IReadOnlyDictionary<string, PluginDefinition> Catalog => Plugins;
+
+    internal sealed record PluginDefinition(
         IReadOnlyList<string> Aliases,
         string NuGetPackage,
         string? NpmPackage,
@@ -466,5 +475,10 @@ public static class AddCommand
         string ClassName,
         string Namespace,
         IReadOnlyList<string> Commands,
-        string? WindowPluginFactory = null);
+        string? WindowPluginFactory = null,
+        IReadOnlyList<string>? Platforms = null)
+    {
+        /// <summary>Platforms this plugin supports; unset means all (desktop, android, ios).</summary>
+        public IReadOnlyList<string> EffectivePlatforms => Platforms ?? ["desktop", "android", "ios"];
+    }
 }

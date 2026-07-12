@@ -29,7 +29,7 @@ internal sealed class AndroidBundler
     }
 
     public async Task<int> ExecuteAsync(
-        CarbonConfig config, string workingDir, string format, bool release, bool dryRun)
+        CarbonConfig config, string workingDir, string format, bool release, bool dryRun, bool allowUnsupported)
     {
         var androidDir = PlatformService.PlatformDir(workingDir, "android");
         var project = FindProject(androidDir);
@@ -46,6 +46,8 @@ internal sealed class AndroidBundler
         }
 
         Plan(config, format, release).Render(dryRun: false);
+
+        if (!MobileBundleSupport.EnsurePluginsCompatible(workingDir, "android", allowUnsupported)) return 1;
 
         if (!await MobileBundleSupport.HasWorkload("android"))
         {

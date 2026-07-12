@@ -5,6 +5,7 @@ using DotCarbon.Core.Plugins;
 namespace DotCarbon.Plugins.SingleInstance;
 
 [CarbonPlugin("SingleInstance", description: "Detect and guard against duplicate app instances.")]
+[CarbonPluginPlatform("desktop")]
 [CarbonPermission("single-instance:default", "Allow single-instance commands.", Commands = new[] { "single-instance:*" })]
 public partial class SingleInstancePlugin : IPlugin
 {

@@ -27,6 +27,16 @@ public sealed class CarbonPermissionAttribute(
     public string[] Commands { get; set; } = [];
 }
 
+/// <summary>
+/// Declares which platforms a plugin supports (<c>desktop</c>, <c>android</c>, <c>ios</c>).
+/// Unset means all platforms. Surfaced in plugin metadata and checked by the bundler / <c>carbon doctor</c>.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+public sealed class CarbonPluginPlatformAttribute(params string[] platforms) : Attribute
+{
+    public string[] Platforms { get; } = platforms;
+}
+
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
 public sealed class CarbonEventAttribute(
     string name,
@@ -73,16 +83,19 @@ public sealed record PluginMetadata(
     string? Description = null,
     IReadOnlyList<PluginCommandMetadata>? Commands = null,
     IReadOnlyList<PluginPermissionMetadata>? Permissions = null,
-    IReadOnlyList<PluginEventMetadata>? Events = null)
+    IReadOnlyList<PluginEventMetadata>? Events = null,
+    IReadOnlyList<string>? Platforms = null)
 {
     public IReadOnlyList<PluginCommandMetadata> Commands { get; init; } = Commands ?? [];
     public IReadOnlyList<PluginPermissionMetadata> Permissions { get; init; } = Permissions ?? [];
     public IReadOnlyList<PluginEventMetadata> Events { get; init; } = Events ?? [];
+    public IReadOnlyList<string> Platforms { get; init; } = Platforms ?? ["desktop", "android", "ios"];
 
     public static PluginMetadata FromPlugin(IPlugin plugin)
     {
         var type = plugin.GetType();
         var pluginAttribute = type.GetCustomAttribute<CarbonPluginAttribute>();
+        var platformAttribute = type.GetCustomAttribute<CarbonPluginPlatformAttribute>();
         var assemblyName = type.Assembly.GetName();
 
         return new PluginMetadata(
@@ -92,7 +105,8 @@ public sealed record PluginMetadata(
             pluginAttribute?.Description,
             [],
             ReadPermissions(type),
-            ReadEvents(type));
+            ReadEvents(type),
+            platformAttribute?.Platforms);
     }
 
     private static IReadOnlyList<PluginPermissionMetadata> ReadPermissions(Type type) =>
