@@ -11,6 +11,27 @@ public class CarbonConfig
     public Dictionary<string, JsonElement> Plugins { get; set; } = [];
     public BuildConfig Build { get; set; } = new();
     public BundleConfig Bundle { get; set; } = new();
+    public PermissionsConfig Permissions { get; set; } = new();
+}
+
+/// <summary>
+/// Device capabilities the app needs. Mapped to native declarations per platform:
+/// AndroidManifest <c>&lt;uses-permission&gt;</c>, iOS Info.plist usage-description keys, and entitlements.
+/// </summary>
+public class PermissionsConfig
+{
+    public bool Camera { get; set; }
+    public bool Microphone { get; set; }
+    public bool Location { get; set; }
+    public bool Notifications { get; set; }
+    public bool Contacts { get; set; }
+    public bool PhotoLibrary { get; set; }
+
+    /// <summary>File access scope: null (none), "appData", "documents", or "external".</summary>
+    public string? Files { get; set; }
+
+    /// <summary>iOS Info.plist usage strings per permission id (e.g. "camera"). Defaults are used if unset.</summary>
+    public Dictionary<string, string> Descriptions { get; set; } = [];
 }
 
 public class AppConfig

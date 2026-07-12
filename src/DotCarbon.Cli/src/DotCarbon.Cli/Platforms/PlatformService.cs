@@ -23,6 +23,15 @@ internal static class PlatformService
     public static string PlatformsRoot(string workingDir) => Path.Combine(workingDir, ".carbon", "platforms");
     public static string PlatformDir(string workingDir, string id) => Path.Combine(PlatformsRoot(workingDir), id);
 
+    /// <summary>True if the platform was generated from a different config than the current one (needs sync).</summary>
+    public static bool NeedsSync(CarbonConfig config, string workingDir, string id)
+    {
+        var manifest = PlatformManifest.Load(PlatformDir(workingDir, id));
+        var generator = GeneratorFor(id);
+        return manifest is not null && generator is not null &&
+               manifest.ConfigHash != PlatformManifest.HashSignature(generator.ConfigSignature(config));
+    }
+
     public static int Add(CarbonConfig config, string workingDir, string id)
     {
         var generator = GeneratorFor(id);

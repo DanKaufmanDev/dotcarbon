@@ -54,6 +54,9 @@ internal sealed class IosBundler
 
         if (!MobileBundleSupport.EnsurePluginsCompatible(workingDir, "ios", allowUnsupported)) return 1;
 
+        if (PlatformService.NeedsSync(config, workingDir, "ios"))
+            MobileBundleSupport.Warn("iOS project is out of sync with carbon.json — run `carbon platform sync ios` to apply config/permission changes.");
+
         if (!OperatingSystem.IsMacOS())
         {
             MobileBundleSupport.Error("iOS apps can only be built on macOS with Xcode installed.");

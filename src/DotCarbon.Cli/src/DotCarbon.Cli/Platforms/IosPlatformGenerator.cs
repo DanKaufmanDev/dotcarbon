@@ -14,7 +14,8 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
     public string ConfigSignature(CarbonConfig config)
     {
         var ios = config.Bundle.Ios;
-        return $"{config.App.Name}|{BundleId(config)}|{config.App.Version}|{ios.MinimumOSVersion}|{ios.DevelopmentTeam}";
+        return $"{config.App.Name}|{BundleId(config)}|{config.App.Version}|{ios.MinimumOSVersion}|{ios.DevelopmentTeam}|" +
+               PermissionCatalog.Signature(config);
     }
 
     public IReadOnlyList<GeneratedFile> Generate(PlatformContext context)
@@ -33,6 +34,9 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
         var teamProp = string.IsNullOrWhiteSpace(ios.DevelopmentTeam)
             ? string.Empty
             : $"    <CodesignEntitlements>Entitlements.plist</CodesignEntitlements>\n";
+
+        var usageKeys = string.Concat(PermissionCatalog.IosUsageDescriptions(config)
+            .Select(entry => $"    <key>{entry.Key}</key><string>{Escape(entry.Description)}</string>\n"));
 
         return new List<GeneratedFile>
         {
@@ -103,6 +107,7 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
                 "        <string>UIInterfaceOrientationLandscapeLeft</string>\n" +
                 "        <string>UIInterfaceOrientationLandscapeRight</string>\n" +
                 "    </array>\n" +
+                usageKeys +
                 "</dict>\n</plist>\n"),
 
             new("Entitlements.plist",
@@ -130,6 +135,11 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
                 "platform-neutral class library and reference it from both this project and `src-carbon`.\n"),
         };
     }
+
+    private static string Escape(string value) => value
+        .Replace("&", "&amp;", StringComparison.Ordinal)
+        .Replace("<", "&lt;", StringComparison.Ordinal)
+        .Replace(">", "&gt;", StringComparison.Ordinal);
 
     private static string BundleId(CarbonConfig config) =>
         string.IsNullOrWhiteSpace(config.Bundle.Ios.BundleIdentifier)

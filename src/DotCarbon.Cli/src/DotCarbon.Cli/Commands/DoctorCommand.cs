@@ -1,5 +1,6 @@
 using System.CommandLine;
 using DotCarbon.Cli.Bundling;
+using DotCarbon.Cli.Platforms;
 using DotCarbon.Core.Config;
 
 namespace DotCarbon.Cli.Commands;
@@ -27,21 +28,38 @@ public static class DoctorCommand
                 context.ExitCode = 1;
                 return;
             }
-            _ = ConfigLoader.Load(configPath);
-            context.ExitCode = Run(workingDir);
+            context.ExitCode = Run(ConfigLoader.Load(configPath), workingDir);
         });
         return command;
     }
 
-    private static int Run(string workingDir)
+    private static int Run(CarbonConfig config, string workingDir)
     {
         WriteColor("\n⚡ Carbon doctor\n", ConsoleColor.Cyan);
 
+        var warnings = new List<string>();
+        ReportPlugins(workingDir, warnings);
+        ReportPermissions(config, workingDir, warnings);
+
+        Console.WriteLine();
+        if (warnings.Count == 0)
+        {
+            WriteColor("No issues found.", ConsoleColor.Green);
+            return 0;
+        }
+
+        WriteColor("Warnings:", ConsoleColor.Yellow);
+        foreach (var warning in warnings) WriteColor($"  ⚠ {warning}", ConsoleColor.Yellow);
+        return 0;
+    }
+
+    private static void ReportPlugins(string workingDir, List<string> warnings)
+    {
         var plugins = PluginCompatibility.Discover(workingDir);
         if (plugins.Count == 0)
         {
-            Console.WriteLine("No DotCarbon plugins referenced.");
-            return 0;
+            Console.WriteLine("Plugins: none referenced.\n");
+            return;
         }
 
         Console.WriteLine($"Plugins ({plugins.Count} referenced):");
@@ -55,27 +73,44 @@ public static class DoctorCommand
                 WriteColor(ok ? "✓  " : "✗  ", ok ? ConsoleColor.Green : ConsoleColor.Red, newline: false);
             }
             Console.WriteLine();
+
+            var unsupported = PluginCompatibility.Platforms.Where(p => !plugin.Supports(p)).ToList();
+            if (unsupported.Count > 0)
+                warnings.Add($"plugin '{plugin.Namespace}' is not compatible with: {string.Join(", ", unsupported)} " +
+                             "(use `carbon bundle <platform> --allow-unsupported-plugins`).");
         }
-
-        var warnings = plugins
-            .Where(plugin => PluginCompatibility.Platforms.Any(p => !plugin.Supports(p)))
-            .ToList();
-
         Console.WriteLine();
-        if (warnings.Count == 0)
+    }
+
+    private static void ReportPermissions(CarbonConfig config, string workingDir, List<string> warnings)
+    {
+        var enabled = PermissionCatalog.Enabled(config).ToList();
+        if (enabled.Count == 0)
         {
-            WriteColor("All referenced plugins support every platform.", ConsoleColor.Green);
-            return 0;
+            Console.WriteLine("Permissions: none requested.");
+            return;
         }
 
-        WriteColor("Warnings:", ConsoleColor.Yellow);
-        foreach (var plugin in warnings)
+        Console.WriteLine($"Permissions ({enabled.Count} requested):");
+        foreach (var mapping in enabled)
         {
-            var unsupported = PluginCompatibility.Platforms.Where(p => !plugin.Supports(p));
-            WriteColor($"  ⚠ {plugin.Namespace} — not compatible with: {string.Join(", ", unsupported)}", ConsoleColor.Yellow);
+            var android = string.Join(", ", mapping.AndroidPermissions.Select(p => p.Replace("android.permission.", "")));
+            var ios = mapping.IosUsageKey ?? "(runtime only)";
+            Console.WriteLine($"  {mapping.Id,-14} android: {android,-28} ios: {ios}");
+
+            if (mapping.IosUsageKey is not null &&
+                !(config.Permissions.Descriptions.TryGetValue(mapping.Id, out var d) && !string.IsNullOrWhiteSpace(d)))
+                warnings.Add($"permission '{mapping.Id}' has no custom iOS usage string — using the default " +
+                             $"(set permissions.descriptions.{mapping.Id} before App Store submission).");
         }
-        Console.WriteLine("\nUse `carbon bundle <platform> --allow-unsupported-plugins` to bundle anyway.");
-        return 0;
+
+        if (string.Equals(config.Permissions.Files, "external", StringComparison.OrdinalIgnoreCase))
+            warnings.Add("permissions.files = \"external\" grants broad storage access — prefer \"appData\" or \"documents\" where possible.");
+
+        var mobileAdded = PlatformService.KnownIds.Where(id => id is "android" or "ios")
+            .Any(id => Directory.Exists(PlatformService.PlatformDir(workingDir, id)));
+        if (!mobileAdded)
+            warnings.Add("permissions are declared but no mobile platform is added (`carbon platform add android|ios`).");
     }
 
     private static void WriteColor(string message, ConsoleColor color, bool newline = true)

@@ -23,9 +23,30 @@
             "description": "Plugin-specific configuration keyed by plugin namespace, e.g. { \"shell\": { ... } }."
         },
         "build": { "$ref": "#/definitions/Build" },
-        "bundle": { "$ref": "#/definitions/Bundle" }
+        "bundle": { "$ref": "#/definitions/Bundle" },
+        "permissions": { "$ref": "#/definitions/Permissions" }
     },
     "definitions": {
+        "Permissions": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Device capabilities the app needs, mapped to native declarations per platform.",
+            "properties": {
+                "camera": { "type": "boolean", "default": false },
+                "microphone": { "type": "boolean", "default": false },
+                "location": { "type": "boolean", "default": false },
+                "notifications": { "type": "boolean", "default": false },
+                "contacts": { "type": "boolean", "default": false },
+                "photoLibrary": { "type": "boolean", "default": false },
+                "files": { "type": ["string", "null"], "enum": ["appData", "documents", "external", null], "description": "File access scope." },
+                "descriptions": {
+                    "type": "object",
+                    "additionalProperties": { "type": "string" },
+                    "default": {},
+                    "description": "iOS Info.plist usage strings per permission id, e.g. { \"camera\": \"Scan receipts\" }."
+                }
+            }
+        },
         "App": {
             "type": "object",
             "additionalProperties": false,

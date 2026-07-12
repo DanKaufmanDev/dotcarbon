@@ -49,6 +49,9 @@ internal sealed class AndroidBundler
 
         if (!MobileBundleSupport.EnsurePluginsCompatible(workingDir, "android", allowUnsupported)) return 1;
 
+        if (PlatformService.NeedsSync(config, workingDir, "android"))
+            MobileBundleSupport.Warn("Android project is out of sync with carbon.json — run `carbon platform sync android` to apply config/permission changes.");
+
         if (!await MobileBundleSupport.HasWorkload("android"))
         {
             MobileBundleSupport.Error("The .NET Android workload is not installed. Run: dotnet workload install android");
