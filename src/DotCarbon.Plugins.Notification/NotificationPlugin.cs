@@ -5,6 +5,7 @@ using DotCarbon.Core.Plugins;
 namespace DotCarbon.Plugins.Notification;
 
 [CarbonPlugin("Notifications", description: "Send native desktop notifications.")]
+[CarbonPluginPlatform("desktop")]
 [CarbonPermission("notification:default", "Allow all notification commands.", Commands = new[] { "notification:*" })]
 public partial class NotificationPlugin : IPlugin
 {

@@ -7,6 +7,7 @@ using DotCarbon.Core.Plugins;
 namespace DotCarbon.Plugins.Store;
 
 [CarbonPlugin("Store", description: "Persistent JSON key/value stores.")]
+[CarbonPluginPlatform("desktop", "android", "ios")]
 [CarbonPermission("store:default", "Allow persistent store commands.", Commands = new[] { "store:*" })]
 public partial class StorePlugin : IPlugin
 {

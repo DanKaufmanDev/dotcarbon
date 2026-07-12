@@ -5,6 +5,7 @@ using DotCarbon.Core.Plugins;
 namespace DotCarbon.Plugins.Http;
 
 [CarbonPlugin("Http", description: "Make scoped HTTP requests from the backend.")]
+[CarbonPluginPlatform("desktop", "android", "ios")]
 [CarbonPermission("http:default", "Allow all HTTP commands.", Commands = new[] { "http:*" })]
 public partial class HttpPlugin : IPlugin
 {

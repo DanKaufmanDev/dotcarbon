@@ -5,6 +5,7 @@ using DotCarbon.Core.Runtime;
 namespace DotCarbon.Plugins.DeepLink;
 
 [CarbonPlugin("DeepLink", description: "Read app protocol URLs delivered through process arguments.")]
+[CarbonPluginPlatform("desktop")]
 [CarbonPermission("deep-link:default", "Allow deep-link commands.", Commands = new[] { "deep-link:*" })]
 [CarbonEvent("deep-link:opened", "string", "Raised for deep-link URLs discovered at startup.")]
 public partial class DeepLinkPlugin : IPlugin

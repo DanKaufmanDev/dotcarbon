@@ -15,6 +15,7 @@ public sealed class CarbonCommandGenerator : IIncrementalGenerator
     private const string PluginAttributeName = "DotCarbon.Core.Plugins.CarbonPluginAttribute";
     private const string PermissionAttributeName = "DotCarbon.Core.Plugins.CarbonPermissionAttribute";
     private const string EventAttributeName = "DotCarbon.Core.Plugins.CarbonEventAttribute";
+    private const string PlatformAttributeName = "DotCarbon.Core.Plugins.CarbonPluginPlatformAttribute";
     private const string ContextBase = "System.Text.Json.Serialization.JsonSerializerContext";
 
     private static readonly DiagnosticDescriptor NotPartial = new(
@@ -155,6 +156,9 @@ public sealed class CarbonCommandGenerator : IIncrementalGenerator
         var name = GetConstructorString(attr, 0) ?? type.Name;
         var version = GetConstructorString(attr, 1);
         var description = GetConstructorString(attr, 2);
+        var platforms = type.GetAttributes()
+            .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == PlatformAttributeName);
+        IReadOnlyList<string> platformValues = platforms is null ? [] : GetConstructorStringArray(platforms, 0);
 
         var permissions = new StringBuilder();
         foreach (var permission in type.GetAttributes()
@@ -204,7 +208,8 @@ public sealed class CarbonCommandGenerator : IIncrementalGenerator
             "                new global::DotCarbon.Core.Plugins.PluginEventMetadata[]\n" +
             "                {\n" +
             events +
-            "                });\n\n";
+            "                },\n" +
+            "                " + (platforms is null ? "null" : StringArray(platformValues)) + ");\n\n";
     }
 
     private static bool IsJsonContext(INamedTypeSymbol type)
@@ -238,6 +243,16 @@ public sealed class CarbonCommandGenerator : IIncrementalGenerator
                 .ToArray();
         }
         return [];
+    }
+
+    private static IReadOnlyList<string> GetConstructorStringArray(AttributeData attr, int index)
+    {
+        if (attr.ConstructorArguments.Length <= index) return [];
+        return attr.ConstructorArguments[index].Values
+            .Select(value => value.Value as string)
+            .Where(value => value is not null)
+            .Cast<string>()
+            .ToArray();
     }
 
     private static string LiteralOrNull(string? value) =>

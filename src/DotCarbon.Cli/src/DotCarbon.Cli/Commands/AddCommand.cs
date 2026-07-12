@@ -20,7 +20,8 @@ public static class AddCommand
                 "DotCarbon.Plugins.Clipboard",
                 "ClipboardPlugin",
                 "clipboard",
-                ["clipboard:*"]),
+                ["clipboard:*"],
+                Platforms: ["desktop"]),
             ["deep-link"] = new(
                 ["deep-link", "deeplink", "deep-links", "protocol", "protocols", "DotCarbon.Plugins.DeepLink"],
                 "DotCarbon.Plugins.DeepLink",
@@ -28,7 +29,8 @@ public static class AddCommand
                 "DotCarbon.Plugins.DeepLink",
                 "DeepLinkPlugin",
                 "deep-link",
-                ["deep-link:*"]),
+                ["deep-link:*"],
+                Platforms: ["desktop"]),
             ["dialog"] = new(
                 ["dialog", "dialogs", "DotCarbon.Plugins.Dialog"],
                 "DotCarbon.Plugins.Dialog",
@@ -71,7 +73,8 @@ public static class AddCommand
                 "DotCarbon.Plugins.Notification",
                 "NotificationPlugin",
                 "notification",
-                ["notification:*"]),
+                ["notification:*"],
+                Platforms: ["desktop"]),
             ["os"] = new(
                 ["os", "system", "DotCarbon.Plugins.Os"],
                 "DotCarbon.Plugins.Os",
@@ -87,7 +90,8 @@ public static class AddCommand
                 "DotCarbon.Plugins.Opener",
                 "OpenerPlugin",
                 "opener",
-                ["opener:*"]),
+                ["opener:*"],
+                Platforms: ["desktop"]),
             ["shell"] = new(
                 ["shell", "DotCarbon.Plugins.Shell"],
                 "DotCarbon.Plugins.Shell",

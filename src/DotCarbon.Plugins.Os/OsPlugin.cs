@@ -5,6 +5,7 @@ using DotCarbon.Core.Plugins;
 namespace DotCarbon.Plugins.Os;
 
 [CarbonPlugin("Os", description: "Read operating system information (platform, arch, version, …).")]
+[CarbonPluginPlatform("desktop", "android", "ios")]
 [CarbonPermission("os:default", "Allow all OS commands.", Commands = new[] { "os:*" })]
 public partial class OsPlugin : IPlugin
 {

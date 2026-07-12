@@ -5,6 +5,7 @@ using DotCarbon.Core.Plugins;
 namespace DotCarbon.Plugins.Opener;
 
 [CarbonPlugin("Opener", description: "Open files, folders, and URLs with the operating system.")]
+[CarbonPluginPlatform("desktop")]
 [CarbonPermission("opener:default", "Allow opener commands.", Commands = new[] { "opener:*" })]
 public partial class OpenerPlugin : IPlugin
 {

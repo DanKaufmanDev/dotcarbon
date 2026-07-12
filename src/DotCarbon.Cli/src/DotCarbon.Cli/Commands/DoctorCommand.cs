@@ -155,6 +155,8 @@ public static class DoctorCommand
     {
         var targets = config.Bundle.Targets
             .Select(t => t.Trim().ToLowerInvariant())
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(PluginCompatibility.PlatformForTarget)
             .Where(t => PluginCompatibility.Platforms.Contains(t))
             .Distinct()
             .ToList();

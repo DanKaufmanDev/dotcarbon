@@ -4,6 +4,7 @@ using DotCarbon.Core.Plugins;
 namespace DotCarbon.Plugins.FileSystem;
 
 [CarbonPlugin("File system", description: "Read and write files and directories.")]
+[CarbonPluginPlatform("desktop", "android", "ios")]
 [CarbonPermission("fs:default", "Allow all file-system commands.", Commands = new[] { "fs:*" })]
 public partial class FileSystemPlugin : IPlugin
 {
