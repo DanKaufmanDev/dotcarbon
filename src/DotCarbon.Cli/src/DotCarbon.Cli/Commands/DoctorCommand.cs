@@ -30,7 +30,81 @@ public static class DoctorCommand
             }
             context.ExitCode = Run(ConfigLoader.Load(configPath), workingDir);
         });
+
+        command.AddCommand(SigningSubcommand());
         return command;
+    }
+
+    private static Command SigningSubcommand()
+    {
+        var cmd = new Command("signing", "Check signing/distribution readiness for every platform");
+        var project = new Option<DirectoryInfo?>(
+            "--project", "Path to the Carbon project (default: current directory)");
+        cmd.AddOption(project);
+        cmd.SetHandler(context =>
+        {
+            var projectDir = context.ParseResult.GetValueForOption(project);
+            var workingDir = projectDir?.FullName ?? Directory.GetCurrentDirectory();
+            var configPath = Path.Combine(workingDir, "carbon.json");
+            if (!File.Exists(configPath))
+            {
+                WriteColor($"[Carbon] No carbon.json found in {workingDir}", ConsoleColor.Red);
+                context.ExitCode = 1;
+                return;
+            }
+            context.ExitCode = RunSigning(ConfigLoader.Load(configPath));
+        });
+        return cmd;
+    }
+
+    private static int RunSigning(CarbonConfig config)
+    {
+        WriteColor("\n⚡ Carbon doctor — signing\n", ConsoleColor.Cyan);
+
+        var mac = config.Bundle.MacOS;
+        var win = config.Bundle.Windows;
+        var updater = config.Bundle.Updater;
+        var android = config.Bundle.Android.Signing;
+        var ios = config.Bundle.Ios.Signing;
+
+        Console.WriteLine("Desktop:");
+        Line("macOS codesign",
+            !string.IsNullOrWhiteSpace(mac.SigningIdentity) || SigningSupport.HasEnv(SigningSupport.MacIdentityEnv),
+            $"set bundle.macOS.signingIdentity or {SigningSupport.MacIdentityEnv}");
+        Line("macOS notarization",
+            !string.IsNullOrWhiteSpace(mac.NotarizationProfile) || SigningSupport.HasEnv(SigningSupport.MacNotarizationEnv),
+            $"set bundle.macOS.notarizationProfile or {SigningSupport.MacNotarizationEnv}");
+        Line("Windows signtool",
+            !string.IsNullOrWhiteSpace(win.CertificateThumbprint),
+            "set bundle.windows.certificateThumbprint (cert imported into the machine store)");
+        Line("Updater signing",
+            SigningSupport.HasEnv(SigningSupport.UpdaterKeyEnv),
+            $"set {SigningSupport.UpdaterKeyEnv} (generate keys with `carbon signer`)");
+
+        Console.WriteLine("\nAndroid:");
+        Line("Keystore",
+            !string.IsNullOrWhiteSpace(android.Keystore) && !string.IsNullOrWhiteSpace(android.KeyAlias),
+            "set bundle.android.signing.keystore + keyAlias");
+        Line("Keystore password (env)",
+            SigningSupport.HasEnv(SigningSupport.AndroidKeystorePasswordEnv),
+            $"set {SigningSupport.AndroidKeystorePasswordEnv} (and {SigningSupport.AndroidKeyPasswordEnv} if different)");
+
+        Console.WriteLine("\niOS:");
+        Line("Identity", !string.IsNullOrWhiteSpace(ios.Identity), "set bundle.ios.signing.identity");
+        Line("Provisioning profile", !string.IsNullOrWhiteSpace(ios.ProvisioningProfile), "set bundle.ios.signing.provisioningProfile");
+        Line("Development team", !string.IsNullOrWhiteSpace(config.Bundle.Ios.DevelopmentTeam), "set bundle.ios.developmentTeam");
+
+        Console.WriteLine();
+        Console.WriteLine("Secrets come from the environment (CI: repository/environment secrets); certs/profiles");
+        Console.WriteLine("are installed into the build machine's keychain/store, not committed to carbon.json.");
+        return 0;
+    }
+
+    private static void Line(string label, bool ok, string hint)
+    {
+        Console.Write($"  {label,-24} ");
+        WriteColor(ok ? "✓" : "✗", ok ? ConsoleColor.Green : ConsoleColor.Yellow, newline: false);
+        Console.WriteLine(ok ? " configured" : $" — {hint}");
     }
 
     private static int Run(CarbonConfig config, string workingDir)

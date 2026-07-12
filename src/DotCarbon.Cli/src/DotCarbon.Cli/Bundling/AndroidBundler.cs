@@ -52,6 +52,12 @@ internal sealed class AndroidBundler
         if (PlatformService.NeedsSync(config, workingDir, "android"))
             MobileBundleSupport.Warn("Android project is out of sync with carbon.json — run `carbon platform sync android` to apply config/permission changes.");
 
+        if (!SigningSupport.TryAndroidSigningArgs(config, workingDir, release, out var signingArgs, out var signingError))
+        {
+            MobileBundleSupport.Error(signingError);
+            return 1;
+        }
+
         if (!await MobileBundleSupport.HasWorkload("android"))
         {
             MobileBundleSupport.Error("The .NET Android workload is not installed. Run: dotnet workload install android");
@@ -66,6 +72,7 @@ internal sealed class AndroidBundler
         var args =
             $"publish \"{project}\" -c {configuration} -f net10.0-android " +
             $"-p:AndroidPackageFormat={format} " +
+            (string.IsNullOrEmpty(signingArgs) ? string.Empty : signingArgs + " ") +
             $"-p:CustomBeforeMicrosoftCommonProps=\"{props}\"";
         if (await BuildCommand.RunProcessToCompletion("dotnet", args, androidDir, "[android]", ConsoleColor.Magenta) != 0)
         {

@@ -72,11 +72,24 @@ internal sealed class IosBundler
         if (props is null) return 1;
 
         var (configuration, rid, publish, archive) = ResolveMode(mode);
+
+        // Device/archive builds must be signed.
+        var signingArgs = string.Empty;
+        if (mode is "device" or "archive")
+        {
+            if (!SigningSupport.IosCanSign(config))
+                MobileBundleSupport.Warn(
+                    $"No signing identity configured — {mode} builds need bundle.ios.signing.identity " +
+                    "(and usually provisioningProfile). See `carbon doctor signing`.");
+            signingArgs = SigningSupport.IosSigningArgs(config);
+        }
+
         Console.WriteLine("\n[Carbon] Step 2/2 — Building .NET iOS app...");
         var verb = publish ? "publish" : "build";
         var args =
             $"{verb} \"{project}\" -c {configuration} -f net10.0-ios -p:RuntimeIdentifier={rid} " +
             (archive ? "-p:ArchiveOnBuild=true " : string.Empty) +
+            (string.IsNullOrEmpty(signingArgs) ? string.Empty : signingArgs + " ") +
             $"-p:CustomBeforeMicrosoftCommonProps=\"{props}\"";
         if (await BuildCommand.RunProcessToCompletion("dotnet", args, iosDir, "[ios]", ConsoleColor.Magenta) != 0)
         {

@@ -46,9 +46,15 @@ jobs:
 
       - name: Build
         shell: bash
+        env:
+          # Desktop signing/notarization + updater — set these as repository secrets.
+          # macOS also needs the signing cert imported into the runner keychain (see docs/SIGNING.md).
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_NOTARIZATION_PROFILE: ${{ secrets.APPLE_NOTARIZATION_PROFILE }}
+          CARBON_UPDATER_PRIVATE_KEY: ${{ secrets.CARBON_UPDATER_PRIVATE_KEY }}
         run: |
           export PATH="$PATH:$HOME/.dotnet/tools"
-          carbon build
+          carbon build --bundle
 
       - name: Upload installers
         uses: softprops/action-gh-release@v2

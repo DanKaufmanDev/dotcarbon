@@ -148,6 +148,18 @@ public class AndroidBundleConfig
     public int MinSdk { get; set; } = 24;
     public int TargetSdk { get; set; } = 34;
     public int CompileSdk { get; set; } = 34;
+    public AndroidSigningConfig Signing { get; set; } = new();
+}
+
+/// <summary>
+/// Android release signing. Passwords are never stored here — they come from the environment:
+/// <c>CARBON_ANDROID_KEYSTORE_PASSWORD</c> and <c>CARBON_ANDROID_KEY_PASSWORD</c>.
+/// </summary>
+public class AndroidSigningConfig
+{
+    /// <summary>Path to the keystore (.jks/.keystore), relative to the project root. Enables release signing when set.</summary>
+    public string? Keystore { get; set; }
+    public string? KeyAlias { get; set; }
 }
 
 public class IosBundleConfig
@@ -156,6 +168,19 @@ public class IosBundleConfig
     public string? BundleIdentifier { get; set; }
     public string MinimumOSVersion { get; set; } = "15.0";
     public string? DevelopmentTeam { get; set; }
+    public IosSigningConfig Signing { get; set; } = new();
+}
+
+/// <summary>
+/// iOS device/archive signing. The certificate and provisioning profile are installed into the
+/// build machine's keychain (locally, or from CI secrets); only their names live here.
+/// </summary>
+public class IosSigningConfig
+{
+    /// <summary>Codesign identity, e.g. "Apple Distribution: Example (TEAMID)".</summary>
+    public string? Identity { get; set; }
+    /// <summary>Provisioning profile name or UUID.</summary>
+    public string? ProvisioningProfile { get; set; }
 }
 
 public class FileAssociationConfig

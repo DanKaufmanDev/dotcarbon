@@ -197,7 +197,16 @@
                 "package": { "type": ["string", "null"], "description": "Android application id. Defaults to app.identifier." },
                 "minSdk": { "type": "integer", "default": 24 },
                 "targetSdk": { "type": "integer", "default": 34 },
-                "compileSdk": { "type": "integer", "default": 34 }
+                "compileSdk": { "type": "integer", "default": 34 },
+                "signing": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Release signing. Passwords come from CARBON_ANDROID_KEYSTORE_PASSWORD / CARBON_ANDROID_KEY_PASSWORD.",
+                    "properties": {
+                        "keystore": { "type": ["string", "null"], "description": "Path to the keystore (.jks/.keystore), relative to the project root." },
+                        "keyAlias": { "type": ["string", "null"] }
+                    }
+                }
             }
         },
         "IosBundle": {
@@ -206,7 +215,16 @@
             "properties": {
                 "bundleIdentifier": { "type": ["string", "null"], "description": "iOS bundle identifier. Defaults to app.identifier." },
                 "minimumOSVersion": { "type": "string", "default": "15.0" },
-                "developmentTeam": { "type": ["string", "null"], "description": "Apple developer team id for signing." }
+                "developmentTeam": { "type": ["string", "null"], "description": "Apple developer team id for signing." },
+                "signing": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Device/archive signing. The cert and profile are installed into the keychain, not stored here.",
+                    "properties": {
+                        "identity": { "type": ["string", "null"], "description": "Codesign identity, e.g. \"Apple Distribution: Example (TEAMID)\"." },
+                        "provisioningProfile": { "type": ["string", "null"], "description": "Provisioning profile name or UUID." }
+                    }
+                }
             }
         },
         "FileAssociation": {
