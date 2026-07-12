@@ -1,0 +1,24 @@
+<!--
+  DotCarbon.Host.iOS — the .NET iOS host (WKWebView + JS<->C# bridge).
+
+  Targets net10.0-ios, so it requires macOS + Xcode + the iOS workload to build:
+      dotnet workload install ios
+  It is intentionally NOT part of DotCarbon.slnx so the desktop solution builds without
+  that workload. Publish it (and build iOS apps) on a Mac/CI with Xcode + the workload.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-ios</TargetFramework>
+    <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Description>iOS host for DotCarbon apps: the WKWebView adapter, JS-to-C# bridge, and CarbonAppDelegate.</Description>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotCarbon.Core\DotCarbon.Core.csproj" />
+  </ItemGroup>
+
+</Project>

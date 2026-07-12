@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Xml.Linq;
 using DotCarbon.Cli.Commands;
 using DotCarbon.Cli.Platforms;
 using DotCarbon.Core.Config;
@@ -34,13 +32,10 @@ internal sealed class AndroidBundler
         CarbonConfig config, string workingDir, string format, bool release, bool dryRun)
     {
         var androidDir = PlatformService.PlatformDir(workingDir, "android");
-        var project = Directory.Exists(androidDir)
-            ? Directory.GetFiles(androidDir, "*.csproj").FirstOrDefault()
-            : null;
-
+        var project = FindProject(androidDir);
         if (project is null)
         {
-            Error("No Android project found. Run `carbon platform add android` first.");
+            MobileBundleSupport.Error("No Android project found. Run `carbon platform add android` first.");
             return 1;
         }
 
@@ -52,27 +47,14 @@ internal sealed class AndroidBundler
 
         Plan(config, format, release).Render(dryRun: false);
 
-        if (!await HasAndroidWorkload())
+        if (!await MobileBundleSupport.HasWorkload("android"))
         {
-            Error("The .NET Android workload is not installed. Run: dotnet workload install android");
+            MobileBundleSupport.Error("The .NET Android workload is not installed. Run: dotnet workload install android");
             return 1;
         }
 
-        Console.WriteLine("\n[Carbon] Step 1/2 — Building frontend...");
-        if (!await BuildCommand.BuildFrontend(config, workingDir))
-        {
-            Error("Frontend build failed. Aborting.");
-            return 1;
-        }
-
-        var frontendDist = Path.GetFullPath(Path.Combine(workingDir, config.Build.FrontendDist));
-        if (!File.Exists(Path.Combine(frontendDist, "index.html")))
-        {
-            Error($"Frontend output does not contain index.html: {frontendDist}");
-            return 1;
-        }
-        var configPath = Path.Combine(workingDir, "carbon.json");
-        var props = WriteEmbedProps(androidDir, project, frontendDist, configPath);
+        var props = await PrepareAsync(config, workingDir, androidDir, project);
+        if (props is null) return 1;
 
         Console.WriteLine("\n[Carbon] Step 2/2 — Publishing .NET Android app...");
         var configuration = release ? "Release" : "Debug";
@@ -82,7 +64,7 @@ internal sealed class AndroidBundler
             $"-p:CustomBeforeMicrosoftCommonProps=\"{props}\"";
         if (await BuildCommand.RunProcessToCompletion("dotnet", args, androidDir, "[android]", ConsoleColor.Magenta) != 0)
         {
-            Error(".NET Android publish failed.");
+            MobileBundleSupport.Error(".NET Android publish failed.");
             return 1;
         }
 
@@ -106,17 +88,15 @@ internal sealed class AndroidBundler
     public async Task<int> DevAsync(CarbonConfig config, string workingDir)
     {
         var androidDir = PlatformService.PlatformDir(workingDir, "android");
-        var project = Directory.Exists(androidDir)
-            ? Directory.GetFiles(androidDir, "*.csproj").FirstOrDefault()
-            : null;
+        var project = FindProject(androidDir);
         if (project is null)
         {
-            Error("No Android project found. Run `carbon platform add android` first.");
+            MobileBundleSupport.Error("No Android project found. Run `carbon platform add android` first.");
             return 1;
         }
-        if (!await HasAndroidWorkload())
+        if (!await MobileBundleSupport.HasWorkload("android"))
         {
-            Error("The .NET Android workload is not installed. Run: dotnet workload install android");
+            MobileBundleSupport.Error("The .NET Android workload is not installed. Run: dotnet workload install android");
             return 1;
         }
 
@@ -125,13 +105,8 @@ internal sealed class AndroidBundler
         Console.ResetColor();
         Console.WriteLine("  (needs a running emulator or a connected device via adb)");
 
-        if (!await BuildCommand.BuildFrontend(config, workingDir))
-        {
-            Error("Frontend build failed. Aborting.");
-            return 1;
-        }
-        var frontendDist = Path.GetFullPath(Path.Combine(workingDir, config.Build.FrontendDist));
-        var props = WriteEmbedProps(androidDir, project, frontendDist, Path.Combine(workingDir, "carbon.json"));
+        var props = await PrepareAsync(config, workingDir, androidDir, project);
+        if (props is null) return 1;
 
         var args =
             $"build \"{project}\" -c Debug -f net10.0-android -t:Run " +
@@ -139,52 +114,27 @@ internal sealed class AndroidBundler
         return await BuildCommand.RunProcessToCompletion("dotnet", args, androidDir, "[android]", ConsoleColor.Magenta);
     }
 
-    private static string WriteEmbedProps(string androidDir, string project, string frontendDist, string configPath)
-    {
-        var generatedDir = Path.Combine(androidDir, "obj", "dotcarbon");
-        Directory.CreateDirectory(generatedDir);
-        var propsPath = Path.Combine(generatedDir, "DotCarbon.Android.props");
-        var condition = $"'$(MSBuildProjectFullPath)' == '{project.Replace("'", "%27")}'";
-        var document = new XDocument(
-            new XElement("Project",
-                new XElement("ItemGroup",
-                    new XAttribute("Condition", condition),
-                    new XElement("EmbeddedResource",
-                        new XAttribute("Include", Path.Combine(frontendDist, "**", "*")),
-                        new XAttribute("LogicalName", "DotCarbon.Assets/%(RecursiveDir)%(Filename)%(Extension)")),
-                    new XElement("EmbeddedResource",
-                        new XAttribute("Include", configPath),
-                        new XAttribute("LogicalName", "DotCarbon.Config/carbon.json")))));
-        document.Save(propsPath);
-        return propsPath;
-    }
+    private static string? FindProject(string androidDir) =>
+        Directory.Exists(androidDir) ? Directory.GetFiles(androidDir, "*.csproj").FirstOrDefault() : null;
 
-    private static async Task<bool> HasAndroidWorkload()
+    private static async Task<string?> PrepareAsync(
+        CarbonConfig config, string workingDir, string androidDir, string project)
     {
-        try
+        Console.WriteLine("\n[Carbon] Step 1/2 — Building frontend...");
+        if (!await BuildCommand.BuildFrontend(config, workingDir))
         {
-            var info = new ProcessStartInfo("dotnet", "workload list")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            };
-            using var process = Process.Start(info);
-            if (process is null) return false;
-            var output = await process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
-            return output.Contains("android", StringComparison.OrdinalIgnoreCase);
+            MobileBundleSupport.Error("Frontend build failed. Aborting.");
+            return null;
         }
-        catch
-        {
-            return false;
-        }
-    }
 
-    private static void Error(string message)
-    {
-        Console.ForegroundColor = ConsoleColor.Red;
-        Console.WriteLine($"[Carbon] {message}");
-        Console.ResetColor();
+        var frontendDist = Path.GetFullPath(Path.Combine(workingDir, config.Build.FrontendDist));
+        if (!File.Exists(Path.Combine(frontendDist, "index.html")))
+        {
+            MobileBundleSupport.Error($"Frontend output does not contain index.html: {frontendDist}");
+            return null;
+        }
+
+        return MobileBundleSupport.WriteEmbedProps(
+            androidDir, project, frontendDist, Path.Combine(workingDir, "carbon.json"), "DotCarbon.Android.props");
     }
 }

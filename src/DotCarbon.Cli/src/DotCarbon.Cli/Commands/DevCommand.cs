@@ -33,13 +33,23 @@ public static class DevCommand
         command.SetHandler(Run, projectOption, noTypesOption, typesOutOption, noCapabilitiesOption);
 
         command.AddCommand(AndroidSubcommand());
+        command.AddCommand(IosSubcommand());
 
         return command;
     }
 
-    private static Command AndroidSubcommand()
+    private static Command AndroidSubcommand() =>
+        MobileDevSubcommand("android", "Build and run the Android app on a device or emulator",
+            (config, workingDir) => new Bundling.AndroidBundler().DevAsync(config, workingDir));
+
+    private static Command IosSubcommand() =>
+        MobileDevSubcommand("ios", "Build and run the iOS app on a booted simulator",
+            (config, workingDir) => new Bundling.IosBundler().DevAsync(config, workingDir));
+
+    private static Command MobileDevSubcommand(
+        string id, string description, Func<CarbonConfig, string, Task<int>> dev)
     {
-        var cmd = new Command("android", "Build and run the Android app on a device or emulator");
+        var cmd = new Command(id, description);
         var project = new Option<DirectoryInfo?>(
             "--project", "Path to the Carbon project (default: current directory)");
         cmd.AddOption(project);
@@ -56,8 +66,7 @@ public static class DevCommand
                 context.ExitCode = 1;
                 return;
             }
-            var config = ConfigLoader.Load(configPath);
-            context.ExitCode = await new Bundling.AndroidBundler().DevAsync(config, workingDir);
+            context.ExitCode = await dev(ConfigLoader.Load(configPath), workingDir);
         });
         return cmd;
     }

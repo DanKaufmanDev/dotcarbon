@@ -17,7 +17,7 @@ public static class BundleCommand
 
         bundle.AddCommand(DesktopSubcommand());
         bundle.AddCommand(AndroidSubcommand());
-        bundle.AddCommand(ReservedSubcommand(new IosBundler()));
+        bundle.AddCommand(IosSubcommand());
 
         // `carbon bundle` with no subcommand → desktop with sensible defaults.
         bundle.SetHandler(async context =>
@@ -116,6 +116,46 @@ public static class BundleCommand
         return cmd;
     }
 
+    private static Command IosSubcommand()
+    {
+        var cmd = new Command("ios", "Bundle for iOS (simulator/device/archive via .NET iOS)");
+
+        var project = new Option<DirectoryInfo?>(
+            "--project", "Path to the Carbon project (default: current directory)");
+        var simulator = new Option<bool>("--simulator", "Build for the iOS simulator (the default)");
+        var device = new Option<bool>("--device", "Build for a physical device (needs signing)");
+        var archive = new Option<bool>("--archive", "Produce a signed .ipa archive for distribution");
+        var dryRun = new Option<bool>("--dry-run", "Print the bundle plan without executing it");
+
+        cmd.AddOption(project);
+        cmd.AddOption(simulator);
+        cmd.AddOption(device);
+        cmd.AddOption(archive);
+        cmd.AddOption(dryRun);
+
+        cmd.SetHandler(async context =>
+        {
+            var projectDir = context.ParseResult.GetValueForOption(project);
+            var workingDir = projectDir?.FullName ?? Directory.GetCurrentDirectory();
+            var configPath = Path.Combine(workingDir, "carbon.json");
+            if (!File.Exists(configPath))
+            {
+                WriteError($"No carbon.json found in {workingDir}");
+                context.ExitCode = 1;
+                return;
+            }
+
+            var mode = context.ParseResult.GetValueForOption(archive) ? "archive"
+                : context.ParseResult.GetValueForOption(device) ? "device"
+                : "simulator";
+            var config = ConfigLoader.Load(configPath);
+            context.ExitCode = await new IosBundler().ExecuteAsync(
+                config, workingDir, mode, context.ParseResult.GetValueForOption(dryRun));
+        });
+
+        return cmd;
+    }
+
     private static async Task<int> RunDesktop(
         DirectoryInfo? project, string target, bool aot, bool package, bool updaterArtifacts, bool dryRun)
     {
@@ -139,32 +179,6 @@ public static class BundleCommand
         }
 
         return await bundler.ExecuteAsync(context);
-    }
-
-    private static Command ReservedSubcommand(IBundlerTarget bundler)
-    {
-        var cmd = new Command(bundler.Id, $"Bundle for {bundler.DisplayName} (reserved)");
-        var dryRun = new Option<bool>("--dry-run", "Print the bundle plan without executing it");
-        cmd.AddOption(dryRun);
-
-        cmd.SetHandler(async context =>
-        {
-            var ctx = new BundleContext(
-                new CarbonConfig(), Directory.GetCurrentDirectory(), null,
-                Target: "", Aot: false, Package: true, UpdaterArtifacts: false,
-                DryRun: context.ParseResult.GetValueForOption(dryRun));
-
-            if (ctx.DryRun)
-            {
-                bundler.Plan(ctx).Render(dryRun: true);
-                context.ExitCode = 0;
-                return;
-            }
-
-            context.ExitCode = await bundler.ExecuteAsync(ctx);
-        });
-
-        return cmd;
     }
 
     private static void WriteError(string message)
