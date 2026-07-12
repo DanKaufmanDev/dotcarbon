@@ -8,34 +8,45 @@ public static class DevCommand
 {
     public static Command Build()
     {
-        var command = new Command("dev", "Start Carbon in development mode");
-        var projectOption = new Option<DirectoryInfo?>(
-            name: "--project",
-            description: "Path to the Carbon project (default: current directory)"
-        );
-        var noTypesOption = new Option<bool>(
-            name: "--no-types",
-            description: "Do not generate ui/src/carbon.d.ts while dev mode is running"
-        );
-        var typesOutOption = new Option<FileInfo?>(
-            name: "--types-out",
-            description: "Output path for generated TypeScript declarations (default: ui/src/carbon.d.ts)"
-        );
-        var noCapabilitiesOption = new Option<bool>(
-            name: "--no-capabilities",
-            description: "Do not sync discovered commands into src-carbon/capabilities/main.json"
-        );
+        // `carbon dev` runs desktop; `carbon dev desktop` is the explicit alias.
+        var command = new Command("dev", "Start Carbon in development mode (desktop)");
+        ConfigureDesktopDev(command);
 
-        command.AddOption(projectOption);
-        command.AddOption(noTypesOption);
-        command.AddOption(typesOutOption);
-        command.AddOption(noCapabilitiesOption);
-        command.SetHandler(Run, projectOption, noTypesOption, typesOutOption, noCapabilitiesOption);
+        var desktop = new Command("desktop", "Start desktop dev: Vite (hot reload) + the .NET host (rebuild on change)");
+        ConfigureDesktopDev(desktop);
+        command.AddCommand(desktop);
 
         command.AddCommand(AndroidSubcommand());
         command.AddCommand(IosSubcommand());
 
         return command;
+    }
+
+    private static void ConfigureDesktopDev(Command command)
+    {
+        var project = new Option<DirectoryInfo?>(
+            "--project", "Path to the Carbon project (default: current directory)");
+        var noTypes = new Option<bool>(
+            "--no-types", "Do not generate ui/src/carbon.d.ts while dev mode is running");
+        var typesOut = new Option<FileInfo?>(
+            "--types-out", "Output path for generated TypeScript declarations (default: ui/src/carbon.d.ts)");
+        var noCapabilities = new Option<bool>(
+            "--no-capabilities", "Do not sync discovered commands into src-carbon/capabilities/main.json");
+        var noWatch = new Option<bool>(
+            "--no-watch", "Run the .NET host once instead of rebuilding on C# changes (dotnet watch)");
+
+        command.AddOption(project);
+        command.AddOption(noTypes);
+        command.AddOption(typesOut);
+        command.AddOption(noCapabilities);
+        command.AddOption(noWatch);
+        command.SetHandler(async context =>
+            await Run(
+                context.ParseResult.GetValueForOption(project),
+                context.ParseResult.GetValueForOption(noTypes),
+                context.ParseResult.GetValueForOption(typesOut),
+                context.ParseResult.GetValueForOption(noCapabilities),
+                context.ParseResult.GetValueForOption(noWatch)));
     }
 
     private static Command AndroidSubcommand() =>
@@ -71,7 +82,8 @@ public static class DevCommand
         return cmd;
     }
 
-    private static async Task Run(DirectoryInfo? projectDir, bool noTypes, FileInfo? typesOut, bool noCapabilities)
+    private static async Task Run(
+        DirectoryInfo? projectDir, bool noTypes, FileInfo? typesOut, bool noCapabilities, bool noWatch)
     {
         var workingDir = projectDir?.FullName ?? Directory.GetCurrentDirectory();
         var configPath = Path.Combine(workingDir, "carbon.json");
@@ -87,8 +99,12 @@ public static class DevCommand
         var config = ConfigLoader.Load(configPath);
 
         Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("⚡ Carbon dev mode starting...");
+        Console.WriteLine("\n⚡ Carbon dev — desktop");
         Console.ResetColor();
+        WriteLegend("[UI]", ConsoleColor.Green, "Vite frontend (hot reload)");
+        WriteLegend("[C#]", ConsoleColor.Magenta, noWatch ? ".NET host" : ".NET host (rebuilds on C# changes)");
+        if (!noTypes) WriteLegend("[Types]", ConsoleColor.Blue, "carbon.d.ts generation");
+        Console.WriteLine();
 
         using var cts = new CancellationTokenSource();
         using var typeWatcher = noTypes
@@ -103,11 +119,20 @@ public static class DevCommand
         };
         await Task.WhenAny(
             RunFrontend(config, workingDir, cts.Token),
-            RunHost(workingDir, cts.Token)
+            RunHost(workingDir, !noWatch, cts.Token)
         );
 
         cts.Cancel();
         Console.WriteLine("[Carbon] Done.");
+    }
+
+    private static void WriteLegend(string prefix, ConsoleColor color, string description)
+    {
+        Console.Write("   ");
+        Console.ForegroundColor = color;
+        Console.Write($"{prefix,-8}");
+        Console.ResetColor();
+        Console.WriteLine($" {description}");
     }
 
     private static IDisposable? StartTypesGeneration(
@@ -192,11 +217,9 @@ public static class DevCommand
         await RunProcess(command, args, packageJsonDir, "[UI]", ConsoleColor.Green, ct);
     }
 
-    private static async Task RunHost(string workingDir, CancellationToken ct)
+    private static async Task RunHost(string workingDir, bool watch, CancellationToken ct)
     {
         await Task.Delay(2000, ct);
-
-        Console.WriteLine("[Carbon] Starting .NET host...");
 
         var config = ConfigLoader.Load(Path.Combine(workingDir, "carbon.json"));
         var hostProject = ProjectLocator.FindHostProject(workingDir, config);
@@ -211,10 +234,21 @@ public static class DevCommand
 
         Console.WriteLine($"[Carbon] Host project: {hostProject}");
 
-        await RunProcess(
-            "dotnet", $"run --project \"{hostProject}\"",
-            workingDir, "[C#]", ConsoleColor.Magenta, ct
-        );
+        if (watch)
+        {
+            // dotnet watch rebuilds/restarts the host (and applies C# hot reload) on source changes.
+            Console.WriteLine("[Carbon] Starting .NET host (dotnet watch — rebuilds on C# changes)...");
+            await RunProcess(
+                "dotnet", "watch --non-interactive run",
+                Path.GetDirectoryName(hostProject)!, "[C#]", ConsoleColor.Magenta, ct);
+        }
+        else
+        {
+            Console.WriteLine("[Carbon] Starting .NET host...");
+            await RunProcess(
+                "dotnet", $"run --project \"{hostProject}\"",
+                workingDir, "[C#]", ConsoleColor.Magenta, ct);
+        }
     }
 
     private static async Task RunProcess(
