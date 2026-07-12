@@ -7,9 +7,15 @@
   "build": {
     "backendProject": "src-carbon/PackageApp.csproj",
     "frontendDist": "ui/dist",
-    "buildCommand": ""
+    "buildCommand": "dotnet --info"
   },
   "bundle": {
-    "targets": ["desktop"]
+    "targets": ["desktop"],
+    "windows": {
+      "webView2InstallMode": "skip"
+    },
+    "linux": {
+      "formats": ["appimage"]
+    }
   }
 }

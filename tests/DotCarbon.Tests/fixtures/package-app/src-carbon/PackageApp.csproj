@@ -7,6 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DotCarbon.Host.Desktop" Version="0.1.0" />
+    <ProjectReference Include="..\..\..\..\..\src\DotCarbon.Host.Desktop\DotCarbon.Host.Desktop.csproj" />
   </ItemGroup>
 </Project>
