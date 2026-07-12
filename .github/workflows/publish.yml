@@ -20,14 +20,21 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Install Android workload
+        run: dotnet workload install android
+
       - name: Pack
         run: |
           VERSION="${{ github.event.release.tag_name }}"
           VERSION="${VERSION#v}"
+
+          # The solution packs Core, Cli, plugins, and DotCarbon.Host.Desktop.
           dotnet pack DotCarbon.slnx -c Release -o artifacts -p:Version="$VERSION"
+          # The Android host targets net10.0-android and is not in the solution.
+          dotnet pack src/DotCarbon.Host.Android/DotCarbon.Host.Android.csproj -c Release -o artifacts -p:Version="$VERSION"
 
           for id in \
-            DotCarbon.Cli DotCarbon.Core \
+            DotCarbon.Cli DotCarbon.Core DotCarbon.Host.Desktop DotCarbon.Host.Android \
             DotCarbon.Plugins.Clipboard DotCarbon.Plugins.Dialog \
             DotCarbon.Plugins.FileSystem DotCarbon.Plugins.Notification \
             DotCarbon.Plugins.Shell DotCarbon.Plugins.Window
@@ -53,9 +60,49 @@ jobs:
               --skip-duplicate
           done
 
+  nuget-ios:
+    name: Publish iOS host to NuGet
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install iOS workload
+        run: dotnet workload install ios
+
+      - name: Pack
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          # The iOS host targets net10.0-ios and can only be packed on macOS.
+          dotnet pack src/DotCarbon.Host.iOS/DotCarbon.Host.iOS.csproj -c Release -o artifacts -p:Version="$VERSION"
+          test -f "artifacts/DotCarbon.Host.iOS.$VERSION.nupkg" || {
+            echo "Missing expected package: DotCarbon.Host.iOS.$VERSION.nupkg"
+            exit 1
+          }
+
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Push
+        run: |
+          for package in artifacts/*.nupkg; do
+            dotnet nuget push "$package" \
+              --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done
+
   npm:
     name: Publish to npm
-    needs: nuget
+    needs: [nuget, nuget-ios]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
