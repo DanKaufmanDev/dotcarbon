@@ -17,18 +17,46 @@ public sealed class CarbonTrayBuilder
 
     public CarbonTrayBuilder AddItem(string label, Action onClick)
     {
-        Items.Add(new TrayItem(label, onClick, IsSeparator: false));
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+        ArgumentNullException.ThrowIfNull(onClick);
+        Items.Add(new TrayItem(label, onClick, EventName: null, IsSeparator: false));
+        return this;
+    }
+
+    public CarbonTrayBuilder AddEventItem(string label, string eventName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
+        Items.Add(new TrayItem(label, OnClick: null, EventName: eventName, IsSeparator: false));
         return this;
     }
 
     public CarbonTrayBuilder AddSeparator()
     {
-        Items.Add(new TrayItem(null, null, IsSeparator: true));
+        Items.Add(new TrayItem(null, OnClick: null, EventName: null, IsSeparator: true));
         return this;
+    }
+
+    internal CarbonTrayBuilder Bind(AppHandle app)
+    {
+        var bound = new CarbonTrayBuilder().SetTitle(Title);
+        foreach (var item in Items)
+        {
+            if (item.IsSeparator)
+            {
+                bound.AddSeparator();
+                continue;
+            }
+
+            var onClick = item.OnClick ??
+                DesktopNativeEventEmitter.Create(app, item.EventName!, item.Label!, "tray");
+            bound.AddItem(item.Label!, onClick);
+        }
+        return bound;
     }
 }
 
-internal sealed record TrayItem(string? Label, Action? OnClick, bool IsSeparator);
+internal sealed record TrayItem(string? Label, Action? OnClick, string? EventName, bool IsSeparator);
 
 /// <summary>Desktop tray entry points.</summary>
 public static class DesktopTrayExtensions
@@ -41,7 +69,7 @@ public static class DesktopTrayExtensions
     {
         var builder = new CarbonTrayBuilder();
         configure(builder);
-        app.Setup(_ => CarbonTray.Create(builder));
+        app.Setup(handle => CarbonTray.Create(builder.Bind(handle)));
         return app;
     }
 }

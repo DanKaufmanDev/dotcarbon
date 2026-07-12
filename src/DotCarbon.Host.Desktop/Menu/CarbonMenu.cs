@@ -34,13 +34,21 @@ public sealed class CarbonMenuGroupBuilder
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(label);
         ArgumentNullException.ThrowIfNull(onClick);
-        _items.Add(new MenuItem(label, onClick, shortcut, IsSeparator: false));
+        _items.Add(new MenuItem(label, onClick, EventName: null, Shortcut: shortcut, IsSeparator: false));
+        return this;
+    }
+
+    public CarbonMenuGroupBuilder AddEventItem(string label, string eventName, string shortcut = "")
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
+        _items.Add(new MenuItem(label, OnClick: null, EventName: eventName, Shortcut: shortcut, IsSeparator: false));
         return this;
     }
 
     public CarbonMenuGroupBuilder AddSeparator()
     {
-        _items.Add(new MenuItem(null, null, string.Empty, IsSeparator: true));
+        _items.Add(new MenuItem(null, OnClick: null, EventName: null, Shortcut: string.Empty, IsSeparator: true));
         return this;
     }
 
@@ -48,7 +56,7 @@ public sealed class CarbonMenuGroupBuilder
 }
 
 internal sealed record MenuGroup(string Label, IReadOnlyList<MenuItem> Items);
-internal sealed record MenuItem(string? Label, Action? OnClick, string Shortcut, bool IsSeparator);
+internal sealed record MenuItem(string? Label, Action? OnClick, string? EventName, string Shortcut, bool IsSeparator);
 
 /// <summary>Desktop native menu entry points.</summary>
 public static class DesktopMenuExtensions
@@ -63,8 +71,32 @@ public static class DesktopMenuExtensions
 
         var builder = new CarbonMenuBuilder();
         configure(builder);
-        app.Setup(_ => CarbonMenu.Create(builder));
+        app.Setup(handle => CarbonMenu.Create(Bind(builder, handle)));
         return app;
+    }
+
+    private static CarbonMenuBuilder Bind(CarbonMenuBuilder builder, AppHandle app)
+    {
+        var bound = new CarbonMenuBuilder();
+        foreach (var group in builder.Groups)
+        {
+            bound.AddMenu(group.Label, menu =>
+            {
+                foreach (var item in group.Items)
+                {
+                    if (item.IsSeparator)
+                    {
+                        menu.AddSeparator();
+                        continue;
+                    }
+
+                    var onClick = item.OnClick ??
+                        DesktopNativeEventEmitter.Create(app, item.EventName!, item.Label!, "menu");
+                    menu.AddItem(item.Label!, onClick, item.Shortcut);
+                }
+            });
+        }
+        return bound;
     }
 }
 
