@@ -1,3 +1,4 @@
+using Android.Graphics;
 using Android.Webkit;
 using DotCarbon.Core.Host;
 
@@ -6,9 +7,17 @@ namespace DotCarbon.Host.Android;
 /// <summary>
 /// Serves <c>carbon://localhost/…</c> requests from the embedded frontend, reusing Core's
 /// <see cref="CarbonAssets"/> (path safety, SPA fallback, CSP) — the same content pipeline as desktop.
+/// Also injects the JS bridge shim at page start so <c>@dotcarbon/api</c> works unchanged.
 /// </summary>
 public sealed class CarbonWebViewClient : WebViewClient
 {
+    public override void OnPageStarted(WebView? view, string? url, Bitmap? favicon)
+    {
+        // Define window.external before the page's own scripts run (they access it lazily).
+        view?.EvaluateJavascript(CarbonAndroid.BridgeShim, null);
+        base.OnPageStarted(view, url, favicon);
+    }
+
     public override WebResourceResponse? ShouldInterceptRequest(WebView? view, IWebResourceRequest? request)
     {
         var url = request?.Url?.ToString();

@@ -1,7 +1,6 @@
 using Android.App;
 using Android.OS;
 using Android.Webkit;
-using AndroidX.Webkit;
 using DotCarbon.Core.Config;
 using DotCarbon.Core.Runtime;
 
@@ -34,8 +33,7 @@ public abstract class CarbonActivity : Activity
 
         var webView = _webView = new AndroidWebView(native);
         native.AddJavascriptInterface(new CarbonJsBridge(webView.DispatchMessage), CarbonAndroid.JsInterfaceName);
-        if (WebViewFeature.IsFeatureSupported(WebViewFeature.DocumentStartScript))
-            WebViewCompat.AddDocumentStartJavaScript(native, CarbonAndroid.BridgeShim, new HashSet<string> { "*" });
+        // The bridge shim is injected on page start by CarbonWebViewClient (see OnPageStarted).
 
         SetContentView(native);
 
