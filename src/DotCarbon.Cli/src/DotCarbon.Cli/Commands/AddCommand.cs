@@ -47,6 +47,14 @@ public static class AddCommand
                 "FileSystemPlugin",
                 "fs",
                 ["fs:*"]),
+            ["http"] = new(
+                ["http", "fetch", "DotCarbon.Plugins.Http"],
+                "DotCarbon.Plugins.Http",
+                "@dotcarbon/plugin-http",
+                "DotCarbon.Plugins.Http",
+                "HttpPlugin",
+                "http",
+                ["http:*"]),
             ["global-shortcut"] = new(
                 ["global-shortcut", "globalshortcut", "shortcut", "shortcuts", "hotkey", "hotkeys", "DotCarbon.Plugins.GlobalShortcut"],
                 "DotCarbon.Plugins.GlobalShortcut",
@@ -64,6 +72,14 @@ public static class AddCommand
                 "NotificationPlugin",
                 "notification",
                 ["notification:*"]),
+            ["os"] = new(
+                ["os", "system", "DotCarbon.Plugins.Os"],
+                "DotCarbon.Plugins.Os",
+                "@dotcarbon/plugin-os",
+                "DotCarbon.Plugins.Os",
+                "OsPlugin",
+                "os",
+                ["os:*"]),
             ["opener"] = new(
                 ["opener", "open", "launcher", "DotCarbon.Plugins.Opener"],
                 "DotCarbon.Plugins.Opener",
