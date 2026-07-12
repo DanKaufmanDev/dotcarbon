@@ -9,6 +9,18 @@ namespace DotCarbon.Plugins.Shell;
 [CarbonPermission("shell:default", "Allow all shell commands.", Commands = new[] { "shell:*" })]
 public partial class ShellPlugin : IPlugin
 {
+    private static readonly string[] DefaultDeniedEnv =
+    [
+        "NPM_TOKEN",
+        "GITHUB_TOKEN",
+        "GH_TOKEN",
+        "CARBON_UPDATER_PRIVATE_KEY",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AZURE_CLIENT_SECRET",
+        "GOOGLE_APPLICATION_CREDENTIALS"
+    ];
+
     private ShellOptions _options = new();
 
     public string Namespace => "shell";
@@ -16,7 +28,7 @@ public partial class ShellPlugin : IPlugin
     public ValueTask InitializeAsync(PluginContext context)
     {
         if (context.HasConfiguration)
-            _options = context.GetConfiguration<ShellOptions>();
+            _options = context.GetConfiguration(ShellJsonContext.Default.ShellOptions);
         return ValueTask.CompletedTask;
     }
 
@@ -44,7 +56,10 @@ public partial class ShellPlugin : IPlugin
 
         if (args.Env != null)
             foreach (var (key, value) in args.Env)
+            {
+                EnsureEnvAllowed(key);
                 psi.Environment[key] = value;
+            }
 
         using var process = new Process { StartInfo = psi };
 
@@ -143,5 +158,19 @@ public partial class ShellPlugin : IPlugin
             requested.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
                 StringComparison.OrdinalIgnoreCase)))
             throw new UnauthorizedAccessException($"Working directory is not allowed: {cwd}");
+    }
+
+    private void EnsureEnvAllowed(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            throw new ArgumentException("Environment variable name cannot be empty.");
+
+        var allowed = _options.AllowedEnv ?? [];
+        if (allowed.Length > 0 && !allowed.Contains(key, StringComparer.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException($"Environment variable is not allowed: {key}");
+
+        var denied = DefaultDeniedEnv.Concat(_options.DeniedEnv ?? []);
+        if (denied.Contains(key, StringComparer.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException($"Environment variable is denied: {key}");
     }
 }

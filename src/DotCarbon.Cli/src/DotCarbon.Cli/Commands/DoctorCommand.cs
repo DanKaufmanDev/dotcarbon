@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Text.Json;
 using DotCarbon.Cli.Bundling;
 using DotCarbon.Cli.Platforms;
 using DotCarbon.Core.Config;
@@ -115,6 +116,7 @@ public static class DoctorCommand
         var warnings = new List<string>();
         ReportConfig(config, errors, warnings);
         ReportPlugins(config, workingDir, warnings);
+        ReportPluginScopes(config, workingDir, warnings);
         ReportPermissions(config, workingDir, warnings);
 
         Console.WriteLine();
@@ -194,6 +196,36 @@ public static class DoctorCommand
         Console.WriteLine();
     }
 
+    private static void ReportPluginScopes(CarbonConfig config, string workingDir, List<string> warnings)
+    {
+        var referenced = PluginCompatibility.Discover(workingDir)
+            .Select(plugin => plugin.Namespace)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (referenced.Count == 0)
+            return;
+
+        if (referenced.Contains("fs"))
+        {
+            if (!TryGetPluginArray(config, "fs", "scopes", out var scopes) || scopes.Length == 0)
+                warnings.Add("plugin 'fs' has no plugins.fs.scopes entries — file-system commands will be denied.");
+        }
+
+        if (referenced.Contains("http"))
+        {
+            if (!TryGetPluginArray(config, "http", "scope", out var scope) || scope.Length == 0)
+                warnings.Add("plugin 'http' has no plugins.http.scope entries — any HTTP(S) URL is allowed in development mode.");
+        }
+
+        if (referenced.Contains("shell"))
+        {
+            if (!TryGetPluginArray(config, "shell", "allowedPrograms", out var allowedPrograms) || allowedPrograms.Length == 0)
+                warnings.Add("plugin 'shell' has no plugins.shell.allowedPrograms entries — shell:execute will be denied.");
+
+            if (TryGetPluginArray(config, "shell", "allowedEnv", out var allowedEnv) && allowedEnv.Contains("*", StringComparer.Ordinal))
+                warnings.Add("plugin 'shell' uses allowedEnv = [\"*\"] — prefer explicit environment variable names.");
+        }
+    }
+
     private static void ReportPermissions(CarbonConfig config, string workingDir, List<string> warnings)
     {
         var enabled = PermissionCatalog.Enabled(config).ToList();
@@ -223,6 +255,61 @@ public static class DoctorCommand
             .Any(id => Directory.Exists(PlatformService.PlatformDir(workingDir, id)));
         if (!mobileAdded)
             warnings.Add("permissions are declared but no mobile platform is added (`carbon platform add android|ios`).");
+    }
+
+    private static bool TryGetPluginArray(CarbonConfig config, string plugin, string property, out string[] values)
+    {
+        values = [];
+        if (!TryGetPluginConfig(config, plugin, out var configElement) ||
+            !TryGetProperty(configElement, property, out var propertyElement))
+            return false;
+
+        if (propertyElement.ValueKind != JsonValueKind.Array)
+            return false;
+
+        values = propertyElement.EnumerateArray()
+            .Where(item => item.ValueKind == JsonValueKind.String)
+            .Select(item => item.GetString())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .ToArray();
+        return true;
+    }
+
+    private static bool TryGetPluginConfig(CarbonConfig config, string plugin, out JsonElement element)
+    {
+        foreach (var (key, value) in config.Plugins)
+        {
+            if (key.Equals(plugin, StringComparison.OrdinalIgnoreCase))
+            {
+                element = value;
+                return true;
+            }
+        }
+
+        element = default;
+        return false;
+    }
+
+    private static bool TryGetProperty(JsonElement element, string property, out JsonElement value)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            value = default;
+            return false;
+        }
+
+        foreach (var item in element.EnumerateObject())
+        {
+            if (item.Name.Equals(property, StringComparison.OrdinalIgnoreCase))
+            {
+                value = item.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
     }
 
     private static void WriteColor(string message, ConsoleColor color, bool newline = true)

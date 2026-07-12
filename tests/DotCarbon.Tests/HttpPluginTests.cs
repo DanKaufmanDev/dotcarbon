@@ -16,9 +16,12 @@ public class HttpPluginTests
 
     [Theory]
     [InlineData("https://api.example.com/v1/users", "https://api.example.com/*", true)]
+    [InlineData("https://api.example.com/v1/users?active=true", "https://api.example.com/v1/*", true)]
     [InlineData("https://api.example.com", "https://api.example.com", true)]
+    [InlineData("https://api.example.com.evil/v1/users", "https://api.example.com/*", false)]
     [InlineData("https://evil.com/steal", "https://api.example.com/*", false)]
     [InlineData("http://api.example.com/x", "https://api.example.com/*", false)]
+    [InlineData("file:///tmp/secret", "https://api.example.com/*", false)]
     public void Scope_matches_prefixes_and_wildcards(string url, string pattern, bool allowed)
     {
         Assert.Equal(allowed, HttpScope.IsAllowed(url, new[] { pattern }));

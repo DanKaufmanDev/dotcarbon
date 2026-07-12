@@ -11,7 +11,9 @@ public record ShellOptions(
     string[]? AllowedPrograms = null,
     string[]? AllowedCwds = null,
     string[]? AllowedUrlSchemes = null,
-    bool AllowOpenPaths = false
+    bool AllowOpenPaths = false,
+    string[]? AllowedEnv = null,
+    string[]? DeniedEnv = null
 );
 
 public record ShellResult(

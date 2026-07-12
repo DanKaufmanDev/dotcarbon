@@ -1,4 +1,5 @@
 namespace DotCarbon.Plugins.FileSystem;
+public record FileSystemOptions(string[] Scopes);
 public record ReadFileArgs(string Path);
 public record WriteFileArgs(string Path, string Contents);
 public record ReadDirArgs(string Path);
