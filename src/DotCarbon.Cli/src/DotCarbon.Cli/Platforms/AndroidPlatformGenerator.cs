@@ -55,9 +55,8 @@ internal sealed class AndroidPlatformGenerator : IPlatformGenerator
                 "  </PropertyGroup>\n\n" +
                 "  <ItemGroup>\n" +
                 "    <PackageReference Include=\"DotCarbon.Host.Android\" Version=\"*\" />\n" +
-                "    <!-- Reference a net-neutral class library holding your [CarbonCommand] classes\n" +
-                "         so desktop and Android run the same backend, e.g.:\n" +
-                "    <ProjectReference Include=\"..\\..\\..\\src-shared\\AppCommands.csproj\" /> -->\n" +
+                "    <!-- The shared backend: the same [CarbonCommand] classes desktop runs. -->\n" +
+                "    <ProjectReference Include=\"..\\..\\..\\src-shared\\AppLogic.csproj\" />\n" +
                 "  </ItemGroup>\n\n" +
                 "</Project>\n"),
 
@@ -75,9 +74,9 @@ internal sealed class AndroidPlatformGenerator : IPlatformGenerator
                 "{\n" +
                 "    protected override void ConfigureApp(CarbonApp app)\n" +
                 "    {\n" +
-                "        // Register your backend commands here, e.g. app.WithPlugin<AppCommands>();\n" +
-                "        // Keep [CarbonCommand] classes in a shared class library referenced by both\n" +
-                "        // this project and src-carbon so desktop and Android run the same backend.\n" +
+                "        // The same backend as desktop, from the shared library.\n" +
+                "        app.Manage(new AppState());\n" +
+                "        app.UsePlugin<AppCommands>();\n" +
                 "    }\n" +
                 "}\n"),
 

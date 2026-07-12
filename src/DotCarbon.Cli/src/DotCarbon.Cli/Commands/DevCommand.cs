@@ -143,14 +143,12 @@ public static class DevCommand
     {
         GenerateTypes(workingDir, outPath, syncCapabilities);
 
-        var carbonDir = Path.Combine(workingDir, "src-carbon");
-        var watchDir = Directory.Exists(carbonDir) ? carbonDir : workingDir;
-        var watcher = new FileSystemWatcher(watchDir, "*.cs")
-        {
-            IncludeSubdirectories = true,
-            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.CreationTime,
-            EnableRaisingEvents = true,
-        };
+        var watchDirs = new[] { "src-carbon", "src-shared" }
+            .Select(dir => Path.Combine(workingDir, dir))
+            .Where(Directory.Exists)
+            .ToList();
+        if (watchDirs.Count == 0) watchDirs.Add(workingDir);
+
         var debounce = new DebouncedAction(TimeSpan.FromMilliseconds(250), ct, () =>
             GenerateTypes(workingDir, outPath, syncCapabilities));
 
@@ -165,13 +163,25 @@ public static class DevCommand
             debounce.Schedule();
         };
 
-        watcher.Created += onChange;
-        watcher.Changed += onChange;
-        watcher.Deleted += onChange;
-        watcher.Renamed += onRename;
+        var watchers = new List<IDisposable>();
+        foreach (var watchDir in watchDirs)
+        {
+            var watcher = new FileSystemWatcher(watchDir, "*.cs")
+            {
+                IncludeSubdirectories = true,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.CreationTime,
+                EnableRaisingEvents = true,
+            };
+            watcher.Created += onChange;
+            watcher.Changed += onChange;
+            watcher.Deleted += onChange;
+            watcher.Renamed += onRename;
+            watchers.Add(watcher);
+        }
 
-        Console.WriteLine($"[Carbon] Watching C# commands for type generation: {watchDir}");
-        return new CompositeDisposable(watcher, debounce);
+        Console.WriteLine($"[Carbon] Watching C# commands for type generation: {string.Join(", ", watchDirs)}");
+        watchers.Add(debounce);
+        return new CompositeDisposable(watchers.ToArray());
     }
 
     private static void GenerateTypes(string workingDir, string? outPath, bool syncCapabilities)

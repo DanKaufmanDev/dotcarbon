@@ -45,12 +45,18 @@ public static class TypesCommand
         string? outPath = null,
         bool syncCapabilities = true)
     {
-        var carbonDir = Path.Combine(root, "src-carbon");
-        var searchDir = Directory.Exists(carbonDir) ? carbonDir : root;
+        // Commands can live in the desktop host (src-carbon) and/or the shared backend (src-shared).
+        var searchDirs = new[] { "src-carbon", "src-shared" }
+            .Select(dir => Path.Combine(root, dir))
+            .Where(Directory.Exists)
+            .ToList();
+        if (searchDirs.Count == 0) searchDirs.Add(root);
 
-        var files = Directory.EnumerateFiles(searchDir, "*.cs", SearchOption.AllDirectories)
+        var files = searchDirs
+            .SelectMany(dir => Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
             .Where(p => !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
                      && !p.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            .Distinct()
             .ToList();
 
         var roots = files

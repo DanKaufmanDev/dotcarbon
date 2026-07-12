@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="DotCarbon.Host.Desktop" Version="{{DOTCARBON_VERSION}}" />
+    <ProjectReference Include="..\src-shared\AppLogic.csproj" />
   </ItemGroup>
 
 </Project>
