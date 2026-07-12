@@ -1,0 +1,15 @@
+{
+  "app": {
+    "name": "Package Fixture",
+    "version": "0.1.0",
+    "identifier": "dev.dotcarbon.packagefixture"
+  },
+  "build": {
+    "backendProject": "src-carbon/PackageApp.csproj",
+    "frontendDist": "ui/dist",
+    "buildCommand": ""
+  },
+  "bundle": {
+    "targets": ["desktop"]
+  }
+}

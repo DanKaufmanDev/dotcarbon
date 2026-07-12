@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Reflection.PortableExecutable;
 using System.Text.Json;
 using System.Xml.Linq;
+using DotCarbon.Cli.Bundling;
 using DotCarbon.Core.Config;
 
 namespace DotCarbon.Cli.Commands;
@@ -145,13 +146,14 @@ public static class BuildCommand
         }
 
         RemovePublishSymbols(outputDir);
-        if (!aot && !VerifySingleFileOutput(outputDir, out var singleFileError))
+        var validation = PublishOutputVerifier.Verify(outputDir, target, allowSidecars: aot);
+        if (!validation.Success)
         {
-            WriteError(singleFileError);
+            WriteError(validation.Error ?? "Publish output validation failed.");
             return 1;
         }
 
-        var executable = FindExecutable(outputDir, target);
+        var executable = validation.ExecutablePath;
         if (executable is null)
         {
             WriteError("Publish completed but no executable was produced.");
@@ -1401,18 +1403,6 @@ public static class BuildCommand
 
         foreach (var directory in Directory.EnumerateDirectories(outputDir, "*.dSYM", SearchOption.TopDirectoryOnly))
             Directory.Delete(directory, recursive: true);
-    }
-
-    private static bool VerifySingleFileOutput(string outputDir, out string error)
-    {
-        error = string.Empty;
-        var files = Directory.GetFiles(outputDir, "*", SearchOption.TopDirectoryOnly);
-        if (files.Length == 1) return true;
-
-        error = "Single-file publish produced extra files: " +
-                string.Join(", ", files.Select(Path.GetFileName)) +
-                ". Use --aot for the experimental sidecar mode, or check the host project's publish settings.";
-        return false;
     }
 
     private static async Task WriteBuildManifest(

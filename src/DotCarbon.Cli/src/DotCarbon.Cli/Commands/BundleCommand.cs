@@ -52,6 +52,8 @@ public static class BundleCommand
             "--updater-artifacts", "Create and sign updater metadata (requires CARBON_UPDATER_PRIVATE_KEY)");
         var dryRun = new Option<bool>(
             "--dry-run", "Print the bundle plan without executing it");
+        var verify = new Option<bool>(
+            "--verify", "Validate the existing out/<target> publish output without bundling");
 
         cmd.AddOption(project);
         cmd.AddOption(target);
@@ -59,6 +61,7 @@ public static class BundleCommand
         cmd.AddOption(noPackage);
         cmd.AddOption(updaterArtifacts);
         cmd.AddOption(dryRun);
+        cmd.AddOption(verify);
 
         cmd.SetHandler(async context =>
         {
@@ -68,7 +71,8 @@ public static class BundleCommand
                 context.ParseResult.GetValueForOption(aot),
                 package: !context.ParseResult.GetValueForOption(noPackage),
                 updaterArtifacts: context.ParseResult.GetValueForOption(updaterArtifacts),
-                dryRun: context.ParseResult.GetValueForOption(dryRun));
+                dryRun: context.ParseResult.GetValueForOption(dryRun),
+                verify: context.ParseResult.GetValueForOption(verify));
         });
 
         return cmd;
@@ -166,7 +170,7 @@ public static class BundleCommand
     }
 
     private static async Task<int> RunDesktop(
-        DirectoryInfo? project, string target, bool aot, bool package, bool updaterArtifacts, bool dryRun)
+        DirectoryInfo? project, string target, bool aot, bool package, bool updaterArtifacts, bool dryRun, bool verify = false)
     {
         var workingDir = project?.FullName ?? Directory.GetCurrentDirectory();
         var configPath = Path.Combine(workingDir, "carbon.json");
@@ -177,6 +181,9 @@ public static class BundleCommand
         }
 
         var config = ConfigLoader.Load(configPath);
+        if (verify)
+            return VerifyDesktopOutput(workingDir, target, aot);
+
         var context = new BundleContext(
             config, workingDir, project, target, aot, package, updaterArtifacts, dryRun);
 
@@ -188,6 +195,22 @@ public static class BundleCommand
         }
 
         return await bundler.ExecuteAsync(context);
+    }
+
+    private static int VerifyDesktopOutput(string workingDir, string target, bool aot)
+    {
+        var outputDir = Path.Combine(workingDir, "out", target);
+        var result = PublishOutputVerifier.Verify(outputDir, target, allowSidecars: aot);
+        if (!result.Success)
+        {
+            WriteError(result.Error ?? "Publish output validation failed.");
+            return 1;
+        }
+
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine($"[Carbon] Publish output verified -> {Path.GetRelativePath(workingDir, result.ExecutablePath!)}");
+        Console.ResetColor();
+        return 0;
     }
 
     private static void WriteError(string message)
