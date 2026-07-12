@@ -17,4 +17,7 @@
     <Project Path="src/DotCarbon.Plugins.Updater/DotCarbon.Plugins.Updater.csproj" />
     <Project Path="src/DotCarbon.Plugins.Window/DotCarbon.Plugins.Window.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DotCarbon.Tests/DotCarbon.Tests.csproj" />
+  </Folder>
 </Solution>

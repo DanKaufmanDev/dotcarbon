@@ -23,4 +23,8 @@
     <ProjectReference Include="..\DotCarbon.Core\DotCarbon.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotCarbon.Tests" />
+  </ItemGroup>
+
 </Project>

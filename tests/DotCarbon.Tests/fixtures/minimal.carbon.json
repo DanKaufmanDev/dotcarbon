@@ -1,0 +1,4 @@
+{
+  "app": { "name": "Minimal", "version": "1.0.0", "identifier": "com.example.minimal" },
+  "build": { "frontendDist": "ui/dist" }
+}

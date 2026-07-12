@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Run tests
+        run: dotnet test tests/DotCarbon.Tests/DotCarbon.Tests.csproj -c Release
+
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Build solution
+        run: dotnet build DotCarbon.slnx -c Release
+
+  # Optional: the mobile host packages target net10.0-android / net10.0-ios and are not part of
+  # DotCarbon.slnx, so they only build with the corresponding workload installed.
+  android-host:
+    name: Android host
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install Android workload
+        run: dotnet workload install android
+      - name: Build DotCarbon.Host.Android
+        run: dotnet build src/DotCarbon.Host.Android/DotCarbon.Host.Android.csproj -c Release
+
+  ios-host:
+    name: iOS host
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install iOS workload
+        run: dotnet workload install ios
+      - name: Build DotCarbon.Host.iOS
+        run: dotnet build src/DotCarbon.Host.iOS/DotCarbon.Host.iOS.csproj -c Release

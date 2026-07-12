@@ -1,0 +1,8 @@
+{
+  "app": { "name": "Multi Window", "version": "1.0.0", "identifier": "com.example.multi" },
+  "window": { "title": "Main", "width": 1200, "height": 800 },
+  "windows": [
+    { "label": "settings", "title": "Settings", "width": 480, "height": 360 }
+  ],
+  "build": { "frontendDist": "ui/dist" }
+}

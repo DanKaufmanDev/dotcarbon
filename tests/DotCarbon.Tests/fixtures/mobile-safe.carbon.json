@@ -1,0 +1,10 @@
+{
+  "app": { "name": "Mobile Safe", "displayName": "Mobile", "version": "1.0.0", "identifier": "com.example.mobile" },
+  "build": { "frontendDist": "ui/dist" },
+  "bundle": {
+    "targets": ["desktop", "android", "ios"],
+    "android": { "minSdk": 26, "targetSdk": 34 },
+    "ios": { "minimumOSVersion": "16.0" }
+  },
+  "permissions": { "camera": true, "notifications": true, "descriptions": { "camera": "Scan receipts" } }
+}
