@@ -18,11 +18,14 @@ public partial class DeepLinkPlugin : IPlugin
     public ValueTask InitializeAsync(PluginContext context)
     {
         _schemes = context.HasConfiguration
-            ? context.GetConfiguration<DeepLinkConfig>().Schemes
+            ? context.GetConfiguration(DeepLinkJsonContext.Default.DeepLinkConfig).Schemes
             : [context.App.Config.App.Identifier.Split('.').LastOrDefault() ?? context.App.Config.App.Name];
         _pending = FindUrls(_schemes);
         foreach (var url in _pending)
-            _ = context.App.EmitAsync(new CarbonEventName<string>("deep-link:opened"), url);
+            _ = context.App.EmitAsync(
+                new CarbonEventName<string>("deep-link:opened"),
+                url,
+                DeepLinkJsonContext.Default.String);
         return ValueTask.CompletedTask;
     }
 

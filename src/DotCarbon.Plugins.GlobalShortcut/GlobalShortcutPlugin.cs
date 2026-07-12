@@ -114,7 +114,8 @@ public partial class GlobalShortcutPlugin : IPlugin
         if (_app is not null)
             _ = _app.EmitAsync(
                 new CarbonEventName<GlobalShortcutPressed>("global-shortcut:pressed"),
-                new GlobalShortcutPressed(match.Id, match.Accelerator));
+                new GlobalShortcutPressed(match.Id, match.Accelerator),
+                GlobalShortcutJsonContext.Default.GlobalShortcutPressed);
     }
 
     private void OnKeyReleased(object? sender, KeyboardHookEventArgs e)

@@ -129,7 +129,7 @@ internal sealed class Emitter
         if (!_done.Add(name)) return name;
         var body = "if (__v is null) return null;\n" +
                    "        var __a = new global::System.Text.Json.Nodes.JsonArray();\n" +
-                   "        foreach (var __x in __v) __a.Add(" + Write(el, "__x") + ");\n" +
+                   "        foreach (var __x in __v) __a.Add((global::System.Text.Json.Nodes.JsonNode?)" + Write(el, "__x") + ");\n" +
                    "        return __a;";
         Helper("private static global::System.Text.Json.Nodes.JsonNode? " + name + "(" + paramType + " __v)", body);
         return name;
