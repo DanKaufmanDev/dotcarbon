@@ -1,0 +1,15 @@
+{
+  "app": {
+    "name": "MobileSmoke",
+    "version": "0.1.0",
+    "identifier": "dev.dotcarbon.mobilesmoke"
+  },
+  "build": {
+    "frontendDist": "ui/dist"
+  },
+  "bundle": {
+    "android": {
+      "package": "dev.dotcarbon.mobilesmoke"
+    }
+  }
+}

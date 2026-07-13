@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared backend for the mobile smoke app. Pinned to a published DotCarbon.Core so the CI
+       mobile jobs exercise the same packages a real scaffolded app restores. The package ships the
+       source generator (analyzers/dotnet/cs), so [CarbonCommand] classes compile with no extra ref. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DotCarbon.Core" Version="0.5.1" />
+  </ItemGroup>
+
+</Project>

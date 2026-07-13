@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace DotCarbon.Plugins.Updater;
 
+[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(UpdaterStatus))]
 [JsonSerializable(typeof(CheckUpdateArgs))]
 [JsonSerializable(typeof(UpdateCheckResult))]

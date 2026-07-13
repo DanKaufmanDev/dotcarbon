@@ -124,6 +124,23 @@ jobs:
           if (!(Test-Path $artifact)) { throw "Missing package artifact: $artifact" }
           $item = Get-Item $artifact
           if ($item.Length -le 0) { throw "Package artifact is empty: $artifact" }
+      # Phase 1 (Task 1.5): actually install (and uninstall) the WiX MSI on real Windows — proves
+      # the installer works, not just that the .msi file was produced.
+      - name: Install + uninstall MSI (smoke)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $msi = '${{ matrix.artifact }}'
+          $log = 'msi-install.log'
+          $install = Start-Process msiexec.exe -ArgumentList "/i `"$msi`" /quiet /norestart /l*v `"$log`"" -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            if (Test-Path $log) { Get-Content $log -Tail 60 }
+            throw "MSI install failed with exit code $($install.ExitCode)"
+          }
+          Write-Host "MSI installed successfully."
+          $uninstall = Start-Process msiexec.exe -ArgumentList "/x `"$msi`" /quiet /norestart" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "MSI uninstall failed with exit code $($uninstall.ExitCode)" }
+          Write-Host "MSI uninstalled successfully."
 
   # Optional: the mobile host packages target net10.0-android / net10.0-ios and are not part of
   # DotCarbon.slnx, so they only build with the corresponding workload installed.
@@ -152,3 +169,62 @@ jobs:
         run: dotnet workload install ios
       - name: Build DotCarbon.Host.iOS
         run: dotnet build src/DotCarbon.Host.iOS/DotCarbon.Host.iOS.csproj -c Release
+
+  # Phase 1 (Tasks 1.1/1.2): boot the real app on each desktop OS in headless smoke mode
+  # (CARBON_SMOKE=1) and assert it starts, creates its tray/menu, and exits cleanly. This is the
+  # first time the Windows/Linux native tray code actually executes on its target OS. The macOS leg
+  # mirrors what was verified locally; Windows/Linux tray readiness is surfaced as a warning (not a
+  # hard failure) so the job reports the truth without blocking CI while those backends are unproven.
+  desktop-launch-smoke:
+    name: Desktop launch smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install Linux GUI dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb dbus-x11 at-spi2-core libgtk-3-0 libglib2.0-0 libnotify4 \
+            && (sudo apt-get install -y libwebkit2gtk-4.1-0 || sudo apt-get install -y libwebkit2gtk-4.0-37)
+      - name: Launch app in smoke mode
+        working-directory: tests/DotCarbon.Tests/fixtures/package-app
+        env:
+          CARBON_SMOKE: "1"
+          CARBON_SMOKE_MS: "3000"
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            xvfb-run -a dotnet run --project src-carbon/PackageApp.csproj -c Release 2>&1 | tee smoke.log
+          else
+            dotnet run --project src-carbon/PackageApp.csproj -c Release 2>&1 | tee smoke.log
+          fi
+      - name: Assert launch + clean exit (all platforms)
+        working-directory: tests/DotCarbon.Tests/fixtures/package-app
+        shell: bash
+        run: |
+          grep -q "\[\[CARBON_SMOKE\]\] boot" smoke.log || { echo "app did not boot"; exit 1; }
+          grep -q "\[\[CARBON_SMOKE\]\] exit ok" smoke.log || { echo "app did not exit cleanly"; exit 1; }
+      - name: Assert tray + menu (macOS — verified path)
+        if: runner.os == 'macOS'
+        working-directory: tests/DotCarbon.Tests/fixtures/package-app
+        shell: bash
+        run: |
+          grep -q "System tray ready" smoke.log || { echo "macOS tray did not initialize"; exit 1; }
+          grep -q "Native menu ready" smoke.log || { echo "macOS menu did not initialize"; exit 1; }
+      - name: Report tray status (Windows/Linux — unproven backends)
+        if: runner.os != 'macOS'
+        working-directory: tests/DotCarbon.Tests/fixtures/package-app
+        shell: bash
+        run: |
+          if grep -q "System tray ready" smoke.log; then
+            echo "::notice::${{ runner.os }} tray initialized"
+          else
+            echo "::warning::${{ runner.os }} tray did not report ready — native tray backend needs a fix (Phase 1.1/1.2)"
+          fi

@@ -1,0 +1,107 @@
+# Mobile runtime smoke (Phase 1, Tasks 1.3 / 1.4) — boot the app on a real Android emulator and iOS
+# simulator and assert the WebView actually loaded and ran JS. Kept in its own workflow because these
+# jobs are slow (emulator/simulator boot) and, unlike the desktop smokes, have NOT been verified from
+# the author's environment (no KVM / no full Xcode there). Treat the first runs as a starting point —
+# the marker asserted (`[[CARBON_WEB_READY]]`, logged by tests/mobile-smoke/ui/dist/index.html) is
+# stable, but the scaffold/build/deploy plumbing will likely need a round or two of iteration.
+#
+# Both jobs scaffold the native shell the real way (`carbon platform add`) from the minimal committed
+# app root at tests/mobile-smoke/, which references the *published* DotCarbon packages — so a green run
+# proves the shipped mobile hosts boot an app end-to-end.
+name: Mobile smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['**']
+
+permissions:
+  contents: read
+
+jobs:
+  android-emulator-smoke:
+    name: Android emulator smoke (unverified — Task 1.3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android workload
+        run: dotnet workload install android
+      - name: Scaffold Android shell + build APK
+        run: |
+          dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- \
+            platform add android --project tests/mobile-smoke
+          dotnet build tests/mobile-smoke/.carbon/platforms/android/*.Android.csproj \
+            -c Debug -p:RuntimeIdentifiers=android-x64 -p:EmbedAssembliesIntoApk=true
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Boot emulator + assert WebView
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          script: |
+            APK=$(find tests/mobile-smoke -name "*-Signed.apk" | head -1)
+            [ -n "$APK" ] || { echo "::error::no APK was produced"; exit 1; }
+            echo "installing $APK"
+            adb install -r "$APK"
+            adb logcat -c
+            adb shell monkey -p dev.dotcarbon.mobilesmoke -c android.intent.category.LAUNCHER 1
+            for i in $(seq 1 30); do
+              if adb logcat -d | grep -q "\[\[CARBON_WEB_READY\]\]"; then
+                echo "WebView booted and ran JS on the emulator ✅"; exit 0
+              fi
+              sleep 2
+            done
+            echo "::error::no [[CARBON_WEB_READY]] marker in logcat — needs iteration"
+            adb logcat -d | tail -100
+            exit 1
+
+  ios-simulator-smoke:
+    name: iOS simulator smoke (unverified — Task 1.4)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install iOS workload
+        run: dotnet workload install ios
+      - name: Scaffold iOS shell + build for the simulator
+        run: |
+          dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- \
+            platform add ios --project tests/mobile-smoke
+          dotnet build tests/mobile-smoke/.carbon/platforms/ios/*.iOS.csproj \
+            -c Debug -f net10.0-ios -p:RuntimeIdentifier=iossimulator-arm64
+      - name: Boot simulator + assert WebView
+        run: |
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -oE '[0-9A-F-]{36}' || true)
+          if [ -z "$DEVICE" ]; then
+            DEVICE=$(xcrun simctl create carbon-sim com.apple.CoreSimulator.SimDeviceType.iPhone-15)
+          fi
+          echo "device: $DEVICE"
+          xcrun simctl boot "$DEVICE" || true
+          APP=$(find tests/mobile-smoke/.carbon/platforms/ios -name "*.app" -type d | head -1)
+          [ -n "$APP" ] || { echo "::error::no .app was produced"; exit 1; }
+          echo "installing $APP"
+          xcrun simctl install "$DEVICE" "$APP"
+          xcrun simctl launch "$DEVICE" dev.dotcarbon.mobilesmoke
+          for i in $(seq 1 20); do
+            if xcrun simctl spawn "$DEVICE" log show --last 30s 2>/dev/null | grep -q "\[\[CARBON_WEB_READY\]\]"; then
+              echo "WebView booted and ran JS on the simulator ✅"; exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::no [[CARBON_WEB_READY]] marker in the simulator log — needs iteration"
+          exit 1

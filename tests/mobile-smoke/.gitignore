@@ -1,0 +1,7 @@
+# Generated native shells + build output for the mobile smoke app.
+.carbon/
+bin/
+obj/
+*.apk
+*.aab
+*.keystore

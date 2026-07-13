@@ -15,7 +15,7 @@
       "webView2InstallMode": "skip"
     },
     "linux": {
-      "formats": ["appimage"]
+      "formats": ["appimage", "deb", "rpm"]
     }
   }
 }

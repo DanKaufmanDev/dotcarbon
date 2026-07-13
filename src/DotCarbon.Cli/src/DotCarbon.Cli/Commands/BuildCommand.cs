@@ -1031,21 +1031,31 @@ public static class BuildCommand
         var produced = new List<string>();
         string? primary = null;
 
+        // Each format is isolated: a failure in one (e.g. appimagetool missing/incompatible) must not
+        // abort the others. Report and continue.
+        async Task TryBuild(string label, Func<Task<string?>> build, bool isPrimary = false)
+        {
+            try
+            {
+                var artifact = await build();
+                if (artifact is not null)
+                {
+                    produced.Add(artifact);
+                    if (isPrimary) primary ??= artifact;
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteWarning($"Skipping .{label}: {ex.Message}");
+            }
+        }
+
         if (formats.Contains("appimage"))
-        {
-            var appimage = await BuildAppImage(config, workingDir, outDir, target, name, slug, exeName, icons);
-            if (appimage is not null) { produced.Add(appimage); primary ??= appimage; }
-        }
+            await TryBuild("AppImage", () => BuildAppImage(config, workingDir, outDir, target, name, slug, exeName, icons), isPrimary: true);
         if (formats.Contains("deb"))
-        {
-            var deb = await BuildDeb(config, workingDir, outDir, target, name, slug, exeName, icons);
-            if (deb is not null) produced.Add(deb);
-        }
+            await TryBuild("deb", () => BuildDeb(config, workingDir, outDir, target, name, slug, exeName, icons));
         if (formats.Contains("rpm"))
-        {
-            var rpm = await BuildRpm(config, workingDir, outDir, target, name, slug, exeName, icons);
-            if (rpm is not null) produced.Add(rpm);
-        }
+            await TryBuild("rpm", () => BuildRpm(config, workingDir, outDir, target, name, slug, exeName, icons));
 
         primary ??= produced.FirstOrDefault();
         if (produced.Count > 0)
@@ -1057,7 +1067,7 @@ public static class BuildCommand
         CarbonConfig config, string workingDir, string outDir, string target,
         string name, string slug, string exeName, IconAssets? icons)
     {
-        var tool = await EnsureAppImageTool(workingDir);
+        var tool = await EnsureAppImageTool(workingDir, target);
         if (tool is null)
         {
             WriteWarning("Skipping .AppImage: appimagetool is unavailable (the binary is still in the output).");
@@ -1287,15 +1297,18 @@ public static class BuildCommand
     private static string DebArch(string target) => target.EndsWith("arm64") ? "arm64" : "amd64";
     private static string RpmArch(string target) => target.EndsWith("arm64") ? "aarch64" : "x86_64";
 
-    private static async Task<string?> EnsureAppImageTool(string workingDir)
+    private static async Task<string?> EnsureAppImageTool(string workingDir, string target)
     {
         if (ToolExists("appimagetool")) return "appimagetool";
-        var local = Path.Combine(workingDir, "out", "appimagetool");
+        // appimagetool ships per-arch; the tool binary must match the *host* building it, which for a
+        // given target is the same arch we package for (aarch64 vs x86_64).
+        var arch = AppImageArch(target);
+        var local = Path.Combine(workingDir, "out", $"appimagetool-{arch}");
         if (!File.Exists(local))
         {
-            Console.WriteLine("[Carbon] Downloading appimagetool...");
+            Console.WriteLine($"[Carbon] Downloading appimagetool ({arch})...");
             var code = await RunProcessToCompletion("curl",
-                $"-fsSL -o \"{local}\" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage",
+                $"-fsSL -o \"{local}\" https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-{arch}.AppImage",
                 workingDir, "[pkg]", ConsoleColor.Blue);
             if (code != 0 || !File.Exists(local)) return null;
             await RunProcessToCompletion("chmod", $"+x \"{local}\"", workingDir, "[pkg]", ConsoleColor.Blue);

@@ -8,7 +8,13 @@ namespace DotCarbon.Host.Desktop;
 public static class DesktopExtensions
 {
     /// <summary>Run this Carbon app on the desktop (Photino). Call before <c>Run()</c>.</summary>
-    public static CarbonApp UseDesktop(this CarbonApp app) => app.UsePlatform(new PhotinoPlatformHost());
+    public static CarbonApp UseDesktop(this CarbonApp app)
+    {
+        var configured = app.UsePlatform(new PhotinoPlatformHost());
+        if (DesktopSmoke.Enabled)
+            configured.Setup(DesktopSmoke.Arm);
+        return configured;
+    }
 
     /// <summary>The underlying Photino window for a Carbon window (desktop-only plugins).</summary>
     public static PhotinoWindow Photino(this CarbonWindow window) => window.Native.Photino();

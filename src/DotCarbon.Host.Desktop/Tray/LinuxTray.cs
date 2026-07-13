@@ -25,6 +25,16 @@ internal static unsafe class LinuxTray
     {
         try
         {
+            // The tray is built from a setup handler, which on Linux runs before Photino has called
+            // gtk_init inside its run loop. gtk_init_check is idempotent — it establishes the display
+            // connection now (a later Photino gtk_init is a no-op). Without a display (true headless,
+            // no X server), skip gracefully instead of hitting a fatal Gtk-ERROR.
+            if (!gtk_init_check(IntPtr.Zero, IntPtr.Zero))
+            {
+                Console.Error.WriteLine("[Carbon] System tray: no display connection; skipping tray.");
+                return;
+            }
+
             _statusIcon = gtk_status_icon_new();
             gtk_status_icon_set_from_icon_name(_statusIcon, "application-x-executable");
             gtk_status_icon_set_tooltip_text(_statusIcon, builder.Title);
@@ -77,6 +87,7 @@ internal static unsafe class LinuxTray
 
     // --- GTK / GObject interop ---------------------------------------------------------------
 
+    [DllImport(Gtk)] [return: MarshalAs(UnmanagedType.I1)] private static extern bool gtk_init_check(IntPtr argc, IntPtr argv);
     [DllImport(Gtk)] private static extern IntPtr gtk_status_icon_new();
     [DllImport(Gtk)] private static extern void gtk_status_icon_set_from_icon_name(IntPtr icon, [MarshalAs(UnmanagedType.LPUTF8Str)] string name);
     [DllImport(Gtk)] private static extern void gtk_status_icon_set_tooltip_text(IntPtr icon, [MarshalAs(UnmanagedType.LPUTF8Str)] string text);
