@@ -80,10 +80,7 @@ internal sealed class AndroidBundler
             return 1;
         }
 
-        var artifact = Directory
-            .EnumerateFiles(androidDir, $"*.{format}", SearchOption.AllDirectories)
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .FirstOrDefault();
+        var artifact = LocateArtifact(androidDir, format, configuration);
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine(artifact is not null
@@ -128,6 +125,26 @@ internal sealed class AndroidBundler
 
     private static string? FindProject(string androidDir) =>
         Directory.Exists(androidDir) ? Directory.GetFiles(androidDir, "*.csproj").FirstOrDefault() : null;
+
+    internal static string? LocateArtifact(string androidDir, string format, string configuration)
+    {
+        var binDir = Path.Combine(androidDir, "bin", configuration);
+        var candidates = Directory.Exists(binDir)
+            ? Directory.EnumerateFiles(binDir, $"*.{format}", SearchOption.AllDirectories).ToList()
+            : [];
+
+        if (candidates.Count == 0)
+            return null;
+
+        return candidates
+            .OrderByDescending(path => IsPreferredApk(path, format))
+            .ThenByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault();
+    }
+
+    private static bool IsPreferredApk(string path, string format) =>
+        format.Equals("apk", StringComparison.OrdinalIgnoreCase) &&
+        Path.GetFileNameWithoutExtension(path).EndsWith("-Signed", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<string?> PrepareAsync(
         CarbonConfig config, string workingDir, string androidDir, string project)

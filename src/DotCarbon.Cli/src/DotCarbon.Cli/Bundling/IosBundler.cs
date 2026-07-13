@@ -97,11 +97,7 @@ internal sealed class IosBundler
             return 1;
         }
 
-        var pattern = archive ? "*.ipa" : "*.app";
-        var artifact = Directory
-            .EnumerateFileSystemEntries(iosDir, pattern, SearchOption.AllDirectories)
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .FirstOrDefault();
+        var artifact = LocateArtifact(iosDir, archive, configuration);
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine(artifact is not null
@@ -148,6 +144,23 @@ internal sealed class IosBundler
 
     private static string? FindProject(string iosDir) =>
         Directory.Exists(iosDir) ? Directory.GetFiles(iosDir, "*.csproj").FirstOrDefault() : null;
+
+    internal static string? LocateArtifact(string iosDir, bool archive, string configuration)
+    {
+        var binDir = Path.Combine(iosDir, "bin", configuration);
+        if (!Directory.Exists(binDir)) return null;
+
+        var pattern = archive ? "*.ipa" : "*.app";
+        return Directory
+            .EnumerateFileSystemEntries(binDir, pattern, SearchOption.AllDirectories)
+            .OrderByDescending(LastWriteTimeUtc)
+            .FirstOrDefault();
+    }
+
+    private static DateTime LastWriteTimeUtc(string path) =>
+        Directory.Exists(path)
+            ? Directory.GetLastWriteTimeUtc(path)
+            : File.GetLastWriteTimeUtc(path);
 
     private static async Task<string?> PrepareAsync(
         CarbonConfig config, string workingDir, string iosDir, string project)

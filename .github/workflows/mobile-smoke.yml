@@ -41,7 +41,10 @@ jobs:
             platform add android --project tests/mobile-smoke
           dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- \
             bundle android --project tests/mobile-smoke --apk --debug --allow-unsupported-plugins
-          APK=$(find tests/mobile-smoke/.carbon/platforms/android -name "*.apk" -type f | sort | tail -1)
+          APK=$(find tests/mobile-smoke/.carbon/platforms/android/bin/Debug -name "*-Signed.apk" -type f 2>/dev/null | sort | tail -1 || true)
+          if [ -z "$APK" ]; then
+            APK=$(find tests/mobile-smoke/.carbon/platforms/android/bin/Debug -name "*.apk" -type f 2>/dev/null | sort | tail -1 || true)
+          fi
           [ -n "$APK" ] || { echo "::error::no APK was produced"; exit 1; }
           echo "APK=$APK" >> "$GITHUB_ENV"
           ls -lh "$APK"
@@ -90,7 +93,7 @@ jobs:
             platform add ios --project tests/mobile-smoke
           dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- \
             bundle ios --project tests/mobile-smoke --simulator --allow-unsupported-plugins
-          APP=$(find tests/mobile-smoke/.carbon/platforms/ios -name "*.app" -type d | sort | tail -1)
+          APP=$(find tests/mobile-smoke/.carbon/platforms/ios/bin/Debug -name "*.app" -type d 2>/dev/null | sort | tail -1 || true)
           [ -n "$APP" ] || { echo "::error::no .app was produced"; exit 1; }
           echo "APP=$APP" >> "$GITHUB_ENV"
           du -sh "$APP"
