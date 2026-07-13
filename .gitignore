@@ -14,7 +14,10 @@ artifacts/
 
 # Node
 node_modules/
+.pnpm-store/
 dist/
+!tests/DotCarbon.Tests/fixtures/package-app/ui/dist/
+!tests/DotCarbon.Tests/fixtures/package-app/ui/dist/index.html
 *.log
 
 # Carbon build output
@@ -25,3 +28,7 @@ out/
 .DS_Store
 Thumbs.db
 templates-js/
+docs/
+
+
+dotcarbon-site/
