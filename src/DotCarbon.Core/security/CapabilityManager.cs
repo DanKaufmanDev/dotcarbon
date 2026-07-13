@@ -1,4 +1,5 @@
 using DotCarbon.Core.Config;
+using DotCarbon.Core.Plugins;
 using DotCarbon.Core.Runtime;
 
 namespace DotCarbon.Core.Security;
@@ -6,6 +7,8 @@ namespace DotCarbon.Core.Security;
 internal sealed class CapabilityManager
 {
     private readonly CarbonConfig _config;
+    private IReadOnlyDictionary<string, IReadOnlyList<string>> _permissionCommands =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
     private bool _allowAll;
 
     public CapabilityManager(CarbonConfig config)
@@ -19,6 +22,17 @@ internal sealed class CapabilityManager
     {
         IsEnforced = _config.Security.Enabled;
         _allowAll = isDevServer && _config.Security.DevAllowAll;
+    }
+
+    public void SetPluginMetadata(IEnumerable<PluginMetadata> plugins)
+    {
+        _permissionCommands = plugins
+            .SelectMany(plugin => plugin.Permissions)
+            .GroupBy(permission => permission.Identifier, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)group.SelectMany(permission => permission.Commands).Distinct(StringComparer.Ordinal).ToArray(),
+                StringComparer.Ordinal);
     }
 
     public void EnsureCommandAllowed(CarbonWindow window, string command)
@@ -59,9 +73,18 @@ internal sealed class CapabilityManager
         capability.Windows.Any(window =>
             window == "*" || string.Equals(window, label, StringComparison.Ordinal));
 
-    private static bool CapabilityAllows(CapabilityConfig capability, string command) =>
-        capability.Commands.Concat(capability.Permissions)
-            .Any(pattern => CommandPatternMatches(pattern, command));
+    private bool CapabilityAllows(CapabilityConfig capability, string command) =>
+        capability.Commands.Any(pattern => CommandPatternMatches(pattern, command)) ||
+        capability.Permissions.Any(permission => PermissionAllows(permission, command));
+
+    private bool PermissionAllows(string permission, string command)
+    {
+        if (_permissionCommands.TryGetValue(permission, out var patterns))
+            return patterns.Any(pattern => CommandPatternMatches(pattern, command));
+
+        // Back-compat: older capability files sometimes used permissions as command patterns.
+        return CommandPatternMatches(permission, command);
+    }
 
     private static bool CommandPatternMatches(string pattern, string command)
     {

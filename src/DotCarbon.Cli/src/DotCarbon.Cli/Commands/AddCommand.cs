@@ -370,9 +370,13 @@ public static class AddCommand
         var capability = new JsonObject
         {
             ["description"] = $"{definition.NuGetPackage} permissions.",
-            ["windows"] = new JsonArray("main"),
-            ["commands"] = new JsonArray(definition.Commands.Select(command => JsonValue.Create(command)).ToArray<JsonNode?>()),
+            ["windows"] = new JsonArray("main")
         };
+        var permission = CapabilityPermissionCatalog.Resolve(definition.Namespace);
+        if (permission is not null)
+            capability["permissions"] = new JsonArray(permission.Id);
+        else
+            capability["commands"] = new JsonArray(definition.Commands.Select(command => JsonValue.Create(command)).ToArray<JsonNode?>());
         File.WriteAllText(path, capability.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
     }
 

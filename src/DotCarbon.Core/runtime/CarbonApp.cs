@@ -207,7 +207,9 @@ public sealed class CarbonApp
             InvokePluginInitialize(plugin);
             _registry.RegisterPlugin(plugin);
         }
-        _handle.SetPlugins(_activePlugins.Select(plugin => plugin.Metadata));
+        var pluginMetadata = _activePlugins.Select(plugin => plugin.Metadata).ToArray();
+        _handle.SetPlugins(pluginMetadata);
+        _capabilities.SetPluginMetadata(pluginMetadata);
 
         foreach (var setup in _setupHandlers) setup(_handle);
         foreach (var window in _handle.Windows.Where(window => !window.IsLoaded))

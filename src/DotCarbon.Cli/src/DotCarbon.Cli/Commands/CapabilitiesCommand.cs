@@ -1,4 +1,6 @@
 using System.CommandLine;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCarbon.Core.Config;
 
 namespace DotCarbon.Cli.Commands;
@@ -9,9 +11,59 @@ public static class CapabilitiesCommand
     {
         var command = new Command("capabilities", "Sync and validate Carbon command capabilities");
         command.AddAlias("capability");
+        command.AddCommand(ListSubcommand());
+        command.AddCommand(AddSubcommand());
         command.AddCommand(SyncSubcommand());
         command.AddCommand(CheckSubcommand());
         return command;
+    }
+
+    private static Command ListSubcommand()
+    {
+        var cmd = new Command("list", "List known first-party capability permissions");
+        cmd.SetHandler(() =>
+        {
+            foreach (var permission in CapabilityPermissionCatalog.All)
+            {
+                Console.WriteLine($"{permission.Id}");
+                Console.WriteLine($"  plugin:    {permission.PluginNamespace}");
+                Console.WriteLine($"  commands:  {string.Join(", ", permission.Commands)}");
+                Console.WriteLine($"  platforms: {string.Join(", ", permission.Platforms)}");
+                if (permission.Requirements.Count > 0)
+                    Console.WriteLine($"  requires:  {string.Join(", ", permission.Requirements.Select(requirement => requirement.Path))}");
+                Console.WriteLine();
+            }
+        });
+        return cmd;
+    }
+
+    private static Command AddSubcommand()
+    {
+        var cmd = new Command("add", "Add a permission to a capability file");
+        var permission = new Argument<string>("permission", "Permission id or plugin alias, e.g. fs or fs:default");
+        var project = new Option<DirectoryInfo?>(
+            "--project", "Path to the Carbon project (default: current directory)");
+        var capability = new Option<string>(
+            "--capability", getDefaultValue: () => "main", description: "Capability file/name to update");
+        var window = new Option<string>(
+            "--window", getDefaultValue: () => "main", description: "Window label to attach the capability to");
+        cmd.AddArgument(permission);
+        cmd.AddOption(project);
+        cmd.AddOption(capability);
+        cmd.AddOption(window);
+        cmd.SetHandler((permissionValue, projectDir, capabilityName, windowLabel) =>
+        {
+            var root = projectDir?.FullName ?? Directory.GetCurrentDirectory();
+            var added = AddPermission(root, permissionValue, capabilityName, windowLabel);
+            WriteColor(
+                added.Added
+                    ? $"[Carbon] Added {added.PermissionId} -> {Path.GetRelativePath(root, added.CapabilityPath)}"
+                    : $"[Carbon] {added.PermissionId} is already present in {Path.GetRelativePath(root, added.CapabilityPath)}",
+                ConsoleColor.Green);
+            foreach (var warning in Check(root).Warnings)
+                WriteColor($"[Carbon] Warning: {warning}", ConsoleColor.Yellow);
+        }, permission, project, capability, window);
+        return cmd;
     }
 
     private static Command SyncSubcommand()
@@ -102,6 +154,8 @@ public static class CapabilitiesCommand
 
             if (capability.Commands.Count == 0 && capability.Permissions.Count == 0)
                 warnings.Add($"Capability '{name}' does not allow any commands.");
+
+            warnings.AddRange(CapabilityPermissionCatalog.RequirementWarnings(config, capability.Permissions));
         }
 
         if (config.Security.Enabled &&
@@ -112,6 +166,34 @@ public static class CapabilitiesCommand
             warnings.Add("Security is enabled, but no capabilities are attached to any window.");
 
         return new CapabilityCheckResult(warnings, errors);
+    }
+
+    internal static CapabilityAddResult AddPermission(
+        string root,
+        string permissionValue,
+        string capabilityName = "main",
+        string windowLabel = "main")
+    {
+        var configPath = Path.Combine(root, "carbon.json");
+        if (!File.Exists(configPath))
+            throw new FileNotFoundException($"No carbon.json found in {root}");
+
+        var permission = CapabilityPermissionCatalog.Resolve(permissionValue)
+            ?? throw new InvalidOperationException(
+                $"Unknown permission '{permissionValue}'. Run `carbon capabilities list` to see known permissions.");
+        var permissionId = permission.Id;
+
+        var capabilityDir = Path.Combine(root, "src-carbon", "capabilities");
+        Directory.CreateDirectory(capabilityDir);
+        var capabilityPath = Path.Combine(capabilityDir, capabilityName + ".json");
+        var document = LoadOrCreateCapability(capabilityPath, capabilityName, windowLabel);
+        var permissions = GetArray(document, "permissions");
+        var added = AddUnique(permissions, permissionId);
+        EnsureArrayHasValue(document, "windows", windowLabel);
+        SaveJson(document, capabilityPath);
+
+        EnsureCapabilityAttached(configPath, capabilityName, windowLabel);
+        return new CapabilityAddResult(permissionId, capabilityPath, added);
     }
 
     private static bool IsCommandPattern(string value)
@@ -132,6 +214,84 @@ public static class CapabilitiesCommand
     private static bool IsIdentifier(string value) =>
         value.Length > 0 && value.All(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_');
 
+    private static JsonObject LoadOrCreateCapability(string path, string name, string windowLabel)
+    {
+        if (File.Exists(path))
+        {
+            try
+            {
+                return JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? CreateCapability(name, windowLabel);
+            }
+            catch (JsonException)
+            {
+                return CreateCapability(name, windowLabel);
+            }
+        }
+
+        return CreateCapability(name, windowLabel);
+    }
+
+    private static JsonObject CreateCapability(string name, string windowLabel) => new()
+    {
+        ["identifier"] = name,
+        ["description"] = $"{name} window permissions.",
+        ["windows"] = new JsonArray(windowLabel),
+        ["permissions"] = new JsonArray()
+    };
+
+    private static void EnsureCapabilityAttached(string configPath, string capabilityName, string windowLabel)
+    {
+        var root = JsonNode.Parse(File.ReadAllText(configPath))?.AsObject()
+            ?? throw new InvalidOperationException("carbon.json must contain a JSON object.");
+        var security = GetObject(root, "security");
+        security["enabled"] = true;
+
+        var targetWindow = GetObject(root, "window");
+        if (windowLabel != "main")
+        {
+            var windows = GetArray(root, "windows");
+            var existing = windows.OfType<JsonObject>()
+                .FirstOrDefault(window =>
+                    window["label"]?.GetValue<string>() == windowLabel);
+            targetWindow = existing ?? targetWindow;
+        }
+
+        EnsureArrayHasValue(targetWindow, "capabilities", capabilityName);
+        SaveJson(root, configPath);
+    }
+
+    private static JsonObject GetObject(JsonObject root, string property)
+    {
+        if (root[property] is JsonObject existing) return existing;
+        var value = new JsonObject();
+        root[property] = value;
+        return value;
+    }
+
+    private static JsonArray GetArray(JsonObject root, string property)
+    {
+        if (root[property] is JsonArray existing) return existing;
+        var value = new JsonArray();
+        root[property] = value;
+        return value;
+    }
+
+    private static void EnsureArrayHasValue(JsonObject root, string property, string value) =>
+        AddUnique(GetArray(root, property), value);
+
+    private static bool AddUnique(JsonArray array, string value)
+    {
+        if (array.Any(item => item?.GetValue<string>() == value)) return false;
+        array.Add(value);
+        return true;
+    }
+
+    private static void SaveJson(JsonObject root, string path)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+    }
+
     private static void WriteColor(string message, ConsoleColor color)
     {
         Console.ForegroundColor = color;
@@ -143,3 +303,5 @@ public static class CapabilitiesCommand
 internal sealed record CapabilityCheckResult(
     IReadOnlyList<string> Warnings,
     IReadOnlyList<string> Errors);
+
+internal sealed record CapabilityAddResult(string PermissionId, string CapabilityPath, bool Added);

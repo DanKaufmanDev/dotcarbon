@@ -11,6 +11,10 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotCarbon.Tests" />
+  </ItemGroup>
+
   <Target Name="PackCarbonGenerator" BeforeTargets="_GetPackageFiles">
     <MSBuild Projects="$(MSBuildThisFileDirectory)../DotCarbon.Generators/DotCarbon.Generators.csproj"
              Targets="Build" Properties="Configuration=$(Configuration)">

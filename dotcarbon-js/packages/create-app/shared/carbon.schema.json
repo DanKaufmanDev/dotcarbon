@@ -135,7 +135,7 @@
         "Capability": {
             "type": "object",
             "additionalProperties": false,
-            "description": "A named allowlist of bridge commands for one or more windows.",
+            "description": "A named allowlist of bridge command permissions for one or more windows.",
             "properties": {
                 "identifier": { "type": ["string", "null"], "description": "Capability identifier. External files may omit this and use the filename." },
                 "description": { "type": ["string", "null"] },
@@ -149,13 +149,13 @@
                     "type": "array",
                     "items": { "type": "string" },
                     "default": [],
-                    "description": "Allowed command names. Supports exact names like app:greet, namespace wildcards like window:*, and *."
+                    "description": "Low-level command patterns. Prefer permissions for plugin capabilities. Supports exact names like app:greet, namespace wildcards like window:*, and *."
                 },
                 "permissions": {
                     "type": "array",
                     "items": { "type": "string" },
                     "default": [],
-                    "description": "Alias for commands, useful for Tauri-style capability files."
+                    "description": "First-class permission ids such as fs:default or Tauri-style command aliases. Carbon expands known plugin permissions to their declared commands and validates required scopes."
                 }
             }
         },
