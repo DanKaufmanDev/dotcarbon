@@ -18,6 +18,8 @@ node_modules/
 dist/
 !tests/DotCarbon.Tests/fixtures/package-app/ui/dist/
 !tests/DotCarbon.Tests/fixtures/package-app/ui/dist/index.html
+!tests/mobile-smoke/ui/dist/
+!tests/mobile-smoke/ui/dist/index.html
 *.log
 
 # Carbon build output

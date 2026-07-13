@@ -26,6 +26,8 @@ public partial class AppCommands : IPlugin
     public string Greet(GreetRequest req)
     {
         _state.GreetingCount++;
+        Console.WriteLine("[[CARBON_WEB_READY]]");
+        Console.Out.Flush();
         return $"Hello, {req.Name}! (greet #{_state.GreetingCount})";
     }
 }

@@ -2,8 +2,8 @@
 # simulator and assert the WebView actually loaded and ran JS. Kept in its own workflow because these
 # jobs are slow (emulator/simulator boot) and, unlike the desktop smokes, have NOT been verified from
 # the author's environment (no KVM / no full Xcode there). Treat the first runs as a starting point —
-# the marker asserted (`[[CARBON_WEB_READY]]`, logged by tests/mobile-smoke/ui/dist/index.html) is
-# stable, but the scaffold/build/deploy plumbing will likely need a round or two of iteration.
+# the marker asserted (`[[CARBON_WEB_READY]]`) is emitted by the shared C# command after a WebView
+# bridge invoke succeeds, but the scaffold/build/deploy plumbing may still need CI iteration.
 #
 # Both jobs scaffold the native shell the real way (`carbon platform add`) from the minimal committed
 # app root at tests/mobile-smoke/, which references the *published* DotCarbon packages — so a green run
@@ -36,6 +36,7 @@ jobs:
       - name: Scaffold Android shell + bundle APK
         run: |
           set -euxo pipefail
+          test -f tests/mobile-smoke/ui/dist/index.html
           dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- \
             platform add android --project tests/mobile-smoke
           dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- \
@@ -84,6 +85,7 @@ jobs:
       - name: Scaffold iOS shell + bundle for the simulator
         run: |
           set -euxo pipefail
+          test -f tests/mobile-smoke/ui/dist/index.html
           dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- \
             platform add ios --project tests/mobile-smoke
           dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- \
