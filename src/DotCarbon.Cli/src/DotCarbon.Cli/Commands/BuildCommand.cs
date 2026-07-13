@@ -732,32 +732,7 @@ public static class BuildCommand
 
         var wxs = Path.Combine(workingDir, "out", "installer.wxs");
         var msi = Path.Combine(workingDir, "out", name + ".msi");
-        var xmlName = XmlEscape(name);
-        var manufacturer = XmlEscape(config.Bundle.Publisher ?? config.App.Name);
-        var registryEntries = WindowsRegistryEntries(config, exeName: Path.GetFileName(exe));
-        var webView2Elements = webView2 is null ? string.Empty :
-            $"    <Binary Id=\"WebView2Bootstrapper\" SourceFile=\"{XmlEscape(webView2)}\" />\n" +
-            "    <CustomAction Id=\"InstallWebView2\" BinaryRef=\"WebView2Bootstrapper\" " +
-            "ExeCommand=\"/silent /install\" Execute=\"deferred\" Impersonate=\"no\" Return=\"check\" />\n" +
-            "    <InstallExecuteSequence>\n" +
-            "      <Custom Action=\"InstallWebView2\" After=\"InstallFiles\" Condition=\"NOT Installed\" />\n" +
-            "    </InstallExecuteSequence>\n";
-        await File.WriteAllTextAsync(wxs,
-            "<Wix xmlns=\"http://wixtoolset.org/schemas/v4/wxs\">\n" +
-            $"  <Package Name=\"{xmlName}\" Manufacturer=\"{manufacturer}\" Version=\"{MsiVersion(config.App.Version)}\" UpgradeCode=\"{StableGuid(config.App.Identifier)}\">\n" +
-            "    <MajorUpgrade DowngradeErrorMessage=\"A newer version is already installed.\" />\n" +
-            "    <MediaTemplate EmbedCab=\"yes\" />\n" +
-            (icons is null ? string.Empty :
-                $"    <Icon Id=\"AppIcon\" SourceFile=\"{XmlEscape(icons.Ico)}\" />\n" +
-                "    <Property Id=\"ARPPRODUCTICON\" Value=\"AppIcon\" />\n") +
-            webView2Elements +
-            "    <StandardDirectory Id=\"ProgramFiles64Folder\">\n" +
-            $"      <Directory Id=\"INSTALLFOLDER\" Name=\"{xmlName}\">\n" +
-            $"        <Files Include=\"{XmlEscape(outDir)}\\**\" />\n" +
-            registryEntries +
-            "      </Directory>\n" +
-            "    </StandardDirectory>\n" +
-            "  </Package>\n</Wix>\n");
+        await File.WriteAllTextAsync(wxs, WindowsInstallerWxs(config, outDir, exe, webView2, icons?.Ico));
         if (await RunProcessToCompletion("wix", $"build \"{wxs}\" -o \"{msi}\"", outDir, "[pkg]", ConsoleColor.Blue) != 0)
         {
             WriteError("WiX failed to build the Windows .msi package.");
@@ -774,15 +749,92 @@ public static class BuildCommand
         return $"out/{name}.msi";
     }
 
-    private static string WindowsRegistryEntries(CarbonConfig config, string exeName)
+    internal static string WindowsInstallerWxs(
+        CarbonConfig config,
+        string outDir,
+        string exe,
+        string? webView2,
+        string? iconIco)
+    {
+        var name = string.IsNullOrWhiteSpace(config.App.Name) ? Path.GetFileNameWithoutExtension(exe) : config.App.Name;
+        var xmlName = XmlEscape(name);
+        var manufacturer = XmlEscape(config.Bundle.Publisher ?? config.App.Name);
+        var componentIds = new List<string>();
+        var directoryEntries = new System.Text.StringBuilder();
+        var fileComponentIndex = 0;
+        var directoryIndex = 0;
+        AppendWindowsFileComponents(directoryEntries, outDir, componentIds, ref fileComponentIndex, ref directoryIndex, indent: "        ");
+        WindowsRegistryEntries(directoryEntries, componentIds, config, exeName: Path.GetFileName(exe));
+
+        var featureComponents = string.Concat(componentIds.Select(id => $"      <ComponentRef Id=\"{id}\" />\n"));
+        var webView2Elements = webView2 is null ? string.Empty :
+            $"    <Binary Id=\"WebView2Bootstrapper\" SourceFile=\"{XmlEscape(webView2)}\" />\n" +
+            "    <CustomAction Id=\"InstallWebView2\" BinaryRef=\"WebView2Bootstrapper\" " +
+            "ExeCommand=\"/silent /install\" Execute=\"deferred\" Impersonate=\"no\" Return=\"check\" />\n" +
+            "    <InstallExecuteSequence>\n" +
+            "      <Custom Action=\"InstallWebView2\" After=\"InstallFiles\" Condition=\"NOT Installed\" />\n" +
+            "    </InstallExecuteSequence>\n";
+
+        return
+            "<Wix xmlns=\"http://wixtoolset.org/schemas/v4/wxs\">\n" +
+            $"  <Package Name=\"{xmlName}\" Manufacturer=\"{manufacturer}\" Version=\"{MsiVersion(config.App.Version)}\" UpgradeCode=\"{StableGuid(config.App.Identifier)}\">\n" +
+            "    <MajorUpgrade DowngradeErrorMessage=\"A newer version is already installed.\" />\n" +
+            "    <MediaTemplate EmbedCab=\"yes\" />\n" +
+            (iconIco is null ? string.Empty :
+                $"    <Icon Id=\"AppIcon\" SourceFile=\"{XmlEscape(iconIco)}\" />\n" +
+                "    <Property Id=\"ARPPRODUCTICON\" Value=\"AppIcon\" />\n") +
+            webView2Elements +
+            "    <StandardDirectory Id=\"ProgramFiles64Folder\">\n" +
+            $"      <Directory Id=\"INSTALLFOLDER\" Name=\"{xmlName}\">\n" +
+            directoryEntries +
+            "      </Directory>\n" +
+            "    </StandardDirectory>\n" +
+            $"    <Feature Id=\"MainFeature\" Title=\"{xmlName}\" Level=\"1\">\n" +
+            featureComponents +
+            "    </Feature>\n" +
+            "  </Package>\n</Wix>\n";
+    }
+
+    private static void AppendWindowsFileComponents(
+        System.Text.StringBuilder xml,
+        string directory,
+        List<string> componentIds,
+        ref int fileComponentIndex,
+        ref int directoryIndex,
+        string indent)
+    {
+        foreach (var file in Directory.GetFiles(directory).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
+        {
+            var componentId = "AppFile" + fileComponentIndex++;
+            componentIds.Add(componentId);
+            xml.AppendLine($"{indent}<Component Id=\"{componentId}\" Guid=\"*\">");
+            xml.AppendLine($"{indent}  <File Id=\"{componentId}File\" Source=\"{XmlEscape(file)}\" KeyPath=\"yes\" />");
+            xml.AppendLine($"{indent}</Component>");
+        }
+
+        foreach (var childDirectory in Directory.GetDirectories(directory).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
+        {
+            var directoryId = "AppDir" + directoryIndex++;
+            xml.AppendLine($"{indent}<Directory Id=\"{directoryId}\" Name=\"{XmlEscape(Path.GetFileName(childDirectory))}\">");
+            AppendWindowsFileComponents(xml, childDirectory, componentIds, ref fileComponentIndex, ref directoryIndex, indent + "  ");
+            xml.AppendLine($"{indent}</Directory>");
+        }
+    }
+
+    private static void WindowsRegistryEntries(
+        System.Text.StringBuilder xml,
+        List<string> componentIds,
+        CarbonConfig config,
+        string exeName)
     {
         exeName = XmlEscape(exeName);
-        var xml = new System.Text.StringBuilder();
         var componentIndex = 0;
         foreach (var association in config.Bundle.FileAssociations.Where(item => item.Extensions.Count > 0))
         {
+            var componentId = $"FileAssociation{componentIndex++}";
+            componentIds.Add(componentId);
             var progId = XmlEscape(config.App.Identifier + "." + association.Extensions[0].TrimStart('.'));
-            xml.AppendLine($"        <Component Id=\"FileAssociation{componentIndex++}\" Guid=\"*\">");
+            xml.AppendLine($"        <Component Id=\"{componentId}\" Guid=\"*\">");
             var first = true;
             foreach (var extension in association.Extensions)
             {
@@ -804,8 +856,10 @@ public static class BuildCommand
         {
             foreach (var configuredScheme in protocol.Schemes)
             {
+                var componentId = $"Protocol{componentIndex++}";
+                componentIds.Add(componentId);
                 var scheme = XmlEscape(configuredScheme);
-                xml.AppendLine($"        <Component Id=\"Protocol{componentIndex++}\" Guid=\"*\">");
+                xml.AppendLine($"        <Component Id=\"{componentId}\" Guid=\"*\">");
                 xml.AppendLine($"          <RegistryKey Root=\"HKCU\" Key=\"Software\\Classes\\{scheme}\">");
                 xml.AppendLine($"            <RegistryValue Type=\"string\" Value=\"URL:{XmlEscape(protocol.Name)}\" KeyPath=\"yes\" />");
                 xml.AppendLine("            <RegistryValue Name=\"URL Protocol\" Type=\"string\" Value=\"\" />");
@@ -816,7 +870,6 @@ public static class BuildCommand
                 xml.AppendLine("        </Component>");
             }
         }
-        return xml.ToString();
     }
 
     private static string XmlEscape(string value) =>

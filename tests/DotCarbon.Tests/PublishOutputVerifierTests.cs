@@ -69,6 +69,36 @@ public class PublishOutputVerifierTests
             ProjectLocator.FindHostProject(dir, config));
     }
 
+    [Fact]
+    public void Windows_installer_wxs_uses_explicit_components()
+    {
+        var dir = TempOutput();
+        var exe = Path.Combine(dir, "fixture.exe");
+        File.WriteAllText(exe, "launcher");
+        var nested = Path.Combine(dir, "resources");
+        Directory.CreateDirectory(nested);
+        File.WriteAllText(Path.Combine(nested, "settings.json"), "{}");
+
+        var config = new CarbonConfig
+        {
+            App = new AppConfig
+            {
+                Name = "Fixture",
+                Version = "1.2.3",
+                Identifier = "dev.dotcarbon.fixture",
+            },
+        };
+
+        var wxs = BuildCommand.WindowsInstallerWxs(config, dir, exe, webView2: null, iconIco: null);
+
+        Assert.DoesNotContain("<Files ", wxs);
+        Assert.Contains("<Component Id=\"AppFile0\"", wxs);
+        Assert.Contains("<File Id=\"AppFile0File\"", wxs);
+        Assert.Contains("<Directory Id=\"AppDir0\" Name=\"resources\">", wxs);
+        Assert.Contains("<Feature Id=\"MainFeature\"", wxs);
+        Assert.Contains("<ComponentRef Id=\"AppFile0\" />", wxs);
+    }
+
     private static string TempOutput()
     {
         var dir = Path.Combine(Path.GetTempPath(), "carbon-publish-output-" + Guid.NewGuid().ToString("N"));
