@@ -1383,6 +1383,17 @@ public static class BuildCommand
 
     internal static async Task<bool> BuildFrontend(CarbonConfig config, string workingDir)
     {
+        var frontendDist = Path.GetFullPath(Path.Combine(workingDir, config.Build.FrontendDist));
+        var distParent = Path.GetDirectoryName(frontendDist) ?? workingDir;
+        var packageJsonDir = FindPackageJson(distParent);
+        if (packageJsonDir is null &&
+            string.IsNullOrWhiteSpace(config.Build.BuildCommand) &&
+            File.Exists(Path.Combine(frontendDist, "index.html")))
+        {
+            Console.WriteLine($"[Carbon] Frontend dist already present -> {Path.GetRelativePath(workingDir, frontendDist)}");
+            return true;
+        }
+
         var buildCommand = string.IsNullOrWhiteSpace(config.Build.BuildCommand)
             ? config.Build.DevCommand.Replace("run dev", "run build").Replace(" dev", " build")
             : config.Build.BuildCommand;
@@ -1391,11 +1402,7 @@ public static class BuildCommand
         var cmd = parts[0];
         var args = parts.Length > 1 ? parts[1] : "build";
 
-        var distDir = Path.GetDirectoryName(
-            Path.GetFullPath(Path.Combine(workingDir, config.Build.FrontendDist))
-        ) ?? workingDir;
-
-        var uiDir = FindPackageJson(distDir) ?? workingDir;
+        var uiDir = packageJsonDir ?? workingDir;
 
         var exitCode = await RunProcessToCompletion(cmd, args, uiDir, "[UI]", ConsoleColor.Green);
         return exitCode == 0;

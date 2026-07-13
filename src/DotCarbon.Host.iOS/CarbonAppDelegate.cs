@@ -31,11 +31,15 @@ public abstract class CarbonAppDelegate : UIApplicationDelegate
         configuration.SetUrlSchemeHandler(new CarbonSchemeHandler(), "carbon");
         configuration.UserContentController.AddUserScript(
             new WKUserScript(new NSString(CarbonIos.BridgeShim), WKUserScriptInjectionTime.AtDocumentStart, true));
+        configuration.UserContentController.AddUserScript(
+            new WKUserScript(new NSString(CarbonIos.ConsoleShim), WKUserScriptInjectionTime.AtDocumentStart, true));
 
         var native = new WKWebView(CGRect.Empty, configuration);
         var webView = _webView = new IosWebView(native);
         configuration.UserContentController.AddScriptMessageHandler(
             new CarbonScriptMessageHandler(webView.DispatchMessage), CarbonIos.MessageHandlerName);
+        configuration.UserContentController.AddScriptMessageHandler(
+            new CarbonConsoleMessageHandler(), CarbonIos.ConsoleHandlerName);
 
         var controller = new UIViewController { View = native };
         Window = new UIWindow(UIScreen.MainScreen.Bounds) { RootViewController = controller };

@@ -21,7 +21,7 @@ internal sealed class AndroidBundler
             Steps = new List<BundleStep>
             {
                 new("Validate", "android platform added (`carbon platform add android`) + Android workload"),
-                new("Build frontend", "vite build → embedded into the Android app assembly"),
+                new("Build frontend", "build command or existing dist → embedded into the Android app assembly"),
                 new("Publish .NET Android", $"dotnet publish -f net10.0-android -c {configuration} (AndroidPackageFormat={format})"),
                 new("Locate artifact", $"the .{format} under the project's bin/{configuration} output"),
             },

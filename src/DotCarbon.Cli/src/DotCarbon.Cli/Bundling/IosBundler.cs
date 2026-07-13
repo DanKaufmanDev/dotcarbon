@@ -25,7 +25,7 @@ internal sealed class IosBundler
             Steps = new List<BundleStep>
             {
                 new("Validate", "macOS + Xcode + iOS workload, and the ios platform added"),
-                new("Build frontend", "vite build → embedded into the iOS app assembly"),
+                new("Build frontend", "build command or existing dist → embedded into the iOS app assembly"),
                 new(mode == "archive" ? "Publish archive" : "Build .NET iOS",
                     $"dotnet {(mode == "archive" ? "publish" : "build")} -f net10.0-ios -c {configuration} -p:RuntimeIdentifier={rid}"),
                 new("Locate artifact", mode == "archive" ? "the .ipa under bin/…/publish" : $"the .app under bin/{configuration}"),

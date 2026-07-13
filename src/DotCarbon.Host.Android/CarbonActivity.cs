@@ -30,6 +30,7 @@ public abstract class CarbonActivity : Activity
         native.Settings.JavaScriptEnabled = true;
         native.Settings.DomStorageEnabled = true;
         native.SetWebViewClient(new CarbonWebViewClient());
+        native.SetWebChromeClient(new CarbonWebChromeClient());
 
         var webView = _webView = new AndroidWebView(native);
         native.AddJavascriptInterface(new CarbonJsBridge(webView.DispatchMessage), CarbonAndroid.JsInterfaceName);
