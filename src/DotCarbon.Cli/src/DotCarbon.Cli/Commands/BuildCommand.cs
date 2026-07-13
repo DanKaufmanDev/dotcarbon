@@ -161,12 +161,22 @@ public static class BuildCommand
         }
 
         var artifact = Path.GetRelativePath(workingDir, executable);
-        if (bundle && target.StartsWith("osx"))
-            artifact = await BundleMac(config, workingDir, target, icons) ?? artifact;
-        else if (bundle && target.StartsWith("win"))
-            artifact = await BundleWindows(config, workingDir, target, icons) ?? artifact;
-        else if (bundle && target.StartsWith("linux"))
-            artifact = await BundleLinux(config, workingDir, target, icons) ?? artifact;
+        if (bundle)
+        {
+            var packageArtifact =
+                target.StartsWith("osx", StringComparison.OrdinalIgnoreCase) ? await BundleMac(config, workingDir, target, icons) :
+                target.StartsWith("win", StringComparison.OrdinalIgnoreCase) ? await BundleWindows(config, workingDir, target, icons) :
+                target.StartsWith("linux", StringComparison.OrdinalIgnoreCase) ? await BundleLinux(config, workingDir, target, icons) :
+                null;
+
+            if (packageArtifact is null)
+            {
+                WriteError($"Package artifact was not created for target {target}.");
+                return 1;
+            }
+
+            artifact = packageArtifact;
+        }
 
         if (!await CreateUpdaterArtifacts(
                 config, workingDir, target, artifact,
@@ -697,7 +707,7 @@ public static class BuildCommand
         if (exe is null) return null;
         if (!ToolExists("wix"))
         {
-            Console.WriteLine("[Carbon] The .exe is in the output. For a .msi: dotnet tool install --global wix --version 4.* then rebuild.");
+            WriteError("Windows .msi packaging requires WiX. Install it with: dotnet tool install --global wix --version 4.*");
             return null;
         }
 
@@ -748,11 +758,20 @@ public static class BuildCommand
             "      </Directory>\n" +
             "    </StandardDirectory>\n" +
             "  </Package>\n</Wix>\n");
-        await RunProcessToCompletion("wix", $"build \"{wxs}\" -o \"{msi}\"", outDir, "[pkg]", ConsoleColor.Blue);
+        if (await RunProcessToCompletion("wix", $"build \"{wxs}\" -o \"{msi}\"", outDir, "[pkg]", ConsoleColor.Blue) != 0)
+        {
+            WriteError("WiX failed to build the Windows .msi package.");
+            return null;
+        }
+        if (!File.Exists(msi))
+        {
+            WriteError($"WiX completed but did not create the expected MSI: {msi}");
+            return null;
+        }
         if (File.Exists(msi) && !string.IsNullOrWhiteSpace(thumbprint) &&
             !await SignWindows(msi, thumbprint, config.Bundle.Windows.TimestampUrl, outDir))
             return null;
-        return File.Exists(msi) ? $"out/{name}.msi" : null;
+        return $"out/{name}.msi";
     }
 
     private static string WindowsRegistryEntries(CarbonConfig config, string exeName)
