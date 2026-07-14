@@ -192,6 +192,7 @@ jobs:
   # hard failure) so the job reports the truth without blocking CI while those backends are unproven.
   desktop-launch-smoke:
     name: Desktop launch smoke (${{ matrix.os }})
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:

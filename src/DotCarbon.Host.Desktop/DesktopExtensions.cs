@@ -12,7 +12,7 @@ public static class DesktopExtensions
     {
         var configured = app.UsePlatform(new PhotinoPlatformHost());
         if (DesktopSmoke.Enabled)
-            configured.Setup(DesktopSmoke.Arm);
+            configured.OnLifecycle(DesktopSmoke.CreateLifecycleHandler());
         return configured;
     }
 

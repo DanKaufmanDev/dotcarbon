@@ -22,26 +22,40 @@ internal static class DesktopSmoke
     public static bool Enabled =>
         Environment.GetEnvironmentVariable(EnableVar) is "1" or "true" or "TRUE";
 
-    public static void Arm(AppHandle handle)
+    public static Action<CarbonLifecycleEvent> CreateLifecycleHandler()
+    {
+        var armed = 0;
+        return lifecycleEvent =>
+        {
+            if (lifecycleEvent.Kind != CarbonLifecycleEventKind.WindowCreated ||
+                lifecycleEvent.Window?.Label != lifecycleEvent.App.Config.Window.Label ||
+                Interlocked.Exchange(ref armed, 1) != 0)
+                return;
+
+            Arm(lifecycleEvent.App);
+        };
+    }
+
+    private static void Arm(AppHandle handle)
     {
         Console.WriteLine(
             $"[[CARBON_SMOKE]] boot host={HostName()} plugins={handle.Plugins.Count} windows={handle.Windows.Count}");
         Console.Out.Flush();
 
-        // Let the message loop pump so windows load and the tray/menu setup handlers run, then close.
+        // The native main window now exists. Let its message loop pump before closing it.
         _ = Task.Run(async () =>
         {
             await Task.Delay(ReadDelay());
-            Console.WriteLine("[[CARBON_SMOKE]] exit ok");
-            Console.Out.Flush();
             try
             {
                 handle.Exit();
+                Console.WriteLine("[[CARBON_SMOKE]] exit ok");
+                Console.Out.Flush();
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[[CARBON_SMOKE]] exit failed: {ex.Message}");
-                Environment.Exit(0);
+                Environment.Exit(1);
             }
         });
     }
