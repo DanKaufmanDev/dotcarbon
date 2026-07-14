@@ -64,6 +64,19 @@ for (const entry of packages) {
 const publishable = packages.filter((entry) => entry.pkg.private !== true)
 console.log(`[Carbon] Publishable packages: ${publishable.map((entry) => entry.pkg.name).join(', ')}`)
 
+if (!dryRun) {
+  console.log('[Carbon] Building workspace packages before publish...')
+  const build = spawnSync('pnpm', ['--recursive', '--if-present', 'run', 'build'], {
+    cwd: root,
+    env: process.env,
+    stdio: 'inherit'
+  })
+
+  if (build.status !== 0) {
+    fail('Workspace package build failed; nothing was published.')
+  }
+}
+
 const publishQueue = []
 
 for (const entry of publishable) {
