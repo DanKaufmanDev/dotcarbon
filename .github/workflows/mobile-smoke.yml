@@ -22,6 +22,8 @@ jobs:
   android-emulator-smoke:
     name: Android emulator smoke (unverified — Task 1.3)
     runs-on: ubuntu-latest
+    env:
+      CARBON_MOBILE_SMOKE_LOCAL_HOSTS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -65,19 +67,13 @@ jobs:
             adb install -r -t "$APK"
             adb logcat -c
             adb shell monkey -p dev.dotcarbon.mobilesmoke -c android.intent.category.LAUNCHER 1
-            for i in $(seq 1 30); do
-              if adb logcat -d | grep -q "\[\[CARBON_WEB_READY\]\]"; then
-                echo "WebView booted and ran JS on the emulator ✅"; exit 0
-              fi
-              sleep 2
-            done
-            echo "::error::no [[CARBON_WEB_READY]] marker in logcat — needs iteration"
-            adb logcat -d | tail -100
-            exit 1
+            timeout 90 bash -lc 'until adb logcat -d | grep -q "\[\[CARBON_WEB_READY\]\]"; do sleep 2; done' && echo "WebView booted and ran JS on the emulator ✅" || { echo "::error::no [[CARBON_WEB_READY]] marker in logcat — needs iteration"; adb logcat -d | tail -100; exit 1; }
 
   ios-simulator-smoke:
     name: iOS simulator smoke (unverified — Task 1.4)
     runs-on: macos-latest
+    env:
+      CARBON_MOBILE_SMOKE_LOCAL_HOSTS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4

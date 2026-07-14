@@ -33,13 +33,16 @@ public abstract class CarbonAppDelegate : UIApplicationDelegate
             new WKUserScript(new NSString(CarbonIos.BridgeShim), WKUserScriptInjectionTime.AtDocumentStart, true));
         configuration.UserContentController.AddUserScript(
             new WKUserScript(new NSString(CarbonIos.ConsoleShim), WKUserScriptInjectionTime.AtDocumentStart, true));
-
-        var native = new WKWebView(CGRect.Empty, configuration);
-        var webView = _webView = new IosWebView(native);
         configuration.UserContentController.AddScriptMessageHandler(
-            new CarbonScriptMessageHandler(webView.DispatchMessage), CarbonIos.MessageHandlerName);
+            new CarbonScriptMessageHandler(message => _webView?.DispatchMessage(message)), CarbonIos.MessageHandlerName);
         configuration.UserContentController.AddScriptMessageHandler(
             new CarbonConsoleMessageHandler(), CarbonIos.ConsoleHandlerName);
+
+        var native = new WKWebView(UIScreen.MainScreen.Bounds, configuration)
+        {
+            AutoresizingMask = UIViewAutoresizing.FlexibleDimensions,
+        };
+        var webView = _webView = new IosWebView(native);
 
         var controller = new UIViewController { View = native };
         Window = new UIWindow(UIScreen.MainScreen.Bounds) { RootViewController = controller };

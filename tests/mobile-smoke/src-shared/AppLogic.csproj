@@ -1,16 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Shared backend for the mobile smoke app. Pinned to a published DotCarbon.Core so the CI
-       mobile jobs exercise the same packages a real scaffolded app restores. The package ships the
-       source generator (analyzers/dotnet/cs), so [CarbonCommand] classes compile with no extra ref. -->
+  <!-- Shared backend for the mobile smoke app. Package mode uses the published Core package, while
+       source CI sets CARBON_MOBILE_SMOKE_LOCAL_HOSTS=1 so host/Core/plugin types all come from this
+       checkout instead of mixing local host assemblies with published Core assemblies. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(CARBON_MOBILE_SMOKE_LOCAL_HOSTS)' != '1'">
     <PackageReference Include="DotCarbon.Core" Version="0.5.1" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CARBON_MOBILE_SMOKE_LOCAL_HOSTS)' == '1'">
+    <ProjectReference Include="..\..\..\src\DotCarbon.Core\DotCarbon.Core.csproj" />
+    <ProjectReference Include="..\..\..\src\DotCarbon.Generators\DotCarbon.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>
