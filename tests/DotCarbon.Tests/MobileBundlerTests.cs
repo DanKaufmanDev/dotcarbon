@@ -103,6 +103,33 @@ public class MobileBundlerTests
         }
     }
 
+    [Fact]
+    public void Ios_artifact_publisher_preserves_executable_mode()
+    {
+        if (OperatingSystem.IsWindows()) return;
+
+        var dir = CreateTempDir();
+        try
+        {
+            var app = Path.Combine(dir, "build", "MobileSmoke.iOS.app");
+            var executable = Touch(Path.Combine(app, "MobileSmoke.iOS"));
+            var mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                       UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                       UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
+            File.SetUnixFileMode(executable, mode);
+
+            var published = IosBundler.PublishArtifact(app, dir, "simulator");
+            var publishedExecutable = Path.Combine(published, "MobileSmoke.iOS");
+
+            Assert.True(File.Exists(publishedExecutable));
+            Assert.Equal(mode, File.GetUnixFileMode(publishedExecutable));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     private static string CreateTempDir()
     {
         var dir = Path.Combine(Path.GetTempPath(), "dotcarbon-mobile-bundler-tests", Guid.NewGuid().ToString("N"));

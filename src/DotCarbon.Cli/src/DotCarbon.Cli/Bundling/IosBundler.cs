@@ -209,7 +209,7 @@ internal sealed class IosBundler
         return new PreparedBuild(props, targets, buildRoot);
     }
 
-    private static string PublishArtifact(string artifact, string workingDir, string mode)
+    internal static string PublishArtifact(string artifact, string workingDir, string mode)
     {
         var destinationDir = Path.Combine(workingDir, "out", "ios", mode);
         Directory.CreateDirectory(destinationDir);
@@ -222,7 +222,7 @@ internal sealed class IosBundler
         }
         else
         {
-            File.Copy(artifact, destination, overwrite: true);
+            CopyFile(artifact, destination);
         }
 
         return destination;
@@ -232,9 +232,16 @@ internal sealed class IosBundler
     {
         Directory.CreateDirectory(destination);
         foreach (var file in Directory.EnumerateFiles(source))
-            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
+            CopyFile(file, Path.Combine(destination, Path.GetFileName(file)));
         foreach (var directory in Directory.EnumerateDirectories(source))
             CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
+    }
+
+    private static void CopyFile(string source, string destination)
+    {
+        File.Copy(source, destination, overwrite: true);
+        if (!OperatingSystem.IsWindows())
+            File.SetUnixFileMode(destination, File.GetUnixFileMode(source));
     }
 
     private sealed record PreparedBuild(string EmbedProps, string CodesignTargets, string BuildRoot);
