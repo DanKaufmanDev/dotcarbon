@@ -104,6 +104,9 @@ jobs:
     name: Publish to npm
     needs: [nuget, nuget-ios]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -120,22 +123,8 @@ jobs:
         working-directory: dotcarbon-js
         run: pnpm install --no-frozen-lockfile
 
-      - name: Set package versions
-        working-directory: dotcarbon-js
-        run: |
-          VERSION="${{ github.event.release.tag_name }}"
-          VERSION="${VERSION#v}"
-          node -e '
-            const fs = require("node:fs");
-            for (const dir of fs.readdirSync("packages")) {
-              const path = `packages/${dir}/package.json`;
-              if (!fs.existsSync(path)) continue;
-              const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
-              pkg.version = process.argv[1];
-              fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
-            }
-          ' "$VERSION"
-
       - name: Publish
         working-directory: dotcarbon-js
-        run: pnpm -r publish --access public --no-git-checks
+        env:
+          RELEASE_VERSION: ${{ github.event.release.tag_name }}
+        run: node scripts/publish-workspace.mjs
