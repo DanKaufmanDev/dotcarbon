@@ -4,6 +4,18 @@
     "version": "0.1.0",
     "identifier": "dev.dotcarbon.mobilesmoke"
   },
+  "window": {
+    "capabilities": ["main"]
+  },
+  "security": {
+    "enabled": true,
+    "capabilities": {
+      "main": {
+        "windows": ["main"],
+        "commands": ["app:*", "core:event_emit"]
+      }
+    }
+  },
   "build": {
     "frontendDist": "ui/dist"
   },

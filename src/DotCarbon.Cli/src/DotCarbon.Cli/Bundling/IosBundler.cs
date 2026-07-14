@@ -68,8 +68,16 @@ internal sealed class IosBundler
             return 1;
         }
 
+        // Surface the Xcode/workload mismatch up front with a fix, instead of a cryptic MSBuild error.
+        await MobileBundleSupport.WarnIfXcodeMismatchAsync();
+
         var props = await PrepareAsync(config, workingDir, iosDir, project);
         if (props is null) return 1;
+
+        // Best-effort strip of accumulated extended attributes so a repeat dev build's codesign
+        // doesn't choke on "detritus" (won't beat an actively-syncing cloud folder — see the warning).
+        MobileBundleSupport.StripExtendedAttributes(iosDir);
+        Environment.SetEnvironmentVariable("COPYFILE_DISABLE", "1");
 
         var (configuration, rid, publish, archive) = ResolveMode(mode);
 
@@ -94,6 +102,7 @@ internal sealed class IosBundler
         if (await BuildCommand.RunProcessToCompletion("dotnet", args, iosDir, "[ios]", ConsoleColor.Magenta) != 0)
         {
             MobileBundleSupport.Error(".NET iOS build failed.");
+            MobileBundleSupport.HintIosBuildFailure();
             return 1;
         }
 
@@ -133,8 +142,13 @@ internal sealed class IosBundler
         Console.ResetColor();
         Console.WriteLine("  (boot a simulator first, e.g. `xcrun simctl boot \"iPhone 15\"` or open Simulator.app)");
 
+        await MobileBundleSupport.WarnIfXcodeMismatchAsync();
+
         var props = await PrepareAsync(config, workingDir, iosDir, project);
         if (props is null) return 1;
+
+        MobileBundleSupport.StripExtendedAttributes(iosDir);
+        Environment.SetEnvironmentVariable("COPYFILE_DISABLE", "1");
 
         var args =
             $"build \"{project}\" -c Debug -f net10.0-ios -t:Run -p:RuntimeIdentifier={SimulatorRid()} " +

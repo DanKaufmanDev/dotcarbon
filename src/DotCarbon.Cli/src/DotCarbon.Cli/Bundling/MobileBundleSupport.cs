@@ -75,6 +75,103 @@ internal static class MobileBundleSupport
         return false;
     }
 
+    /// <summary>
+    /// macOS <c>codesign</c> rejects app bundles whose files carry extended attributes ("resource
+    /// fork, Finder information, or similar detritus not allowed") — these accumulate across
+    /// incremental dev builds. Best-effort strip of the platform output dir so the build's internal
+    /// codesign stays clean. No-op off macOS or if <c>xattr</c> is unavailable.
+    /// </summary>
+    public static void StripExtendedAttributes(string dir)
+    {
+        if (!OperatingSystem.IsMacOS() || !Directory.Exists(dir)) return;
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo("xattr", $"-cr \"{dir}\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            });
+            process?.WaitForExit(10_000);
+        }
+        catch
+        {
+            // Best-effort: if it fails, the build will still surface any codesign issue itself.
+        }
+    }
+
+    /// <summary>
+    /// Extra guidance to print when an iOS build fails: the most common non-obvious cause on a dev
+    /// machine is codesign choking on file-provider "detritus" because the project sits in a
+    /// cloud-synced folder (iCloud/OneDrive/Dropbox). Phrased conditionally so it only helps.
+    /// </summary>
+    public static void HintIosBuildFailure()
+    {
+        if (!OperatingSystem.IsMacOS()) return;
+        Warn("If it failed at codesign ('resource fork … detritus not allowed'), the project is in a");
+        Warn("cloud-synced folder (iCloud/OneDrive/Dropbox) — build from a non-synced path (e.g. ~/dev/…).");
+    }
+
+    /// <summary>
+    /// Warns (with a concrete fix) when the active Xcode's major.minor differs from the installed
+    /// .NET iOS workload's — otherwise the mismatch only shows up as a cryptic MSBuild
+    /// "This version of .NET for iOS requires Xcode X" error deep in the build log.
+    /// </summary>
+    public static async Task WarnIfXcodeMismatchAsync()
+    {
+        if (!OperatingSystem.IsMacOS()) return;
+
+        var xcode = MajorMinor(FirstLineValue(await CaptureAsync("xcodebuild", "-version"), "Xcode "));
+        var workload = MajorMinor(IosWorkloadToken(await CaptureAsync("dotnet", "workload list")));
+        if (xcode is null || workload is null || xcode == workload) return;
+
+        Warn($"Xcode {xcode} does not match the installed .NET iOS workload (built for Xcode {workload}).");
+        Warn("The iOS build will likely fail with a 'requires Xcode' error. Align the two, then retry:");
+        Warn("  • update the workload:      sudo dotnet workload update   (if an Xcode-matching one exists), or");
+        Warn("  • select the matching Xcode: sudo xcode-select -s /Applications/<matching Xcode>.app");
+    }
+
+    private static async Task<string> CaptureAsync(string fileName, string args)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo(fileName, args)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            });
+            if (process is null) return string.Empty;
+            var output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            return output;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    // "Xcode 26.6\nBuild version ..." → "26.6"
+    private static string? FirstLineValue(string text, string prefix) =>
+        text.Split('\n')
+            .FirstOrDefault(line => line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            ?[prefix.Length..].Trim();
+
+    // a `dotnet workload list` row like "ios   26.5.10284/10.0.100   SDK 10.0.300" → "26.5.10284/10.0.100"
+    private static string? IosWorkloadToken(string workloadList) =>
+        workloadList.Split('\n')
+            .Select(line => line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries))
+            .FirstOrDefault(cols => cols.Length >= 2 && cols[0].Equals("ios", StringComparison.OrdinalIgnoreCase))
+            ?[1];
+
+    private static string? MajorMinor(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version)) return null;
+        var parts = version.Split('.', '/', '-');
+        return parts.Length >= 2 ? $"{parts[0]}.{parts[1]}" : null;
+    }
+
     public static void Error(string message) => Write(message, ConsoleColor.Red);
 
     public static void Warn(string message) => Write(message, ConsoleColor.Yellow);

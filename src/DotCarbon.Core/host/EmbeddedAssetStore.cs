@@ -11,16 +11,23 @@ internal static class EmbeddedAssetStore
     private static SecurityConfig _security = new();
     private static string? _localAssetRoot;
 
-    private static readonly Assembly EntryAssembly = Assembly.GetEntryAssembly()
-        ?? throw new InvalidOperationException("DotCarbon could not locate the application assembly.");
+    // The assembly the bundler embedded carbon.json + the frontend into. On desktop that is the
+    // entry assembly (the app exe); on Android/iOS Assembly.GetEntryAssembly() is null (the app starts
+    // from an Activity/AppDelegate, not a managed Main), so we scan loaded assemblies for the one that
+    // actually carries the Carbon resources. Never throws — dev builds with no embedded assets fall
+    // back to the local asset root + on-disk carbon.json.
+    private static readonly Assembly? AssetAssembly = ResolveAssetAssembly();
 
-    private static readonly IReadOnlyDictionary<string, string> Assets = EntryAssembly
-        .GetManifestResourceNames()
-        .Where(name => name.StartsWith(AssetPrefix, StringComparison.Ordinal))
-        .ToDictionary(
-            name => name[AssetPrefix.Length..].Replace('\\', '/'),
-            name => name,
-            StringComparer.Ordinal);
+    private static readonly IReadOnlyDictionary<string, string> Assets =
+        AssetAssembly is null
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : AssetAssembly
+                .GetManifestResourceNames()
+                .Where(name => name.StartsWith(AssetPrefix, StringComparison.Ordinal))
+                .ToDictionary(
+                    name => name[AssetPrefix.Length..].Replace('\\', '/'),
+                    name => name,
+                    StringComparer.Ordinal);
 
     public static bool HasAssets => Assets.Count > 0;
 
@@ -29,7 +36,36 @@ internal static class EmbeddedAssetStore
     public static void ConfigureLocalAssets(string? root) =>
         _localAssetRoot = string.IsNullOrWhiteSpace(root) ? null : Path.GetFullPath(root);
 
-    public static Stream? OpenConfig() => EntryAssembly.GetManifestResourceStream(ConfigResource);
+    public static Stream? OpenConfig() => AssetAssembly?.GetManifestResourceStream(ConfigResource);
+
+    private static Assembly? ResolveAssetAssembly()
+    {
+        static bool HasCarbonResources(Assembly assembly)
+        {
+            try
+            {
+                foreach (var name in assembly.GetManifestResourceNames())
+                    if (name.StartsWith(AssetPrefix, StringComparison.Ordinal) ||
+                        name.Equals(ConfigResource, StringComparison.Ordinal))
+                        return true;
+            }
+            catch
+            {
+                // Some assemblies (e.g. reflection-only or native) can't enumerate resources.
+            }
+            return false;
+        }
+
+        var entry = Assembly.GetEntryAssembly();
+        if (entry is not null && HasCarbonResources(entry)) return entry;
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            if (!assembly.IsDynamic && HasCarbonResources(assembly))
+                return assembly;
+
+        // No embedded assets (dev/server mode): keep entry if present so nothing else changes.
+        return entry;
+    }
 
     public static Stream Open(string url, out string contentType)
     {
@@ -56,7 +92,7 @@ internal static class EmbeddedAssetStore
     {
         stream = null;
         if (Assets.TryGetValue(path, out var resource))
-            stream = EntryAssembly.GetManifestResourceStream(resource);
+            stream = AssetAssembly?.GetManifestResourceStream(resource);
         else if (_localAssetRoot is not null)
             stream = TryOpenLocal(path);
 

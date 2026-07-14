@@ -72,6 +72,11 @@ internal sealed class AndroidBundler
         var args =
             $"publish \"{project}\" -c {configuration} -f net10.0-android " +
             $"-p:AndroidPackageFormat={format} " +
+            // A bundled APK/AAB is installed standalone, so assemblies must be embedded. In Debug the
+            // default is Fast Deployment (assemblies deployed separately by `dotnet run`), which makes
+            // an adb-installed APK abort at startup with "No assemblies found". Force embedding here;
+            // it is already the default for Release.
+            "-p:EmbedAssembliesIntoApk=true " +
             (string.IsNullOrEmpty(signingArgs) ? string.Empty : signingArgs + " ") +
             $"-p:CustomBeforeMicrosoftCommonProps=\"{props}\"";
         if (await BuildCommand.RunProcessToCompletion("dotnet", args, androidDir, "[android]", ConsoleColor.Magenta) != 0)

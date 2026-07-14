@@ -41,6 +41,9 @@ jobs:
           test -f tests/mobile-smoke/ui/dist/index.html
           dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- \
             platform add android --project tests/mobile-smoke
+          # Ensure the Android API level the app targets is installed on the runner (XA5207 otherwise).
+          dotnet build tests/mobile-smoke/.carbon/platforms/android/*.Android.csproj \
+            -t:InstallAndroidDependencies -f net10.0-android -p:AcceptAndroidSDKLicenses=true || true
           dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- \
             bundle android --project tests/mobile-smoke --apk --debug --allow-unsupported-plugins
           APK=$(find tests/mobile-smoke/.carbon/platforms/android/bin/Debug -name "*-Signed.apk" -type f 2>/dev/null | sort | tail -1 || true)
