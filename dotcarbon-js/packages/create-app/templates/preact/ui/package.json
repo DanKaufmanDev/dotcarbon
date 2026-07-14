@@ -8,7 +8,7 @@
         "preview": "vite preview"
     },
     "dependencies": {
-        "@dotcarbon/api": "^0.1.0",
+        "@dotcarbon/api": "latest",
         "preact": "^10.19.0"
     },
     "devDependencies": {

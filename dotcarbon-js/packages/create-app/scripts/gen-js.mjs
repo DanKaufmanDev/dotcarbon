@@ -1,9 +1,10 @@
 import { readdir, readFile, writeFile, mkdir, rm, cp, stat, unlink } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join, extname, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { transformSync } from 'esbuild'
 
-const ROOT = dirname(new URL(import.meta.url).pathname).replace(/\/scripts$/, '')
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const SRC = join(ROOT, 'templates')
 const OUT = join(ROOT, 'templates-js')
 

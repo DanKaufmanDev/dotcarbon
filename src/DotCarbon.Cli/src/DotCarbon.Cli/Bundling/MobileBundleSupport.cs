@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Xml.Linq;
 
 namespace DotCarbon.Cli.Bundling;
@@ -11,24 +13,127 @@ internal static class MobileBundleSupport
     /// assembly (as the same manifest resources EmbeddedAssetStore reads), scoped to one project.
     /// </summary>
     public static string WriteEmbedProps(
-        string platformDir, string project, string frontendDist, string configPath, string propsName)
+        string platformDir,
+        string project,
+        string frontendDist,
+        string configPath,
+        string propsName,
+        string? baseOutputPath = null)
     {
         var generatedDir = Path.Combine(platformDir, "obj", "dotcarbon");
         Directory.CreateDirectory(generatedDir);
         var propsPath = Path.Combine(generatedDir, propsName);
-        var condition = $"'$(MSBuildProjectFullPath)' == '{project.Replace("'", "%27")}'";
-        var document = new XDocument(
-            new XElement("Project",
-                new XElement("ItemGroup",
+        // MSBuild resolves symlinked project paths before setting MSBuildProjectFullPath. Match on
+        // the project file name so a Carbon app opened through a symlink still gets its resources
+        // and project-scoped output path, while referenced backend projects remain untouched.
+        var projectFile = Path.GetFileName(project).Replace("'", "%27");
+        var condition = $"'$(MSBuildProjectFile)' == '{projectFile}'";
+        var projectElement = new XElement("Project");
+        if (!string.IsNullOrWhiteSpace(baseOutputPath))
+        {
+            projectElement.Add(
+                new XElement("PropertyGroup",
                     new XAttribute("Condition", condition),
-                    new XElement("EmbeddedResource",
-                        new XAttribute("Include", Path.Combine(frontendDist, "**", "*")),
-                        new XAttribute("LogicalName", "DotCarbon.Assets/%(RecursiveDir)%(Filename)%(Extension)")),
-                    new XElement("EmbeddedResource",
-                        new XAttribute("Include", configPath),
-                        new XAttribute("LogicalName", "DotCarbon.Config/carbon.json")))));
+                    new XElement("BaseOutputPath", EnsureTrailingSeparator(baseOutputPath))));
+        }
+
+        projectElement.Add(
+            new XElement("ItemGroup",
+                new XAttribute("Condition", condition),
+                new XElement("EmbeddedResource",
+                    new XAttribute("Include", Path.Combine(frontendDist, "**", "*")),
+                    new XAttribute("LogicalName", "DotCarbon.Assets/%(RecursiveDir)%(Filename)%(Extension)")),
+                new XElement("EmbeddedResource",
+                    new XAttribute("Include", configPath),
+                    new XAttribute("LogicalName", "DotCarbon.Config/carbon.json"))));
+
+        var document = new XDocument(projectElement);
         document.Save(propsPath);
         return propsPath;
+    }
+
+    /// <summary>
+    /// Writes targets imported after Microsoft.Common.targets. A props import is too early for an
+    /// iOS <c>BeforeTargets</c> hook to reliably join the final codesign graph.
+    /// </summary>
+    public static string WriteIosCodesignTargets(string platformDir)
+    {
+        var generatedDir = Path.Combine(platformDir, "obj", "dotcarbon");
+        Directory.CreateDirectory(generatedDir);
+        var targetsPath = Path.Combine(generatedDir, "DotCarbon.iOS.targets");
+        var document = new XDocument(
+            new XElement("Project",
+                new XElement("Target",
+                    new XAttribute("Name", "CarbonStripExtendedAttributesBeforeCodesign"),
+                    new XAttribute("BeforeTargets", "_CodesignAppBundle"),
+                    new XAttribute("Condition",
+                        "'$(OS)' == 'Unix' And Exists('/usr/bin/xattr') And Exists('$(AppBundleDir)')"),
+                    new XElement("Exec",
+                        new XAttribute("Command", "/usr/bin/xattr -cr \"$(AppBundleDir)\"")))));
+        document.Save(targetsPath);
+        return targetsPath;
+    }
+
+    /// <summary>
+    /// iOS app bundles are built outside cloud-backed source folders so Finder/file-provider
+    /// attributes cannot be reattached between cleanup and codesign.
+    /// </summary>
+    public static string LocalBuildRoot(string workingDir, string platform)
+    {
+        var normalized = Path.GetFullPath(workingDir).TrimEnd(Path.DirectorySeparatorChar);
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)))
+            .ToLowerInvariant()[..12];
+        return Path.Combine(Path.GetTempPath(), "dotcarbon", "build", hash, platform);
+    }
+
+    private static string EnsureTrailingSeparator(string path) =>
+        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+
+    /// <summary>
+    /// Finds a usable JDK, including the JetBrains Runtime bundled with Android Studio. The .NET
+    /// Android workload does not discover that runtime on every macOS installation.
+    /// </summary>
+    internal static string? FindJavaSdkDirectory(IEnumerable<string?>? candidates = null)
+    {
+        candidates ??= JavaSdkCandidates();
+        foreach (var candidate in candidates)
+        {
+            if (string.IsNullOrWhiteSpace(candidate)) continue;
+            var path = Environment.ExpandEnvironmentVariables(candidate);
+            var java = Path.Combine(path, "bin", OperatingSystem.IsWindows() ? "java.exe" : "java");
+            if (File.Exists(java)) return Path.GetFullPath(path);
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string?> JavaSdkCandidates()
+    {
+        yield return Environment.GetEnvironmentVariable("JAVA_HOME");
+        yield return Environment.GetEnvironmentVariable("ANDROID_JAVA_HOME");
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (OperatingSystem.IsMacOS())
+        {
+            yield return "/Applications/Android Studio.app/Contents/jbr/Contents/Home";
+            yield return "/Applications/Android Studio Preview.app/Contents/jbr/Contents/Home";
+            yield return Path.Combine(home, "Applications", "Android Studio.app", "Contents", "jbr", "Contents", "Home");
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            yield return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                "Android", "Android Studio", "jbr");
+            yield return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Programs", "Android Studio", "jbr");
+        }
+        else
+        {
+            yield return "/opt/android-studio/jbr";
+            yield return "/usr/local/android-studio/jbr";
+            yield return Path.Combine(home, "android-studio", "jbr");
+        }
     }
 
     /// <summary>True if <c>dotnet workload list</c> reports the given workload id installed.</summary>
@@ -79,7 +184,9 @@ internal static class MobileBundleSupport
     /// macOS <c>codesign</c> rejects app bundles whose files carry extended attributes ("resource
     /// fork, Finder information, or similar detritus not allowed") — these accumulate across
     /// incremental dev builds. Best-effort strip of the platform output dir so the build's internal
-    /// codesign stays clean. No-op off macOS or if <c>xattr</c> is unavailable.
+    /// codesign stays clean. The injected iOS targets repeat this immediately before codesign so
+    /// cloud file providers cannot reattach attributes between preparation and signing. No-op off
+    /// macOS or if <c>xattr</c> is unavailable.
     /// </summary>
     public static void StripExtendedAttributes(string dir)
     {

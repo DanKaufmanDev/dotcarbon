@@ -20,7 +20,7 @@ internal sealed class AndroidBundler
             Summary = $"one Carbon app → .{format} via .NET Android",
             Steps = new List<BundleStep>
             {
-                new("Validate", "android platform added (`carbon platform add android`) + Android workload"),
+                new("Validate", "android platform added (`carbon platform add android`) + Android workload + JDK"),
                 new("Build frontend", "build command or existing dist → embedded into the Android app assembly"),
                 new("Publish .NET Android", $"dotnet publish -f net10.0-android -c {configuration} (AndroidPackageFormat={format})"),
                 new("Locate artifact", $"the .{format} under the project's bin/{configuration} output"),
@@ -64,6 +64,10 @@ internal sealed class AndroidBundler
             return 1;
         }
 
+        var javaSdk = MobileBundleSupport.FindJavaSdkDirectory();
+        if (javaSdk is not null)
+            Console.WriteLine($"[Carbon] Android JDK -> {javaSdk}");
+
         var props = await PrepareAsync(config, workingDir, androidDir, project);
         if (props is null) return 1;
 
@@ -77,6 +81,7 @@ internal sealed class AndroidBundler
             // an adb-installed APK abort at startup with "No assemblies found". Force embedding here;
             // it is already the default for Release.
             "-p:EmbedAssembliesIntoApk=true " +
+            (javaSdk is null ? string.Empty : $"-p:JavaSdkDirectory=\"{javaSdk}\" ") +
             (string.IsNullOrEmpty(signingArgs) ? string.Empty : signingArgs + " ") +
             $"-p:CustomBeforeMicrosoftCommonProps=\"{props}\"";
         if (await BuildCommand.RunProcessToCompletion("dotnet", args, androidDir, "[android]", ConsoleColor.Magenta) != 0)
@@ -119,11 +124,16 @@ internal sealed class AndroidBundler
         Console.ResetColor();
         Console.WriteLine("  (needs a running emulator or a connected device via adb)");
 
+        var javaSdk = MobileBundleSupport.FindJavaSdkDirectory();
+        if (javaSdk is not null)
+            Console.WriteLine($"[Carbon] Android JDK -> {javaSdk}");
+
         var props = await PrepareAsync(config, workingDir, androidDir, project);
         if (props is null) return 1;
 
         var args =
             $"build \"{project}\" -c Debug -f net10.0-android -t:Run " +
+            (javaSdk is null ? string.Empty : $"-p:JavaSdkDirectory=\"{javaSdk}\" ") +
             $"-p:CustomBeforeMicrosoftCommonProps=\"{props}\"";
         return await BuildCommand.RunProcessToCompletion("dotnet", args, androidDir, "[android]", ConsoleColor.Magenta);
     }

@@ -9,7 +9,7 @@
         "check": "svelte-check --tsconfig ./tsconfig.json"
     },
     "dependencies": {
-        "@dotcarbon/api": "^0.1.0",
+        "@dotcarbon/api": "latest",
         "svelte": "^4.2.0"
     },
     "devDependencies": {

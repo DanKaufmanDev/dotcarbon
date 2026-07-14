@@ -8,7 +8,7 @@
         "preview": "vite preview"
     },
     "dependencies": {
-        "@dotcarbon/api": "^0.1.0",
+        "@dotcarbon/api": "latest",
         "vue": "^3.4.0"
     },
     "devDependencies": {

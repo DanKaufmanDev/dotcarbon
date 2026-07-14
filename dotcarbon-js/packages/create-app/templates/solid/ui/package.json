@@ -8,7 +8,7 @@
         "preview": "vite preview"
     },
     "dependencies": {
-        "@dotcarbon/api": "^0.1.0",
+        "@dotcarbon/api": "latest",
         "solid-js": "^1.8.0"
     },
     "devDependencies": {

@@ -12,6 +12,6 @@
         "vite": "^5.0.0"
     },
     "dependencies": {
-        "@dotcarbon/api": "^0.1.0"
+        "@dotcarbon/api": "latest"
     }
 }

@@ -6,6 +6,60 @@ namespace DotCarbon.Tests;
 public class MobileBundlerTests
 {
     [Fact]
+    public void Android_java_sdk_finder_accepts_android_studio_jbr()
+    {
+        var dir = CreateTempDir();
+        try
+        {
+            var java = Path.Combine(dir, "bin", OperatingSystem.IsWindows() ? "java.exe" : "java");
+            Touch(java);
+
+            Assert.Equal(Path.GetFullPath(dir), MobileBundleSupport.FindJavaSdkDirectory([dir]));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Ios_build_files_redirect_output_and_strip_attributes_before_codesign()
+    {
+        var dir = CreateTempDir();
+        try
+        {
+            var project = Touch(Path.Combine(dir, "Mobile.iOS.csproj"));
+            var dist = Path.Combine(dir, "dist");
+            Directory.CreateDirectory(dist);
+            var config = Touch(Path.Combine(dir, "carbon.json"));
+
+            var props = MobileBundleSupport.WriteEmbedProps(
+                dir,
+                project,
+                dist,
+                config,
+                "DotCarbon.iOS.props",
+                baseOutputPath: Path.Combine(dir, "local-output"));
+            var targets = MobileBundleSupport.WriteIosCodesignTargets(dir);
+            var propsXml = File.ReadAllText(props);
+            var targetsXml = File.ReadAllText(targets);
+
+            Assert.Contains("<BaseOutputPath>", propsXml);
+            Assert.Contains("local-output", propsXml);
+            Assert.Contains("$(MSBuildProjectFile)", propsXml);
+            Assert.Contains("Mobile.iOS.csproj", propsXml);
+            Assert.Contains("CarbonStripExtendedAttributesBeforeCodesign", targetsXml);
+            Assert.Contains("BeforeTargets=\"_CodesignAppBundle\"", targetsXml);
+            Assert.Contains("/usr/bin/xattr -cr", targetsXml);
+            Assert.Contains("$(AppBundleDir)", targetsXml);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Android_artifact_locator_prefers_signed_bin_apk()
     {
         var dir = CreateTempDir();

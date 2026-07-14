@@ -28,7 +28,7 @@ internal sealed class IosBundler
                 new("Build frontend", "build command or existing dist → embedded into the iOS app assembly"),
                 new(mode == "archive" ? "Publish archive" : "Build .NET iOS",
                     $"dotnet {(mode == "archive" ? "publish" : "build")} -f net10.0-ios -c {configuration} -p:RuntimeIdentifier={rid}"),
-                new("Locate artifact", mode == "archive" ? "the .ipa under bin/…/publish" : $"the .app under bin/{configuration}"),
+                new("Locate artifact", $"the signed artifact under out/ios/{mode}"),
             },
         };
     }
@@ -71,8 +71,8 @@ internal sealed class IosBundler
         // Surface the Xcode/workload mismatch up front with a fix, instead of a cryptic MSBuild error.
         await MobileBundleSupport.WarnIfXcodeMismatchAsync();
 
-        var props = await PrepareAsync(config, workingDir, iosDir, project);
-        if (props is null) return 1;
+        var prepared = await PrepareAsync(config, workingDir, iosDir, project);
+        if (prepared is null) return 1;
 
         // Best-effort strip of accumulated extended attributes so a repeat dev build's codesign
         // doesn't choke on "detritus" (won't beat an actively-syncing cloud folder — see the warning).
@@ -98,7 +98,8 @@ internal sealed class IosBundler
             $"{verb} \"{project}\" -c {configuration} -f net10.0-ios -p:RuntimeIdentifier={rid} " +
             (archive ? "-p:ArchiveOnBuild=true " : string.Empty) +
             (string.IsNullOrEmpty(signingArgs) ? string.Empty : signingArgs + " ") +
-            $"-p:CustomBeforeMicrosoftCommonProps=\"{props}\"";
+            $"-p:CustomBeforeMicrosoftCommonProps=\"{prepared.EmbedProps}\" " +
+            $"-p:CustomAfterMicrosoftCommonTargets=\"{prepared.CodesignTargets}\"";
         if (await BuildCommand.RunProcessToCompletion("dotnet", args, iosDir, "[ios]", ConsoleColor.Magenta) != 0)
         {
             MobileBundleSupport.Error(".NET iOS build failed.");
@@ -106,12 +107,14 @@ internal sealed class IosBundler
             return 1;
         }
 
-        var artifact = LocateArtifact(iosDir, archive, configuration);
+        var artifact = LocateArtifact(prepared.BuildRoot, archive, configuration);
+        if (artifact is not null)
+            artifact = PublishArtifact(artifact, workingDir, mode);
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine(artifact is not null
             ? $"\n[Carbon] Build complete -> {Path.GetRelativePath(workingDir, artifact)}"
-            : $"\n[Carbon] Build finished; look under {Path.GetRelativePath(workingDir, iosDir)}/bin/{configuration}.");
+            : $"\n[Carbon] Build finished, but the signed iOS artifact could not be located.");
         Console.ResetColor();
         return 0;
     }
@@ -144,15 +147,16 @@ internal sealed class IosBundler
 
         await MobileBundleSupport.WarnIfXcodeMismatchAsync();
 
-        var props = await PrepareAsync(config, workingDir, iosDir, project);
-        if (props is null) return 1;
+        var prepared = await PrepareAsync(config, workingDir, iosDir, project);
+        if (prepared is null) return 1;
 
         MobileBundleSupport.StripExtendedAttributes(iosDir);
         Environment.SetEnvironmentVariable("COPYFILE_DISABLE", "1");
 
         var args =
             $"build \"{project}\" -c Debug -f net10.0-ios -t:Run -p:RuntimeIdentifier={SimulatorRid()} " +
-            $"-p:CustomBeforeMicrosoftCommonProps=\"{props}\"";
+            $"-p:CustomBeforeMicrosoftCommonProps=\"{prepared.EmbedProps}\" " +
+            $"-p:CustomAfterMicrosoftCommonTargets=\"{prepared.CodesignTargets}\"";
         return await BuildCommand.RunProcessToCompletion("dotnet", args, iosDir, "[ios]", ConsoleColor.Magenta);
     }
 
@@ -176,7 +180,7 @@ internal sealed class IosBundler
             ? Directory.GetLastWriteTimeUtc(path)
             : File.GetLastWriteTimeUtc(path);
 
-    private static async Task<string?> PrepareAsync(
+    private static async Task<PreparedBuild?> PrepareAsync(
         CarbonConfig config, string workingDir, string iosDir, string project)
     {
         Console.WriteLine("\n[Carbon] Step 1/2 — Building frontend...");
@@ -193,9 +197,47 @@ internal sealed class IosBundler
             return null;
         }
 
-        return MobileBundleSupport.WriteEmbedProps(
-            iosDir, project, frontendDist, Path.Combine(workingDir, "carbon.json"), "DotCarbon.iOS.props");
+        var buildRoot = MobileBundleSupport.LocalBuildRoot(workingDir, "ios");
+        var props = MobileBundleSupport.WriteEmbedProps(
+            iosDir,
+            project,
+            frontendDist,
+            Path.Combine(workingDir, "carbon.json"),
+            "DotCarbon.iOS.props",
+            baseOutputPath: Path.Combine(buildRoot, "bin"));
+        var targets = MobileBundleSupport.WriteIosCodesignTargets(iosDir);
+        return new PreparedBuild(props, targets, buildRoot);
     }
+
+    private static string PublishArtifact(string artifact, string workingDir, string mode)
+    {
+        var destinationDir = Path.Combine(workingDir, "out", "ios", mode);
+        Directory.CreateDirectory(destinationDir);
+        var destination = Path.Combine(destinationDir, Path.GetFileName(artifact));
+
+        if (Directory.Exists(artifact))
+        {
+            if (Directory.Exists(destination)) Directory.Delete(destination, recursive: true);
+            CopyDirectory(artifact, destination);
+        }
+        else
+        {
+            File.Copy(artifact, destination, overwrite: true);
+        }
+
+        return destination;
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var file in Directory.EnumerateFiles(source))
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
+        foreach (var directory in Directory.EnumerateDirectories(source))
+            CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
+    }
+
+    private sealed record PreparedBuild(string EmbedProps, string CodesignTargets, string BuildRoot);
 
     // mode → (configuration, runtimeIdentifier, usePublish, archive)
     private static (string Configuration, string Rid, bool Publish, bool Archive) ResolveMode(string mode) => mode switch
