@@ -17,26 +17,13 @@ internal static class MobileBundleSupport
         string project,
         string frontendDist,
         string configPath,
-        string propsName,
-        string? baseOutputPath = null)
+        string propsName)
     {
         var generatedDir = Path.Combine(platformDir, "obj", "dotcarbon");
         Directory.CreateDirectory(generatedDir);
         var propsPath = Path.Combine(generatedDir, propsName);
-        // MSBuild resolves symlinked project paths before setting MSBuildProjectFullPath. Match on
-        // the project file name so a Carbon app opened through a symlink still gets its resources
-        // and project-scoped output path, while referenced backend projects remain untouched.
-        var projectFile = Path.GetFileName(project).Replace("'", "%27");
-        var condition = $"'$(MSBuildProjectFile)' == '{projectFile}'";
+        var condition = ProjectCondition(project);
         var projectElement = new XElement("Project");
-        if (!string.IsNullOrWhiteSpace(baseOutputPath))
-        {
-            projectElement.Add(
-                new XElement("PropertyGroup",
-                    new XAttribute("Condition", condition),
-                    new XElement("BaseOutputPath", EnsureTrailingSeparator(baseOutputPath))));
-        }
-
         projectElement.Add(
             new XElement("ItemGroup",
                 new XAttribute("Condition", condition),
@@ -86,8 +73,13 @@ internal static class MobileBundleSupport
         return Path.Combine(Path.GetTempPath(), "dotcarbon", "build", hash, platform);
     }
 
-    private static string EnsureTrailingSeparator(string path) =>
-        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+    private static string ProjectCondition(string project)
+    {
+        // MSBuild resolves symlinked paths before setting MSBuildProjectFullPath, so match the file
+        // name. Referenced backend projects have different project files and remain untouched.
+        var projectFile = Path.GetFileName(project).Replace("'", "%27");
+        return $"'$(MSBuildProjectFile)' == '{projectFile}'";
+    }
 
     /// <summary>
     /// Finds a usable JDK, including the JetBrains Runtime bundled with Android Studio. The .NET

@@ -23,7 +23,7 @@ public class MobileBundlerTests
     }
 
     [Fact]
-    public void Ios_build_files_redirect_output_and_strip_attributes_before_codesign()
+    public void Ios_build_files_embed_assets_and_strip_attributes_before_codesign()
     {
         var dir = CreateTempDir();
         try
@@ -34,24 +34,49 @@ public class MobileBundlerTests
             var config = Touch(Path.Combine(dir, "carbon.json"));
 
             var props = MobileBundleSupport.WriteEmbedProps(
-                dir,
-                project,
-                dist,
-                config,
-                "DotCarbon.iOS.props",
-                baseOutputPath: Path.Combine(dir, "local-output"));
+                dir, project, dist, config, "DotCarbon.iOS.props");
             var targets = MobileBundleSupport.WriteIosCodesignTargets(dir);
             var propsXml = File.ReadAllText(props);
             var targetsXml = File.ReadAllText(targets);
 
-            Assert.Contains("<BaseOutputPath>", propsXml);
-            Assert.Contains("local-output", propsXml);
             Assert.Contains("$(MSBuildProjectFile)", propsXml);
             Assert.Contains("Mobile.iOS.csproj", propsXml);
             Assert.Contains("CarbonStripExtendedAttributesBeforeCodesign", targetsXml);
             Assert.Contains("BeforeTargets=\"_CodesignAppBundle\"", targetsXml);
             Assert.Contains("/usr/bin/xattr -cr", targetsXml);
             Assert.Contains("$(AppBundleDir)", targetsXml);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Ios_project_staging_rewrites_project_references_and_excludes_old_outputs()
+    {
+        var dir = CreateTempDir();
+        try
+        {
+            var iosDir = Path.Combine(dir, "source", "ios");
+            var sharedProject = Touch(Path.Combine(dir, "source", "shared", "AppLogic.csproj"));
+            var project = Path.Combine(iosDir, "Mobile.iOS.csproj");
+            Directory.CreateDirectory(iosDir);
+            File.WriteAllText(project,
+                "<Project><ItemGroup><ProjectReference Include=\"../shared/AppLogic.csproj\" />" +
+                "</ItemGroup></Project>");
+            Touch(Path.Combine(iosDir, "Main.cs"));
+            Touch(Path.Combine(iosDir, "bin", "stale.dll"));
+            Touch(Path.Combine(iosDir, "obj", "stale.g.cs"));
+
+            var stagedProject = IosBundler.StageProject(iosDir, project, Path.Combine(dir, "cache"));
+            var stagedDir = Path.GetDirectoryName(stagedProject)!;
+            var xml = File.ReadAllText(stagedProject);
+
+            Assert.True(File.Exists(Path.Combine(stagedDir, "Main.cs")));
+            Assert.False(File.Exists(Path.Combine(stagedDir, "bin", "stale.dll")));
+            Assert.False(File.Exists(Path.Combine(stagedDir, "obj", "stale.g.cs")));
+            Assert.Contains(Path.GetFullPath(sharedProject), xml);
         }
         finally
         {
@@ -123,6 +148,30 @@ public class MobileBundlerTests
 
             Assert.True(File.Exists(publishedExecutable));
             Assert.Equal(mode, File.GetUnixFileMode(publishedExecutable));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Ios_app_bundle_validation_requires_a_top_level_executable()
+    {
+        if (OperatingSystem.IsWindows()) return;
+
+        var dir = CreateTempDir();
+        try
+        {
+            var app = Path.Combine(dir, "MobileSmoke.iOS.app");
+            Touch(Path.Combine(app, "Info.plist"));
+
+            Assert.False(IosBundler.HasBundleExecutable(app));
+
+            var executable = Touch(Path.Combine(app, "MobileSmoke.iOS"));
+            File.SetUnixFileMode(executable, File.GetUnixFileMode(executable) | UnixFileMode.UserExecute);
+
+            Assert.True(IosBundler.HasBundleExecutable(app));
         }
         finally
         {
