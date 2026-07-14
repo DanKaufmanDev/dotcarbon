@@ -82,6 +82,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.301
+      - name: Select matching Xcode
+        run: |
+          test -d /Applications/Xcode_26.0.1.app/Contents/Developer
+          sudo xcode-select --switch /Applications/Xcode_26.0.1.app/Contents/Developer
+          xcodebuild -version
       - name: Install iOS workload
         run: dotnet workload install ios --skip-manifest-update
       - name: Scaffold iOS shell + bundle for the simulator
