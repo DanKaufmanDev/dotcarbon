@@ -79,8 +79,15 @@ public static class DesktopMenuExtensions
             return app;
         }
 
-        // Windows/Linux hang the menu off the native window handle, which only exists once the main
-        // window has been created.
+        // Linux: Photino won't give us its GtkWindow (WindowHandle is Windows-only), so the backend
+        // defers onto the GTK loop and finds the toplevel itself.
+        if (OperatingSystem.IsLinux())
+        {
+            app.Setup(handle => LinuxMenu.Create(Bind(builder, handle), handle.Config.Window.Title));
+            return app;
+        }
+
+        // Windows: the menu hangs off the HWND, which only exists once the window has been created.
         var armed = 0;
         app.OnLifecycle(lifecycleEvent =>
         {
@@ -90,7 +97,14 @@ public static class DesktopMenuExtensions
                 Interlocked.Exchange(ref armed, 1) != 0)
                 return;
 
-            CarbonMenu.CreateForWindow(Bind(builder, lifecycleEvent.App), window.Photino().WindowHandle);
+            try
+            {
+                CarbonMenu.CreateForWindow(Bind(builder, lifecycleEvent.App), window.Photino().WindowHandle);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[Carbon] Native menu: could not get the window handle: {ex.Message}");
+            }
         });
         return app;
     }
@@ -122,7 +136,7 @@ public static class DesktopMenuExtensions
 
 internal static class CarbonMenu
 {
-    /// <summary>Attach a menu bar to the platform's native window (Windows/Linux).</summary>
+    /// <summary>Attach a menu bar to the platform's native window (Windows).</summary>
     public static void CreateForWindow(CarbonMenuBuilder builder, IntPtr nativeWindow)
     {
         if (nativeWindow == IntPtr.Zero)
@@ -133,8 +147,6 @@ internal static class CarbonMenu
 
         if (OperatingSystem.IsWindows())
             WindowsMenu.Create(builder, nativeWindow);
-        else if (OperatingSystem.IsLinux())
-            LinuxMenu.Create(builder, nativeWindow);
         else
             Console.Error.WriteLine("[Carbon] Native app menus are not supported on this platform.");
     }

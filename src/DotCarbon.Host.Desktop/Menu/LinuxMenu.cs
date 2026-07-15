@@ -5,30 +5,55 @@ namespace DotCarbon.Host.Desktop;
 /// <summary>
 /// Linux application menu: a GtkMenuBar packed above Photino's webview.
 ///
-/// Photino puts the webview directly inside the GtkWindow, and a GtkWindow (a GtkBin) holds exactly
-/// one child — so to make room for a menu bar we re-parent: take the webview out, put a vertical
-/// GtkBox in the window, then pack [menu bar, webview] into it. Menu clicks arrive on the GTK main
-/// loop via each item's "activate" signal.
+/// Photino does not hand us its GtkWindow (its <c>WindowHandle</c> is Windows-only and throws
+/// elsewhere), and the window only exists once Photino's GTK loop is running. So we defer onto the
+/// GTK main loop with g_idle_add and find the toplevel ourselves via gtk_window_list_toplevels.
+///
+/// A GtkWindow is a GtkBin — exactly one child, which Photino uses for the webview — so making room
+/// for a menu bar means re-parenting: take the webview out, put a vertical GtkBox in the window, and
+/// pack [menu bar, webview] into it. Clicks arrive via each item's "activate" signal.
 /// </summary>
 internal static unsafe class LinuxMenu
 {
     private const string Gtk = "libgtk-3.so.0";
     private const string GObject = "libgobject-2.0.so.0";
+    private const string GLib = "libglib-2.0.so.0";
 
     private const int GtkOrientationVertical = 1;
+    private const int GSourceRemove = 0;
 
     private static readonly Dictionary<IntPtr, Action> Handlers = new();
     private static int _nextTag;
+    private static CarbonMenuBuilder? _pending;
+    private static string? _pendingTitle;
 
-    public static void Create(CarbonMenuBuilder builder, IntPtr window)
+    /// <summary>Queue the menu build onto the GTK loop; <paramref name="windowTitle"/> disambiguates
+    /// the toplevel when more than one exists.</summary>
+    public static void Create(CarbonMenuBuilder builder, string? windowTitle)
+    {
+        _pending = builder;
+        _pendingTitle = windowTitle;
+        var idle = (IntPtr)(delegate* unmanaged<IntPtr, int>)&OnIdleCreate;
+        g_idle_add(idle, IntPtr.Zero);
+    }
+
+    [UnmanagedCallersOnly]
+    private static int OnIdleCreate(IntPtr data)
+    {
+        var builder = _pending;
+        _pending = null;
+        if (builder is not null) CreateNow(builder, _pendingTitle);
+        return GSourceRemove;
+    }
+
+    private static void CreateNow(CarbonMenuBuilder builder, string? title)
     {
         try
         {
-            // Built from the window-created callback, which already runs on the GTK thread with a
-            // display connection; gtk_init_check is idempotent insurance.
-            if (!gtk_init_check(IntPtr.Zero, IntPtr.Zero))
+            var window = FindWindow(title);
+            if (window == IntPtr.Zero)
             {
-                Console.Error.WriteLine("[Carbon] Native menu: no display connection; skipping.");
+                Console.Error.WriteLine("[Carbon] Native menu: could not find the application window.");
                 return;
             }
 
@@ -54,11 +79,37 @@ internal static unsafe class LinuxMenu
             gtk_widget_show_all(window);
 
             Console.WriteLine($"[Carbon] Native menu ready ({builder.Groups.Count} top-level menu(s)).");
+            Console.Out.Flush();
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[Carbon] Failed to create the Linux menu: {ex.Message}");
         }
+    }
+
+    /// <summary>The Photino window: prefer a title match, else the first toplevel that has content.</summary>
+    private static IntPtr FindWindow(string? title)
+    {
+        var list = gtk_window_list_toplevels();
+        var fallback = IntPtr.Zero;
+        try
+        {
+            for (var node = list; node != IntPtr.Zero; node = Marshal.ReadIntPtr(node, IntPtr.Size))
+            {
+                var window = Marshal.ReadIntPtr(node);
+                if (window == IntPtr.Zero || gtk_bin_get_child(window) == IntPtr.Zero) continue;
+                if (fallback == IntPtr.Zero) fallback = window;
+
+                if (string.IsNullOrEmpty(title)) continue;
+                var current = Marshal.PtrToStringUTF8(gtk_window_get_title(window));
+                if (string.Equals(current, title, StringComparison.Ordinal)) return window;
+            }
+        }
+        finally
+        {
+            if (list != IntPtr.Zero) g_list_free(list);
+        }
+        return fallback;
     }
 
     private static IntPtr BuildMenuBar(CarbonMenuBuilder builder)
@@ -101,9 +152,10 @@ internal static unsafe class LinuxMenu
         catch (Exception ex) { Console.Error.WriteLine($"[Carbon] Menu handler failed: {ex.Message}"); }
     }
 
-    // --- GTK / GObject interop ---------------------------------------------------------------
+    // --- GTK / GObject / GLib interop --------------------------------------------------------
 
-    [DllImport(Gtk)] [return: MarshalAs(UnmanagedType.I1)] private static extern bool gtk_init_check(IntPtr argc, IntPtr argv);
+    [DllImport(Gtk)] private static extern IntPtr gtk_window_list_toplevels();
+    [DllImport(Gtk)] private static extern IntPtr gtk_window_get_title(IntPtr window);
     [DllImport(Gtk)] private static extern IntPtr gtk_bin_get_child(IntPtr bin);
     [DllImport(Gtk)] private static extern void gtk_container_remove(IntPtr container, IntPtr widget);
     [DllImport(Gtk)] private static extern void gtk_container_add(IntPtr container, IntPtr widget);
@@ -121,4 +173,6 @@ internal static unsafe class LinuxMenu
     [DllImport(GObject)] private static extern void g_object_unref(IntPtr obj);
     [DllImport(GObject)] private static extern ulong g_signal_connect_data(IntPtr instance,
         [MarshalAs(UnmanagedType.LPUTF8Str)] string signal, IntPtr handler, IntPtr data, IntPtr destroy, int flags);
+    [DllImport(GLib)] private static extern uint g_idle_add(IntPtr function, IntPtr data);
+    [DllImport(GLib)] private static extern void g_list_free(IntPtr list);
 }
