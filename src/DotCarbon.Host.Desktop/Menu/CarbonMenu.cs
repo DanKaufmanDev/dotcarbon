@@ -62,8 +62,8 @@ internal sealed record MenuItem(string? Label, Action? OnClick, string? EventNam
 public static class DesktopMenuExtensions
 {
     /// <summary>
-    /// Add a native desktop app menu. macOS is a true application menu; Windows/Linux currently log
-    /// a clear unsupported message until window-menu validation lands on those platforms.
+    /// Add a native desktop app menu. macOS installs an application-wide NSMenu; Windows and Linux
+    /// attach a menu bar to the main window, so those wait for the window to exist before building.
     /// </summary>
     public static CarbonApp UseMenu(this CarbonApp app, Action<CarbonMenuBuilder> configure)
     {
@@ -71,7 +71,27 @@ public static class DesktopMenuExtensions
 
         var builder = new CarbonMenuBuilder();
         configure(builder);
-        app.Setup(handle => CarbonMenu.Create(Bind(builder, handle)));
+
+        // macOS's menu belongs to the application, not a window — build it as soon as setup runs.
+        if (OperatingSystem.IsMacOS())
+        {
+            app.Setup(handle => MacMenu.Create(Bind(builder, handle)));
+            return app;
+        }
+
+        // Windows/Linux hang the menu off the native window handle, which only exists once the main
+        // window has been created.
+        var armed = 0;
+        app.OnLifecycle(lifecycleEvent =>
+        {
+            if (lifecycleEvent.Kind != CarbonLifecycleEventKind.WindowCreated ||
+                lifecycleEvent.Window is not { } window ||
+                window.Label != lifecycleEvent.App.Config.Window.Label ||
+                Interlocked.Exchange(ref armed, 1) != 0)
+                return;
+
+            CarbonMenu.CreateForWindow(Bind(builder, lifecycleEvent.App), window.Photino().WindowHandle);
+        });
         return app;
     }
 
@@ -102,14 +122,19 @@ public static class DesktopMenuExtensions
 
 internal static class CarbonMenu
 {
-    public static void Create(CarbonMenuBuilder builder)
+    /// <summary>Attach a menu bar to the platform's native window (Windows/Linux).</summary>
+    public static void CreateForWindow(CarbonMenuBuilder builder, IntPtr nativeWindow)
     {
-        if (OperatingSystem.IsMacOS())
-            MacMenu.Create(builder);
-        else if (OperatingSystem.IsWindows())
-            WindowsMenu.Create(builder);
+        if (nativeWindow == IntPtr.Zero)
+        {
+            Console.Error.WriteLine("[Carbon] Native app menu: the window handle was not available.");
+            return;
+        }
+
+        if (OperatingSystem.IsWindows())
+            WindowsMenu.Create(builder, nativeWindow);
         else if (OperatingSystem.IsLinux())
-            LinuxMenu.Create(builder);
+            LinuxMenu.Create(builder, nativeWindow);
         else
             Console.Error.WriteLine("[Carbon] Native app menus are not supported on this platform.");
     }
