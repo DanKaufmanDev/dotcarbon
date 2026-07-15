@@ -70,7 +70,37 @@ internal static class MobileBundleSupport
         var normalized = Path.GetFullPath(workingDir).TrimEnd(Path.DirectorySeparatorChar);
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)))
             .ToLowerInvariant()[..12];
-        return Path.Combine(Path.GetTempPath(), "dotcarbon", "build", hash, platform);
+        // Stage under the *resolved* temp path. On macOS Path.GetTempPath() hands back the symlinked
+        // /var/folders/… while MSBuild resolves the project to the real /private/var/folders/… — one
+        // level deeper. Any relative path computed against the symlinked form then lands a directory
+        // short (…/Users/x becomes /private/Users/x) and the build fails with MSB3202.
+        return Path.Combine(ResolvePhysicalPath(Path.GetTempPath()), "dotcarbon", "build", hash, platform);
+    }
+
+    /// <summary>The real path with every symlinked segment resolved (macOS /var -> /private/var).</summary>
+    public static string ResolvePhysicalPath(string path)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            var root = Path.GetPathRoot(fullPath)!;
+            var current = root;
+            foreach (var segment in fullPath[root.Length..].Split(
+                         Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+            {
+                current = Path.Combine(current, segment);
+                FileSystemInfo info = Directory.Exists(current)
+                    ? new DirectoryInfo(current)
+                    : new FileInfo(current);
+                if (info.LinkTarget is not null)
+                    current = info.ResolveLinkTarget(returnFinalTarget: true)!.FullName;
+            }
+            return current;
+        }
+        catch
+        {
+            return Path.GetFullPath(path);
+        }
     }
 
     private static string ProjectCondition(string project)

@@ -140,24 +140,21 @@ jobs:
           xcrun simctl bootstatus "$DEVICE" -b
           echo "installing $APP"
           xcrun simctl install "$DEVICE" "$APP"
-          IOS_STDOUT="$RUNNER_TEMP/carbon-ios.stdout.log"
-          IOS_STDERR="$RUNNER_TEMP/carbon-ios.stderr.log"
-          : > "$IOS_STDOUT"
-          : > "$IOS_STDERR"
-          if ! xcrun simctl launch --terminate-running-process --stdout="$IOS_STDOUT" --stderr="$IOS_STDERR" "$DEVICE" dev.dotcarbon.mobilesmoke; then
-            echo "::warning::simctl launch returned non-zero; checking captured output anyway"
+          if ! xcrun simctl launch --terminate-running-process "$DEVICE" dev.dotcarbon.mobilesmoke; then
+            echo "::warning::simctl launch returned non-zero; checking the device log anyway"
           fi
+          # .NET's Console output reaches the simulator via libSystem.Native (os_log), which
+          # `simctl launch --stdout=/--stderr=` file redirection does NOT capture — the device log
+          # does. (Verified locally: the marker is absent from --stdout but present in `log show`.)
           for i in $(seq 1 30); do
-            if grep -q "\[\[CARBON_WEB_READY\]\]" "$IOS_STDOUT" "$IOS_STDERR"; then
+            if xcrun simctl spawn "$DEVICE" log show --last 90s 2>/dev/null | grep -q "\[\[CARBON_WEB_READY\]\]"; then
               echo "WebView booted and ran JS on the simulator ✅"; exit 0
             fi
             sleep 2
           done
           echo "::error::no [[CARBON_WEB_READY]] marker in the simulator log"
-          echo "----- stdout -----"
-          cat "$IOS_STDOUT"
-          echo "----- stderr -----"
-          cat "$IOS_STDERR"
+          echo "----- simulator log (carbon lines) -----"
+          xcrun simctl spawn "$DEVICE" log show --last 120s 2>/dev/null | grep -aE "CARBON|Carbon|MobileSmoke" | tail -40 || true
           echo "----- simulator log tail -----"
-          xcrun simctl spawn "$DEVICE" log show --last 90s 2>/dev/null | tail -100 || true
+          xcrun simctl spawn "$DEVICE" log show --last 120s 2>/dev/null | tail -60 || true
           exit 1

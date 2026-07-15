@@ -257,23 +257,8 @@ internal sealed class IosBundler
         return stagedProject;
     }
 
-    private static string ResolvePhysicalPath(string path)
-    {
-        var fullPath = Path.GetFullPath(path);
-        var root = Path.GetPathRoot(fullPath)!;
-        var current = root;
-        foreach (var segment in fullPath[root.Length..].Split(
-                     Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
-        {
-            current = Path.Combine(current, segment);
-            FileSystemInfo info = Directory.Exists(current)
-                ? new DirectoryInfo(current)
-                : new FileInfo(current);
-            if (info.LinkTarget is not null)
-                current = info.ResolveLinkTarget(returnFinalTarget: true)!.FullName;
-        }
-        return current;
-    }
+    private static string ResolvePhysicalPath(string path) =>
+        MobileBundleSupport.ResolvePhysicalPath(path);
 
     private static void CopyProjectSources(string source, string destination)
     {
