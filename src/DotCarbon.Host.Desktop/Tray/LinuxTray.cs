@@ -10,13 +10,56 @@ internal static unsafe class LinuxTray
 {
     private const string Gtk = "libgtk-3.so.0";
     private const string GObject = "libgobject-2.0.so.0";
+    private const string GLib = "libglib-2.0.so.0";
 
     private static readonly Dictionary<IntPtr, Action> Handlers = new();
     private static int _nextTag;
     private static IntPtr _menu;
     private static IntPtr _statusIcon;
 
-    public static void Create(CarbonTrayBuilder builder)
+    // --- runtime mutation (Task 2.3) ---------------------------------------------------------
+    // GTK is not thread-safe, so setters are queued onto the GTK main loop with g_idle_add.
+    // GtkStatusIcon is icon-only, so SetTitle has no analogue here (see CarbonTrayHandle).
+
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<Action> IdleWork = new();
+
+    public static void SetTooltip(string tooltip) => Post(() =>
+    {
+        if (_statusIcon != IntPtr.Zero) gtk_status_icon_set_tooltip_text(_statusIcon, tooltip);
+    });
+
+    public static void SetVisible(bool visible) => Post(() =>
+    {
+        if (_statusIcon != IntPtr.Zero) gtk_status_icon_set_visible(_statusIcon, visible);
+    });
+
+    public static void Remove() => Post(() =>
+    {
+        if (_statusIcon == IntPtr.Zero) return;
+        gtk_status_icon_set_visible(_statusIcon, false);
+        g_object_unref(_statusIcon);
+        _statusIcon = IntPtr.Zero;
+    });
+
+    private static void Post(Action work)
+    {
+        IdleWork.Enqueue(work);
+        var trampoline = (IntPtr)(delegate* unmanaged<IntPtr, int>)&RunIdleWork;
+        g_idle_add(trampoline, IntPtr.Zero);
+    }
+
+    [UnmanagedCallersOnly]
+    private static int RunIdleWork(IntPtr data)
+    {
+        while (IdleWork.TryDequeue(out var work))
+        {
+            try { work(); }
+            catch (Exception ex) { Console.Error.WriteLine($"[Carbon] Tray update failed: {ex.Message}"); }
+        }
+        return 0; // G_SOURCE_REMOVE
+    }
+
+    public static void Create(CarbonTrayBuilder builder, Action<CarbonTrayHandle>? onReady = null)
     {
         try
         {
@@ -57,6 +100,7 @@ internal static unsafe class LinuxTray
             g_signal_connect_data(_statusIcon, "popup-menu", popup, IntPtr.Zero, IntPtr.Zero, 0);
 
             Console.WriteLine($"[Carbon] System tray ready ({builder.Items.Count} item(s)).");
+            CarbonTray.NotifyReady(onReady);
         }
         catch (Exception ex)
         {
@@ -82,6 +126,8 @@ internal static unsafe class LinuxTray
 
     [DllImport(Gtk)] [return: MarshalAs(UnmanagedType.I1)] private static extern bool gtk_init_check(IntPtr argc, IntPtr argv);
     [DllImport(Gtk)] private static extern IntPtr gtk_status_icon_new();
+    [DllImport(GObject)] private static extern void g_object_unref(IntPtr obj);
+    [DllImport(GLib)] private static extern uint g_idle_add(IntPtr function, IntPtr data);
     [DllImport(Gtk)] private static extern void gtk_status_icon_set_from_icon_name(IntPtr icon, [MarshalAs(UnmanagedType.LPUTF8Str)] string name);
     [DllImport(Gtk)] private static extern void gtk_status_icon_set_tooltip_text(IntPtr icon, [MarshalAs(UnmanagedType.LPUTF8Str)] string text);
     [DllImport(Gtk)] private static extern void gtk_status_icon_set_visible(IntPtr icon, [MarshalAs(UnmanagedType.I1)] bool visible);

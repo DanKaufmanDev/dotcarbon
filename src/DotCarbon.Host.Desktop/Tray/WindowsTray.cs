@@ -29,7 +29,60 @@ internal static unsafe class WindowsTray
     private static IntPtr _menu;
     private static IntPtr _wndProcPtr; // keep the delegate ptr rooted
 
-    public static void Create(CarbonTrayBuilder builder)
+    // --- runtime mutation (Task 2.3) ---------------------------------------------------------
+    // The Windows tray is icon-only, so SetTitle has no analogue here (see CarbonTrayHandle).
+    // Shell_NotifyIcon identifies the icon by (hWnd, uID), so updates just re-send the struct.
+
+    private const int NIM_MODIFY = 0x1;
+    private const int NIM_DELETE = 0x2;
+
+    private static string _tip = string.Empty;
+    private static bool _created;
+
+    public static void SetTooltip(string tooltip)
+    {
+        _tip = tooltip;
+        if (_created) Notify(NIM_MODIFY);
+    }
+
+    public static void SetVisible(bool visible)
+    {
+        if (visible == _created) return;
+        if (Notify(visible ? NIM_ADD : NIM_DELETE)) _created = visible;
+    }
+
+    public static void Remove()
+    {
+        if (!_created) return;
+        if (Notify(NIM_DELETE)) _created = false;
+    }
+
+    private static bool Notify(int message)
+    {
+        try
+        {
+            var data = new NOTIFYICONDATA
+            {
+                cbSize = sizeof(NOTIFYICONDATA),
+                hWnd = _hwnd,
+                uID = 1,
+                uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
+                uCallbackMessage = CallbackMessage,
+                hIcon = LoadIconW(IntPtr.Zero, IDI_APPLICATION),
+            };
+            CopyTip(ref data, _tip);
+            if (Shell_NotifyIconW(message, ref data)) return true;
+            Console.Error.WriteLine($"[Carbon] Tray: Shell_NotifyIcon({message}) failed.");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Carbon] Tray update failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    public static void Create(CarbonTrayBuilder builder, Action<CarbonTrayHandle>? onReady = null)
     {
         try
         {
@@ -74,12 +127,18 @@ internal static unsafe class WindowsTray
                 uCallbackMessage = CallbackMessage,
                 hIcon = LoadIconW(IntPtr.Zero, IDI_APPLICATION),
             };
-            CopyTip(ref data, builder.Title);
+            _tip = builder.Title;
+            CopyTip(ref data, _tip);
 
             if (!Shell_NotifyIconW(NIM_ADD, ref data))
+            {
                 Console.Error.WriteLine("[Carbon] Tray: Shell_NotifyIcon(NIM_ADD) failed.");
-            else
-                Console.WriteLine($"[Carbon] System tray ready ({builder.Items.Count} item(s)).");
+                return;
+            }
+
+            _created = true;
+            Console.WriteLine($"[Carbon] System tray ready ({builder.Items.Count} item(s)).");
+            CarbonTray.NotifyReady(onReady);
         }
         catch (Exception ex)
         {

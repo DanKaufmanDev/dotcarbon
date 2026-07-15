@@ -242,6 +242,11 @@ jobs:
         run: |
           grep -q "System tray ready" smoke.log || { echo "macOS tray did not initialize"; exit 1; }
           grep -q "Native menu ready" smoke.log || { echo "macOS menu did not initialize"; exit 1; }
+          # Task 2.3: the tray is mutable at runtime — onReady must fire and the setters must run.
+          grep -q "Tray mutation applied" smoke.log || { echo "macOS tray onReady/mutation did not run"; exit 1; }
+          if grep -qE "Tray update failed|Tray onReady failed" smoke.log; then
+            echo "macOS tray mutation reported an error"; grep -E "Tray update failed|Tray onReady failed" smoke.log; exit 1
+          fi
       - name: Report tray status (Windows/Linux)
         if: runner.os != 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app
@@ -251,6 +256,17 @@ jobs:
             echo "::notice::${{ runner.os }} tray initialized"
           else
             echo "::warning::${{ runner.os }} tray did not report ready"
+          fi
+          # Task 2.3 runtime mutation — reported (not gated) on these backends, which are only
+          # verified by this job rather than on a real desktop.
+          if grep -q "Tray mutation applied" smoke.log; then
+            echo "::notice::${{ runner.os }} tray runtime mutation ran"
+          else
+            echo "::warning::${{ runner.os }} tray runtime mutation did not run"
+          fi
+          if grep -qE "Tray update failed|Tray onReady failed" smoke.log; then
+            echo "::warning::${{ runner.os }} tray mutation reported an error"
+            grep -E "Tray update failed|Tray onReady failed" smoke.log | tail -5
           fi
       # Phase 2 (Tasks 2.1/2.2): Windows and Linux now have real app-menu backends (Win32 HMENU via
       # SetMenu; GtkMenuBar re-parented above the webview), replacing the old no-op stubs. Asserted

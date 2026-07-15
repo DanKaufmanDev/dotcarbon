@@ -58,32 +58,85 @@ public sealed class CarbonTrayBuilder
 
 internal sealed record TrayItem(string? Label, Action? OnClick, string? EventName, bool IsSeparator);
 
+/// <summary>
+/// A live tray icon. Handed to <c>UseTray</c>'s <c>onReady</c> callback once the native icon exists,
+/// so the tray can be updated while the app runs instead of being create-once. Every call marshals to
+/// the platform's UI thread, so it is safe to call from anywhere.
+/// </summary>
+public sealed class CarbonTrayHandle
+{
+    /// <summary>
+    /// The tray's text. macOS shows this next to the icon in the menu bar; Windows and Linux trays
+    /// are icon-only, where this is a no-op (same shape as Tauri's macOS-only <c>set_title</c>).
+    /// </summary>
+    public void SetTitle(string title)
+    {
+        ArgumentNullException.ThrowIfNull(title);
+        if (OperatingSystem.IsMacOS()) MacTray.SetTitle(title);
+    }
+
+    /// <summary>The hover tooltip.</summary>
+    public void SetTooltip(string tooltip)
+    {
+        ArgumentNullException.ThrowIfNull(tooltip);
+        if (OperatingSystem.IsMacOS()) MacTray.SetTooltip(tooltip);
+        else if (OperatingSystem.IsWindows()) WindowsTray.SetTooltip(tooltip);
+        else if (OperatingSystem.IsLinux()) LinuxTray.SetTooltip(tooltip);
+    }
+
+    /// <summary>Show or hide the icon without tearing it down.</summary>
+    public void SetVisible(bool visible)
+    {
+        if (OperatingSystem.IsMacOS()) MacTray.SetVisible(visible);
+        else if (OperatingSystem.IsWindows()) WindowsTray.SetVisible(visible);
+        else if (OperatingSystem.IsLinux()) LinuxTray.SetVisible(visible);
+    }
+
+    /// <summary>Remove the icon entirely.</summary>
+    public void Remove()
+    {
+        if (OperatingSystem.IsMacOS()) MacTray.Remove();
+        else if (OperatingSystem.IsWindows()) WindowsTray.Remove();
+        else if (OperatingSystem.IsLinux()) LinuxTray.Remove();
+    }
+}
+
 /// <summary>Desktop tray entry points.</summary>
 public static class DesktopTrayExtensions
 {
     /// <summary>
-    /// Adds a system tray icon and menu when the desktop app starts.
+    /// Adds a system tray icon and menu when the desktop app starts. <paramref name="onReady"/> runs
+    /// once the native icon exists and receives a handle for updating it later.
     /// </summary>
-    public static CarbonApp UseTray(this CarbonApp app, Action<CarbonTrayBuilder> configure)
+    public static CarbonApp UseTray(
+        this CarbonApp app, Action<CarbonTrayBuilder> configure, Action<CarbonTrayHandle>? onReady = null)
     {
         var builder = new CarbonTrayBuilder();
         configure(builder);
-        app.Setup(handle => CarbonTray.Create(builder.Bind(handle)));
+        app.Setup(handle => CarbonTray.Create(builder.Bind(handle), onReady));
         return app;
     }
 }
 
 internal static class CarbonTray
 {
-    public static void Create(CarbonTrayBuilder builder)
+    public static void Create(CarbonTrayBuilder builder, Action<CarbonTrayHandle>? onReady = null)
     {
         if (OperatingSystem.IsMacOS())
-            MacTray.Create(builder);
+            MacTray.Create(builder, onReady);
         else if (OperatingSystem.IsWindows())
-            WindowsTray.Create(builder);
+            WindowsTray.Create(builder, onReady);
         else if (OperatingSystem.IsLinux())
-            LinuxTray.Create(builder);
+            LinuxTray.Create(builder, onReady);
         else
             Console.Error.WriteLine("[Carbon] System tray is not supported on this platform.");
+    }
+
+    /// <summary>Invoke the ready callback without letting a user exception kill the UI thread.</summary>
+    internal static void NotifyReady(Action<CarbonTrayHandle>? onReady)
+    {
+        if (onReady is null) return;
+        try { onReady(new CarbonTrayHandle()); }
+        catch (Exception ex) { Console.Error.WriteLine($"[Carbon] Tray onReady failed: {ex.Message}"); }
     }
 }

@@ -13,16 +13,19 @@ internal static unsafe class MacTray
     private const double NSVariableStatusItemLength = -1.0;
 
     private static readonly Dictionary<nint, Action> Handlers = new();
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<Action> MainQueueWork = new();
     private static CarbonTrayBuilder? _pending;
+    private static Action<CarbonTrayHandle>? _onReady;
     private static nint _nextTag;
     private static IntPtr _statusItem;   // retained so it stays in the menu bar
     private static IntPtr _target;        // retained action target
     private static bool _targetClassRegistered;
 
     /// <summary>Schedules tray creation on the main queue after NSApplication starts.</summary>
-    public static void Create(CarbonTrayBuilder builder)
+    public static void Create(CarbonTrayBuilder builder, Action<CarbonTrayHandle>? onReady = null)
     {
         _pending = builder;
+        _onReady = onReady;
         var work = (IntPtr)(delegate* unmanaged<IntPtr, void>)&CreateOnMain;
         dispatch_async_f(MainQueue(), IntPtr.Zero, work);
     }
@@ -31,6 +34,54 @@ internal static unsafe class MacTray
     private static void CreateOnMain(IntPtr context)
     {
         if (_pending is { } builder) CreateNow(builder);
+        CarbonTray.NotifyReady(_onReady);
+        _onReady = null;
+    }
+
+    // --- runtime mutation (Task 2.3) ---------------------------------------------------------
+    // AppKit is main-thread-only, so every setter is queued onto the main queue rather than run
+    // wherever the caller happens to be.
+
+    public static void SetTitle(string title) => Post(() =>
+    {
+        var button = _statusItem == IntPtr.Zero ? IntPtr.Zero : Send(_statusItem, Sel("button"));
+        if (button != IntPtr.Zero) SendPtr(button, Sel("setTitle:"), NSString(title));
+    });
+
+    public static void SetTooltip(string tooltip) => Post(() =>
+    {
+        var button = _statusItem == IntPtr.Zero ? IntPtr.Zero : Send(_statusItem, Sel("button"));
+        if (button != IntPtr.Zero) SendPtr(button, Sel("setToolTip:"), NSString(tooltip));
+    });
+
+    public static void SetVisible(bool visible) => Post(() =>
+    {
+        if (_statusItem != IntPtr.Zero) SendSetBool(_statusItem, Sel("setVisible:"), visible);
+    });
+
+    public static void Remove() => Post(() =>
+    {
+        if (_statusItem == IntPtr.Zero) return;
+        SendPtr(Send(Cls("NSStatusBar"), Sel("systemStatusBar")), Sel("removeStatusItem:"), _statusItem);
+        Send(_statusItem, Sel("release"));
+        _statusItem = IntPtr.Zero;
+    });
+
+    private static void Post(Action work)
+    {
+        MainQueueWork.Enqueue(work);
+        var trampoline = (IntPtr)(delegate* unmanaged<IntPtr, void>)&RunPendingWork;
+        dispatch_async_f(MainQueue(), IntPtr.Zero, trampoline);
+    }
+
+    [UnmanagedCallersOnly]
+    private static void RunPendingWork(IntPtr context)
+    {
+        while (MainQueueWork.TryDequeue(out var work))
+        {
+            try { work(); }
+            catch (Exception ex) { Console.Error.WriteLine($"[Carbon] Tray update failed: {ex.Message}"); }
+        }
     }
 
     private static void CreateNow(CarbonTrayBuilder builder)
@@ -116,6 +167,7 @@ internal static unsafe class MacTray
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendStr(IntPtr receiver, IntPtr selector, [MarshalAs(UnmanagedType.LPUTF8Str)] string arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendDouble(IntPtr receiver, IntPtr selector, double arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern void SendSetLong(IntPtr receiver, IntPtr selector, nint arg);
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern void SendSetBool(IntPtr receiver, IntPtr selector, [MarshalAs(UnmanagedType.I1)] bool arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern nint SendGetLong(IntPtr receiver, IntPtr selector);
 
     [DllImport(LibSystem)] private static extern void dispatch_async_f(IntPtr queue, IntPtr context, IntPtr work);
