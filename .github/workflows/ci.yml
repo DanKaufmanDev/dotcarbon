@@ -252,18 +252,18 @@ jobs:
           else
             echo "::warning::${{ runner.os }} tray did not report ready"
           fi
-      # Phase 2 (Task 2.2): the Linux app menu is now a real GtkMenuBar backend (it re-parents
-      # Photino's webview into a GtkBox to make room for the bar), replacing the old no-op stub.
-      # Asserted hard so a broken re-parent is unambiguous. Windows is still a stub (Task 2.1).
-      - name: Assert native menu (Linux — new GtkMenuBar backend)
-        if: runner.os == 'Linux'
+      # Phase 2 (Tasks 2.1/2.2): Windows and Linux now have real app-menu backends (Win32 HMENU via
+      # SetMenu; GtkMenuBar re-parented above the webview), replacing the old no-op stubs. Asserted
+      # hard on both so a broken backend is unambiguous rather than a warning nobody reads.
+      - name: Assert native menu (Windows/Linux backends)
+        if: runner.os != 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app
         shell: bash
         run: |
           if grep -q "Native menu ready" smoke.log; then
-            echo "::notice::Linux native menu initialized (Task 2.2)"
+            echo "::notice::${{ runner.os }} native menu initialized"
           else
-            echo "::error::Linux native menu did not initialize (Task 2.2)"
-            grep -aiE "menu|gtk|re-parent|display" smoke.log | tail -20
+            echo "::error::${{ runner.os }} native menu did not initialize"
+            grep -aiE "menu|gtk|hmenu|setmenu|window handle|display" smoke.log | tail -20
             exit 1
           fi
