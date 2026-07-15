@@ -6,8 +6,9 @@
 
 Write your interface with any web framework, your application logic in C#, and ship a single native binary — no runtime to install, no bloat.
 
-[![NuGet](https://img.shields.io/nuget/v/DotCarbon.Core?logo=nuget&label=DotCarbon.Core)](https://www.nuget.org/packages/DotCarbon.Core)
-[![npm](https://img.shields.io/npm/v/%40dotcarbon%2Fcreate-app?logo=npm&label=create-app)](https://www.npmjs.com/package/@dotcarbon/create-app)
+[![NuGet](https://img.shields.io/nuget/v/DotCarbon.Core?logo=nuget&label=Carbon%20Framework)](https://www.nuget.org/packages/DotCarbon.Core)
+![npm](https://img.shields.io/npm/v/%40dotcarbon%2Fcreate-app?logo=npm&label=create-app)
+![Downloads](https://img.shields.io/nuget/dt/DotCarbon.Core?logo=nuget&label=Downloads&style=flat-sqaure)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/download)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/DanKaufmanDev/dotcarbon/blob/main/LICENSE)
 
