@@ -54,6 +54,27 @@ internal static unsafe class MacTray
         if (button != IntPtr.Zero) SendPtr(button, Sel("setToolTip:"), NSString(tooltip));
     });
 
+    public static void SetIcon(string path, bool isTemplate) => Post(() => ApplyIcon(path, isTemplate));
+
+    private static void ApplyIcon(string path, bool isTemplate)
+    {
+        var button = _statusItem == IntPtr.Zero ? IntPtr.Zero : Send(_statusItem, Sel("button"));
+        if (button == IntPtr.Zero) return;
+
+        var image = SendPtr(
+            Send(Cls("NSImage"), Sel("alloc")), Sel("initWithContentsOfFile:"), NSString(path));
+        if (image == IntPtr.Zero)
+        {
+            Console.Error.WriteLine($"[Carbon] Tray: could not load the icon image: {path}");
+            return;
+        }
+
+        // A template image is drawn as a mask, so it follows light/dark menu bars automatically.
+        SendSetBool(image, Sel("setTemplate:"), isTemplate);
+        SendPtr(button, Sel("setImage:"), image);
+        Send(image, Sel("release"));
+    }
+
     public static void SetVisible(bool visible) => Post(() =>
     {
         if (_statusItem != IntPtr.Zero) SendSetBool(_statusItem, Sel("setVisible:"), visible);
@@ -100,6 +121,8 @@ internal static unsafe class MacTray
             var button = Send(_statusItem, Sel("button"));
             if (button != IntPtr.Zero)
                 SendPtr(button, Sel("setTitle:"), NSString(builder.Title));
+            if (builder.IconPath is { } iconPath)
+                ApplyIcon(iconPath, builder.IconIsTemplate);
 
             _target = CreateActionTarget();
 

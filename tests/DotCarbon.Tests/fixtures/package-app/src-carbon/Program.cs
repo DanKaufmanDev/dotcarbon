@@ -9,6 +9,8 @@ CarbonApp.Create(config)
     .UseTray(
         tray => tray
             .SetTitle("●")
+            // Task 2.5: a real image icon (PNG), resolved next to the app.
+            .SetIcon(Path.Combine(AppContext.BaseDirectory, "icons", "tray.png"))
             .AddItem("Show", () => { })
             .AddSeparator()
             .AddItem("Quit", () => Environment.Exit(0)),
@@ -17,6 +19,7 @@ CarbonApp.Create(config)
         {
             tray.SetTitle("◆");
             tray.SetTooltip("Carbon smoke");
+            tray.SetIcon(Path.Combine(AppContext.BaseDirectory, "icons", "tray.png"));
             Console.WriteLine("[Carbon] Tray mutation applied.");
             Console.Out.Flush();
         })

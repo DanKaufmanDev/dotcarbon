@@ -250,6 +250,11 @@ jobs:
             echo "macOS tray/menu mutation reported an error"
             grep -E "Tray update failed|Tray onReady failed|Menu update failed|Menu onReady failed" smoke.log; exit 1
           fi
+          # Task 2.5: the fixture sets a real PNG tray icon; a load failure must not pass silently.
+          if grep -qE "could not load the icon|icon file not found|could not decode icon" smoke.log; then
+            echo "macOS tray icon failed to load"
+            grep -E "could not load the icon|icon file not found|could not decode icon" smoke.log; exit 1
+          fi
       - name: Report tray status (Windows/Linux)
         if: runner.os != 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app
@@ -272,6 +277,10 @@ jobs:
           if grep -qE "Tray update failed|Tray onReady failed|Menu update failed|Menu onReady failed" smoke.log; then
             echo "::warning::${{ runner.os }} tray/menu mutation reported an error"
             grep -E "Tray update failed|Tray onReady failed|Menu update failed|Menu onReady failed" smoke.log | tail -5
+          fi
+          if grep -qE "could not load the icon|icon file not found|could not decode icon|GDI\+ startup failed" smoke.log; then
+            echo "::warning::${{ runner.os }} tray icon failed to load"
+            grep -E "could not load the icon|icon file not found|could not decode icon|GDI\+ startup failed" smoke.log | tail -5
           fi
       # Phase 2 (Tasks 2.1/2.2): Windows and Linux now have real app-menu backends (Win32 HMENU via
       # SetMenu; GtkMenuBar re-parented above the webview), replacing the old no-op stubs. Asserted

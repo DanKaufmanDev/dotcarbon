@@ -6,12 +6,28 @@ namespace DotCarbon.Host.Desktop;
 public sealed class CarbonTrayBuilder
 {
     internal string Title { get; private set; } = "●";
+    internal string? IconPath { get; private set; }
+    internal bool IconIsTemplate { get; private set; }
     internal List<TrayItem> Items { get; } = [];
 
     /// <summary>The tray button text (an emoji or short glyph reads best in the menu bar).</summary>
     public CarbonTrayBuilder SetTitle(string title)
     {
         Title = title;
+        return this;
+    }
+
+    /// <summary>
+    /// The tray icon image. PNG works on macOS and Linux; Windows needs an <c>.ico</c> (other formats
+    /// are decoded through GDI+ as a fallback). <paramref name="isTemplate"/> is macOS-only: a template
+    /// image is drawn as a mask so it adapts to light/dark menu bars — the same idea as Tauri's
+    /// <c>icon_as_template</c>. Recommended over <see cref="SetTitle"/> for a real app.
+    /// </summary>
+    public CarbonTrayBuilder SetIcon(string path, bool isTemplate = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        IconPath = Path.GetFullPath(path);
+        IconIsTemplate = isTemplate;
         return this;
     }
 
@@ -40,6 +56,7 @@ public sealed class CarbonTrayBuilder
     internal CarbonTrayBuilder Bind(AppHandle app)
     {
         var bound = new CarbonTrayBuilder().SetTitle(Title);
+        if (IconPath is { } icon) bound.SetIcon(icon, IconIsTemplate);
         foreach (var item in Items)
         {
             if (item.IsSeparator)
@@ -73,6 +90,18 @@ public sealed class CarbonTrayHandle
     {
         ArgumentNullException.ThrowIfNull(title);
         if (OperatingSystem.IsMacOS()) MacTray.SetTitle(title);
+    }
+
+    /// <summary>
+    /// Swap the tray icon. Same format rules as <see cref="CarbonTrayBuilder.SetIcon"/>.
+    /// </summary>
+    public void SetIcon(string path, bool isTemplate = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var full = Path.GetFullPath(path);
+        if (OperatingSystem.IsMacOS()) MacTray.SetIcon(full, isTemplate);
+        else if (OperatingSystem.IsWindows()) WindowsTray.SetIcon(full);
+        else if (OperatingSystem.IsLinux()) LinuxTray.SetIcon(full);
     }
 
     /// <summary>The hover tooltip.</summary>

@@ -28,6 +28,11 @@ internal static unsafe class LinuxTray
         if (_statusIcon != IntPtr.Zero) gtk_status_icon_set_tooltip_text(_statusIcon, tooltip);
     });
 
+    public static void SetIcon(string path) => Post(() =>
+    {
+        if (_statusIcon != IntPtr.Zero) gtk_status_icon_set_from_file(_statusIcon, path);
+    });
+
     public static void SetVisible(bool visible) => Post(() =>
     {
         if (_statusIcon != IntPtr.Zero) gtk_status_icon_set_visible(_statusIcon, visible);
@@ -72,7 +77,10 @@ internal static unsafe class LinuxTray
             }
 
             _statusIcon = gtk_status_icon_new();
-            gtk_status_icon_set_from_icon_name(_statusIcon, "application-x-executable");
+            if (builder.IconPath is { } iconPath)
+                gtk_status_icon_set_from_file(_statusIcon, iconPath);
+            else
+                gtk_status_icon_set_from_icon_name(_statusIcon, "application-x-executable");
             gtk_status_icon_set_tooltip_text(_statusIcon, builder.Title);
             gtk_status_icon_set_visible(_statusIcon, true);
 
@@ -129,6 +137,7 @@ internal static unsafe class LinuxTray
     [DllImport(GObject)] private static extern void g_object_unref(IntPtr obj);
     [DllImport(GLib)] private static extern uint g_idle_add(IntPtr function, IntPtr data);
     [DllImport(Gtk)] private static extern void gtk_status_icon_set_from_icon_name(IntPtr icon, [MarshalAs(UnmanagedType.LPUTF8Str)] string name);
+    [DllImport(Gtk)] private static extern void gtk_status_icon_set_from_file(IntPtr icon, [MarshalAs(UnmanagedType.LPUTF8Str)] string filename);
     [DllImport(Gtk)] private static extern void gtk_status_icon_set_tooltip_text(IntPtr icon, [MarshalAs(UnmanagedType.LPUTF8Str)] string text);
     [DllImport(Gtk)] private static extern void gtk_status_icon_set_visible(IntPtr icon, [MarshalAs(UnmanagedType.I1)] bool visible);
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_new();

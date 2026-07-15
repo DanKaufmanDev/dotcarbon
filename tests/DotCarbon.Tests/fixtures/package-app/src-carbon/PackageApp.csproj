@@ -9,4 +9,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\..\src\DotCarbon.Host.Desktop\DotCarbon.Host.Desktop.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\icons\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="icons" />
+  </ItemGroup>
+
 </Project>
