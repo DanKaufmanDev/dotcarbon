@@ -74,13 +74,44 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.301
-      - name: Select matching Xcode
-        run: |
-          test -d /Applications/Xcode_26.0.1.app/Contents/Developer
-          sudo xcode-select --switch /Applications/Xcode_26.0.1.app/Contents/Developer
-          xcodebuild -version
       - name: Install iOS workload
         run: dotnet workload install ios --skip-manifest-update
+      # Pick the Xcode that matches the *installed* workload rather than hardcoding a path: GitHub
+      # rotates Xcode versions out of the runner image, and a stale hardcoded path fails the job
+      # instantly. .NET for iOS requires the Xcode whose SDK matches the workload's major.minor.
+      - name: Select Xcode matching the iOS workload
+        run: |
+          set -uo pipefail
+          echo "Xcodes available on this runner:"
+          ls -d /Applications/Xcode*.app 2>/dev/null || true
+
+          WANT=$(dotnet workload list | awk '$1=="ios" {print $2}' | cut -d. -f1,2)
+          echo "Installed iOS workload expects Xcode ~${WANT}"
+          if [ -z "$WANT" ]; then
+            echo "::error::Could not determine the installed iOS workload version."
+            dotnet workload list
+            exit 1
+          fi
+
+          PICK=""
+          for app in /Applications/Xcode*.app; do
+            [ -d "$app/Contents/Developer" ] || continue
+            VER=$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$app/Contents/version.plist" 2>/dev/null || echo "")
+            echo "  $app -> ${VER:-unknown}"
+            case "$VER" in
+              "$WANT"|"$WANT".*) PICK="$app"; break ;;
+            esac
+          done
+
+          if [ -z "$PICK" ]; then
+            echo "::error::No Xcode matching the iOS workload (${WANT}) on this runner (see the list above)."
+            echo "Either pin the workload to a version this image ships, or update the workload."
+            exit 1
+          fi
+
+          echo "Selecting $PICK"
+          sudo xcode-select --switch "$PICK/Contents/Developer"
+          xcodebuild -version
       - name: Scaffold iOS shell + bundle for the simulator
         run: |
           set -euxo pipefail
@@ -96,8 +127,12 @@ jobs:
       - name: Boot simulator + assert WebView
         run: |
           set -euxo pipefail
-          DEVICE=$(xcrun simctl list devices available | grep -m1 -oE '[0-9A-F-]{36}' || true)
+          # Pick an iPhone specifically — the first "available" device can be a Watch/TV, which
+          # would reject an iOS .app install.
+          DEVICE=$(xcrun simctl list devices available | grep -m1 "iPhone" | grep -oE '[0-9A-F-]{36}' || true)
           if [ -z "$DEVICE" ]; then
+            echo "No available iPhone simulator; creating one."
+            xcrun simctl list devicetypes | grep -i iPhone | tail -5 || true
             DEVICE=$(xcrun simctl create carbon-sim com.apple.CoreSimulator.SimDeviceType.iPhone-15)
           fi
           echo "device: $DEVICE"
