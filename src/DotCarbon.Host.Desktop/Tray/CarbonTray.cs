@@ -47,33 +47,53 @@ public sealed class CarbonTrayBuilder
         return this;
     }
 
+    /// <summary>A nested submenu in the tray menu. Nests to any depth.</summary>
+    public CarbonTrayBuilder AddSubmenu(string label, Action<CarbonTrayBuilder> configure)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var submenu = new CarbonTrayBuilder();
+        configure(submenu);
+        Items.Add(new TrayItem(label, OnClick: null, EventName: null, IsSeparator: false,
+            Children: submenu.Items.ToArray()));
+        return this;
+    }
+
     public CarbonTrayBuilder AddSeparator()
     {
         Items.Add(new TrayItem(null, OnClick: null, EventName: null, IsSeparator: true));
         return this;
     }
 
+    internal void Add(TrayItem item) => Items.Add(item);
+
     internal CarbonTrayBuilder Bind(AppHandle app)
     {
         var bound = new CarbonTrayBuilder().SetTitle(Title);
         if (IconPath is { } icon) bound.SetIcon(icon, IconIsTemplate);
-        foreach (var item in Items)
-        {
-            if (item.IsSeparator)
-            {
-                bound.AddSeparator();
-                continue;
-            }
-
-            var onClick = item.OnClick ??
-                DesktopNativeEventEmitter.Create(app, item.EventName!, item.Label!, "tray");
-            bound.AddItem(item.Label!, onClick);
-        }
+        foreach (var item in Items) bound.Add(BindItem(item, app));
         return bound;
+    }
+
+    /// <summary>Resolve clicks into concrete handlers, recursing into submenus.</summary>
+    private static TrayItem BindItem(TrayItem item, AppHandle app)
+    {
+        if (item.IsSeparator) return item;
+
+        if (item.Children is { } children)
+            return item with { Children = children.Select(child => BindItem(child, app)).ToArray() };
+
+        var onClick = item.OnClick ??
+            DesktopNativeEventEmitter.Create(app, item.EventName!, item.Label!, "tray");
+        return item with { OnClick = onClick, EventName = null };
     }
 }
 
-internal sealed record TrayItem(string? Label, Action? OnClick, string? EventName, bool IsSeparator);
+/// <summary>A tray menu entry. <see cref="Children"/> being non-null makes it a submenu.</summary>
+internal sealed record TrayItem(
+    string? Label, Action? OnClick, string? EventName, bool IsSeparator,
+    IReadOnlyList<TrayItem>? Children = null);
 
 /// <summary>
 /// A live tray icon. Handed to <c>UseTray</c>'s <c>onReady</c> callback once the native icon exists,

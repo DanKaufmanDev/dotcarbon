@@ -86,21 +86,7 @@ internal static unsafe class WindowsMenu
             foreach (var group in builder.Groups)
             {
                 var submenu = CreatePopupMenu();
-                foreach (var item in group.Items)
-                {
-                    if (item.IsSeparator)
-                    {
-                        AppendMenuW(submenu, MF_SEPARATOR, IntPtr.Zero, null);
-                        continue;
-                    }
-                    AppendMenuW(submenu, MF_STRING, id, item.Label);
-                    Handlers[id] = item.OnClick!;
-                    if (item.IsCheckItem && item.IsChecked)
-                        CheckMenuItem(submenu, id, MF_BYCOMMAND | MF_CHECKED);
-                    if (item.Id is { } itemId)
-                        CommandsById[itemId] = id;
-                    id++;
-                }
+                FillMenu(submenu, group.Items, ref id);
                 AppendMenuW(menuBar, MF_POPUP, submenu, group.Label);
             }
 
@@ -129,6 +115,39 @@ internal static unsafe class WindowsMenu
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[Carbon] Failed to create the Windows menu: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Append items to an HMENU, recursing into submenus (Task 2.7). Command ids must stay unique
+    /// across the whole menu, so the counter is threaded through by reference.
+    /// </summary>
+    private static void FillMenu(IntPtr menu, IReadOnlyList<MenuItem> items, ref int id)
+    {
+        foreach (var item in items)
+        {
+            if (item.IsSeparator)
+            {
+                AppendMenuW(menu, MF_SEPARATOR, IntPtr.Zero, null);
+                continue;
+            }
+
+            if (item.Children is { } children)
+            {
+                // A popup carries the submenu handle in place of a command id, so it has no handler.
+                var child = CreatePopupMenu();
+                FillMenu(child, children, ref id);
+                AppendMenuW(menu, MF_POPUP, child, item.Label);
+                continue;
+            }
+
+            AppendMenuW(menu, MF_STRING, id, item.Label);
+            Handlers[id] = item.OnClick!;
+            if (item.IsCheckItem && item.IsChecked)
+                CheckMenuItem(menu, id, MF_BYCOMMAND | MF_CHECKED);
+            if (item.Id is { } itemId)
+                CommandsById[itemId] = id;
+            id++;
         }
     }
 

@@ -88,13 +88,7 @@ internal static unsafe class MacMenu
                 // turn it off so runtime SetEnabled actually sticks (Task 2.4).
                 SendSetBool(submenu, Sel("setAutoenablesItems:"), false);
 
-                foreach (var item in group.Items)
-                {
-                    var menuItem = item.IsSeparator
-                        ? Send(Cls("NSMenuItem"), Sel("separatorItem"))
-                        : NewActionItem(item);
-                    SendPtr(submenu, Sel("addItem:"), menuItem);
-                }
+                FillMenu(submenu, group.Items);
 
                 SendPtr(rootItem, Sel("setSubmenu:"), submenu);
                 SendPtr(mainMenu, Sel("addItem:"), rootItem);
@@ -106,6 +100,35 @@ internal static unsafe class MacMenu
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[Carbon] Failed to create the macOS menu: {ex.Message}");
+        }
+    }
+
+    /// <summary>Add items to an NSMenu, recursing into submenus (Task 2.7).</summary>
+    private static void FillMenu(IntPtr menu, IReadOnlyList<MenuItem> items)
+    {
+        foreach (var item in items)
+        {
+            IntPtr menuItem;
+            if (item.IsSeparator)
+            {
+                menuItem = Send(Cls("NSMenuItem"), Sel("separatorItem"));
+            }
+            else if (item.Children is { } children)
+            {
+                // A submenu item has no action of its own — AppKit opens the attached NSMenu.
+                menuItem = NewMenuItem(item.Label!, IntPtr.Zero, string.Empty);
+                var child = Send(Send(Cls("NSMenu"), Sel("alloc")), Sel("init"));
+                SendPtr(child, Sel("setTitle:"), NSString(item.Label!));
+                SendSetBool(child, Sel("setAutoenablesItems:"), false);
+                FillMenu(child, children);
+                SendPtr(menuItem, Sel("setSubmenu:"), child);
+                if (item.Id is { } submenuId) ItemsById[submenuId] = menuItem;
+            }
+            else
+            {
+                menuItem = NewActionItem(item);
+            }
+            SendPtr(menu, Sel("addItem:"), menuItem);
         }
     }
 

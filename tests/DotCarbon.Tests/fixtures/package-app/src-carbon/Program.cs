@@ -12,6 +12,11 @@ CarbonApp.Create(config)
             // Task 2.5: a real image icon (PNG), resolved next to the app.
             .SetIcon(Path.Combine(AppContext.BaseDirectory, "icons", "tray.png"))
             .AddItem("Show", () => { })
+            // Task 2.7: nested tray submenu (two levels deep).
+            .AddSubmenu("More", more => more
+                .AddItem("Docs", () => { })
+                .AddSubmenu("Deeper", deeper => deeper
+                    .AddItem("Nested", () => { })))
             .AddSeparator()
             .AddItem("Quit", () => Environment.Exit(0)),
         // Task 2.3: exercise runtime mutation so the smoke proves the setters actually run.
@@ -28,6 +33,11 @@ CarbonApp.Create(config)
             .AddMenu("App", app => app
                 .AddItem("About", () => { }, id: "about")
                 .AddCheckItem("Verbose", () => { }, isChecked: false, id: "verbose")
+                // Task 2.7: nested app-menu submenu.
+                .AddSubmenu("Recent", recent => recent
+                    .AddItem("Project A", () => { })
+                    .AddSubmenu("Archived", archived => archived
+                        .AddItem("Old Project", () => { })))
                 .AddSeparator()
                 .AddItem("Quit", () => Environment.Exit(0), "CmdOrCtrl+Q")),
         // Task 2.4: exercise runtime mutation so the smoke proves the setters actually run.

@@ -162,36 +162,49 @@ internal static unsafe class LinuxMenu
         {
             var root = gtk_menu_item_new_with_label(group.Label);
             var submenu = gtk_menu_new();
-
-            foreach (var item in group.Items)
-            {
-                IntPtr menuItem;
-                if (item.IsSeparator)
-                {
-                    menuItem = gtk_separator_menu_item_new();
-                }
-                else
-                {
-                    menuItem = item.IsCheckItem
-                        ? gtk_check_menu_item_new_with_label(item.Label!)
-                        : gtk_menu_item_new_with_label(item.Label!);
-                    if (item.IsCheckItem && item.IsChecked)
-                        gtk_check_menu_item_set_active(menuItem, true);
-                    if (item.Id is { } itemId)
-                        ItemsById[itemId] = menuItem;
-
-                    var tag = (IntPtr)(++_nextTag);
-                    Handlers[tag] = item.OnClick!;
-                    var activate = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, void>)&OnActivate;
-                    g_signal_connect_data(menuItem, "activate", activate, tag, IntPtr.Zero, 0);
-                }
-                gtk_menu_shell_append(submenu, menuItem);
-            }
-
+            FillMenu(submenu, group.Items);
             gtk_menu_item_set_submenu(root, submenu);
             gtk_menu_shell_append(menuBar, root);
         }
         return menuBar;
+    }
+
+    /// <summary>Add items to a GtkMenu, recursing into submenus (Task 2.7).</summary>
+    private static void FillMenu(IntPtr menu, IReadOnlyList<MenuItem> items)
+    {
+        foreach (var item in items)
+        {
+            IntPtr menuItem;
+            if (item.IsSeparator)
+            {
+                menuItem = gtk_separator_menu_item_new();
+            }
+            else if (item.Children is { } children)
+            {
+                // A submenu item carries no "activate" handler — GTK opens the attached GtkMenu.
+                menuItem = gtk_menu_item_new_with_label(item.Label!);
+                var child = gtk_menu_new();
+                FillMenu(child, children);
+                gtk_menu_item_set_submenu(menuItem, child);
+                if (item.Id is { } submenuId) ItemsById[submenuId] = menuItem;
+            }
+            else
+            {
+                menuItem = item.IsCheckItem
+                    ? gtk_check_menu_item_new_with_label(item.Label!)
+                    : gtk_menu_item_new_with_label(item.Label!);
+                if (item.IsCheckItem && item.IsChecked)
+                    gtk_check_menu_item_set_active(menuItem, true);
+                if (item.Id is { } itemId)
+                    ItemsById[itemId] = menuItem;
+
+                var tag = (IntPtr)(++_nextTag);
+                Handlers[tag] = item.OnClick!;
+                var activate = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, void>)&OnActivate;
+                g_signal_connect_data(menuItem, "activate", activate, tag, IntPtr.Zero, 0);
+            }
+            gtk_menu_shell_append(menu, menuItem);
+        }
     }
 
     [UnmanagedCallersOnly]

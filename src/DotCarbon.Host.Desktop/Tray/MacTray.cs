@@ -127,31 +127,46 @@ internal static unsafe class MacTray
             _target = CreateActionTarget();
 
             var menu = Send(Send(Cls("NSMenu"), Sel("alloc")), Sel("init"));
-            foreach (var item in builder.Items)
-            {
-                IntPtr menuItem;
-                if (item.IsSeparator)
-                {
-                    menuItem = Send(Cls("NSMenuItem"), Sel("separatorItem"));
-                }
-                else
-                {
-                    menuItem = Send(Send(Cls("NSMenuItem"), Sel("alloc")), Sel("init"));
-                    SendPtr(menuItem, Sel("setTitle:"), NSString(item.Label!));
-                    SendPtr(menuItem, Sel("setTarget:"), _target);
-                    SendPtr(menuItem, Sel("setAction:"), Sel("carbonTrayClick:"));
-                    var tag = _nextTag++;
-                    SendSetLong(menuItem, Sel("setTag:"), tag);
-                    Handlers[tag] = item.OnClick!;
-                }
-                SendPtr(menu, Sel("addItem:"), menuItem);
-            }
+            FillMenu(menu, builder.Items);
             SendPtr(_statusItem, Sel("setMenu:"), menu);
             Console.WriteLine($"[Carbon] System tray ready ({builder.Items.Count} item(s)).");
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[Carbon] Failed to create the macOS tray: {ex.Message}");
+        }
+    }
+
+    /// <summary>Add tray items to an NSMenu, recursing into submenus (Task 2.7).</summary>
+    private static void FillMenu(IntPtr menu, IReadOnlyList<TrayItem> items)
+    {
+        foreach (var item in items)
+        {
+            IntPtr menuItem;
+            if (item.IsSeparator)
+            {
+                menuItem = Send(Cls("NSMenuItem"), Sel("separatorItem"));
+            }
+            else if (item.Children is { } children)
+            {
+                // A submenu item has no action — AppKit opens the attached NSMenu.
+                menuItem = Send(Send(Cls("NSMenuItem"), Sel("alloc")), Sel("init"));
+                SendPtr(menuItem, Sel("setTitle:"), NSString(item.Label!));
+                var child = Send(Send(Cls("NSMenu"), Sel("alloc")), Sel("init"));
+                FillMenu(child, children);
+                SendPtr(menuItem, Sel("setSubmenu:"), child);
+            }
+            else
+            {
+                menuItem = Send(Send(Cls("NSMenuItem"), Sel("alloc")), Sel("init"));
+                SendPtr(menuItem, Sel("setTitle:"), NSString(item.Label!));
+                SendPtr(menuItem, Sel("setTarget:"), _target);
+                SendPtr(menuItem, Sel("setAction:"), Sel("carbonTrayClick:"));
+                var tag = _nextTag++;
+                SendSetLong(menuItem, Sel("setTag:"), tag);
+                Handlers[tag] = item.OnClick!;
+            }
+            SendPtr(menu, Sel("addItem:"), menuItem);
         }
     }
 

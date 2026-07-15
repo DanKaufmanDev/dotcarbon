@@ -58,6 +58,19 @@ public sealed class CarbonMenuGroupBuilder
         return this;
     }
 
+    /// <summary>A nested submenu. Nests to any depth.</summary>
+    public CarbonMenuGroupBuilder AddSubmenu(string label, Action<CarbonMenuGroupBuilder> configure)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var submenu = new CarbonMenuGroupBuilder(label);
+        configure(submenu);
+        _items.Add(new MenuItem(label, OnClick: null, EventName: null, Shortcut: string.Empty,
+            IsSeparator: false, Children: submenu.Build().Items));
+        return this;
+    }
+
     public CarbonMenuGroupBuilder AddSeparator()
     {
         _items.Add(new MenuItem(null, OnClick: null, EventName: null, Shortcut: string.Empty, IsSeparator: true));
@@ -70,9 +83,12 @@ public sealed class CarbonMenuGroupBuilder
 }
 
 internal sealed record MenuGroup(string Label, IReadOnlyList<MenuItem> Items);
+
+/// <summary>A menu entry. <see cref="Children"/> being non-null makes it a submenu.</summary>
 internal sealed record MenuItem(
     string? Label, Action? OnClick, string? EventName, string Shortcut, bool IsSeparator,
-    string? Id = null, bool IsCheckItem = false, bool IsChecked = false);
+    string? Id = null, bool IsCheckItem = false, bool IsChecked = false,
+    IReadOnlyList<MenuItem>? Children = null);
 
 /// <summary>
 /// A live app menu. Handed to <c>UseMenu</c>'s <c>onReady</c> callback once the native menu exists, so
@@ -170,23 +186,26 @@ public static class DesktopMenuExtensions
         {
             bound.AddMenu(group.Label, menu =>
             {
-                foreach (var item in group.Items)
-                {
-                    if (item.IsSeparator)
-                    {
-                        menu.AddSeparator();
-                        continue;
-                    }
-
-                    // Resolve the click into a concrete handler but keep everything else (id, check
-                    // state, shortcut) — the backends need those to build and later address items.
-                    var onClick = item.OnClick ??
-                        DesktopNativeEventEmitter.Create(app, item.EventName!, item.Label!, "menu");
-                    menu.Add(item with { OnClick = onClick, EventName = null });
-                }
+                foreach (var item in group.Items) menu.Add(BindItem(item, app));
             });
         }
         return bound;
+    }
+
+    /// <summary>
+    /// Resolve an item's click into a concrete handler, keeping everything else (id, check state,
+    /// shortcut) that the backends need to build and later address it. Recurses into submenus.
+    /// </summary>
+    private static MenuItem BindItem(MenuItem item, AppHandle app)
+    {
+        if (item.IsSeparator) return item;
+
+        if (item.Children is { } children)
+            return item with { Children = children.Select(child => BindItem(child, app)).ToArray() };
+
+        var onClick = item.OnClick ??
+            DesktopNativeEventEmitter.Create(app, item.EventName!, item.Label!, "menu");
+        return item with { OnClick = onClick, EventName = null };
     }
 }
 

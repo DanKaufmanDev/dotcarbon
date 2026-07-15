@@ -85,23 +85,7 @@ internal static unsafe class LinuxTray
             gtk_status_icon_set_visible(_statusIcon, true);
 
             _menu = gtk_menu_new();
-            foreach (var item in builder.Items)
-            {
-                IntPtr menuItem;
-                if (item.IsSeparator)
-                {
-                    menuItem = gtk_separator_menu_item_new();
-                }
-                else
-                {
-                    menuItem = gtk_menu_item_new_with_label(item.Label!);
-                    var tag = (IntPtr)(++_nextTag);
-                    Handlers[tag] = item.OnClick!;
-                    var activate = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, void>)&OnActivate;
-                    g_signal_connect_data(menuItem, "activate", activate, tag, IntPtr.Zero, 0);
-                }
-                gtk_menu_shell_append(_menu, menuItem);
-            }
+            FillMenu(_menu, builder.Items);
             gtk_widget_show_all(_menu);
 
             var popup = (IntPtr)(delegate* unmanaged<IntPtr, uint, uint, IntPtr, void>)&OnPopup;
@@ -113,6 +97,36 @@ internal static unsafe class LinuxTray
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[Carbon] Failed to create the Linux tray: {ex.Message}");
+        }
+    }
+
+    /// <summary>Add tray items to a GtkMenu, recursing into submenus (Task 2.7).</summary>
+    private static void FillMenu(IntPtr menu, IReadOnlyList<TrayItem> items)
+    {
+        foreach (var item in items)
+        {
+            IntPtr menuItem;
+            if (item.IsSeparator)
+            {
+                menuItem = gtk_separator_menu_item_new();
+            }
+            else if (item.Children is { } children)
+            {
+                // A submenu item carries no "activate" handler — GTK opens the attached GtkMenu.
+                menuItem = gtk_menu_item_new_with_label(item.Label!);
+                var child = gtk_menu_new();
+                FillMenu(child, children);
+                gtk_menu_item_set_submenu(menuItem, child);
+            }
+            else
+            {
+                menuItem = gtk_menu_item_new_with_label(item.Label!);
+                var tag = (IntPtr)(++_nextTag);
+                Handlers[tag] = item.OnClick!;
+                var activate = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, void>)&OnActivate;
+                g_signal_connect_data(menuItem, "activate", activate, tag, IntPtr.Zero, 0);
+            }
+            gtk_menu_shell_append(menu, menuItem);
         }
     }
 
@@ -143,6 +157,7 @@ internal static unsafe class LinuxTray
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_new();
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_item_new_with_label([MarshalAs(UnmanagedType.LPUTF8Str)] string label);
     [DllImport(Gtk)] private static extern IntPtr gtk_separator_menu_item_new();
+    [DllImport(Gtk)] private static extern void gtk_menu_item_set_submenu(IntPtr menuItem, IntPtr submenu);
     [DllImport(Gtk)] private static extern void gtk_menu_shell_append(IntPtr menu, IntPtr child);
     [DllImport(Gtk)] private static extern void gtk_widget_show_all(IntPtr widget);
     [DllImport(Gtk)] private static extern void gtk_menu_popup_at_pointer(IntPtr menu, IntPtr triggerEvent);
