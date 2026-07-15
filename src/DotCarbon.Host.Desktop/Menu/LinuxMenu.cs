@@ -23,16 +23,57 @@ internal static unsafe class LinuxMenu
     private const int GSourceRemove = 0;
 
     private static readonly Dictionary<IntPtr, Action> Handlers = new();
+    private static readonly Dictionary<string, IntPtr> ItemsById = new(StringComparer.Ordinal);
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<Action> IdleWork = new();
     private static int _nextTag;
     private static CarbonMenuBuilder? _pending;
     private static string? _pendingTitle;
+    private static Action<CarbonMenuHandle>? _onReady;
+
+    // --- runtime mutation (Task 2.4) ---------------------------------------------------------
+    // GTK is not thread-safe, so setters are queued onto the GTK loop with g_idle_add.
+
+    public static void SetEnabled(string id, bool enabled) => Post(() =>
+    {
+        if (ItemsById.TryGetValue(id, out var item)) gtk_widget_set_sensitive(item, enabled);
+    });
+
+    public static void SetChecked(string id, bool isChecked) => Post(() =>
+    {
+        if (ItemsById.TryGetValue(id, out var item)) gtk_check_menu_item_set_active(item, isChecked);
+    });
+
+    public static void SetLabel(string id, string label) => Post(() =>
+    {
+        if (ItemsById.TryGetValue(id, out var item)) gtk_menu_item_set_label(item, label);
+    });
+
+    private static void Post(Action work)
+    {
+        IdleWork.Enqueue(work);
+        var trampoline = (IntPtr)(delegate* unmanaged<IntPtr, int>)&RunIdleWork;
+        g_idle_add(trampoline, IntPtr.Zero);
+    }
+
+    [UnmanagedCallersOnly]
+    private static int RunIdleWork(IntPtr data)
+    {
+        while (IdleWork.TryDequeue(out var work))
+        {
+            try { work(); }
+            catch (Exception ex) { Console.Error.WriteLine($"[Carbon] Menu update failed: {ex.Message}"); }
+        }
+        return GSourceRemove;
+    }
 
     /// <summary>Queue the menu build onto the GTK loop; <paramref name="windowTitle"/> disambiguates
     /// the toplevel when more than one exists.</summary>
-    public static void Create(CarbonMenuBuilder builder, string? windowTitle)
+    public static void Create(
+        CarbonMenuBuilder builder, string? windowTitle, Action<CarbonMenuHandle>? onReady = null)
     {
         _pending = builder;
         _pendingTitle = windowTitle;
+        _onReady = onReady;
         var idle = (IntPtr)(delegate* unmanaged<IntPtr, int>)&OnIdleCreate;
         g_idle_add(idle, IntPtr.Zero);
     }
@@ -43,6 +84,8 @@ internal static unsafe class LinuxMenu
         var builder = _pending;
         _pending = null;
         if (builder is not null) CreateNow(builder, _pendingTitle);
+        CarbonMenu.NotifyReady(_onReady);
+        _onReady = null;
         return GSourceRemove;
     }
 
@@ -129,7 +172,14 @@ internal static unsafe class LinuxMenu
                 }
                 else
                 {
-                    menuItem = gtk_menu_item_new_with_label(item.Label!);
+                    menuItem = item.IsCheckItem
+                        ? gtk_check_menu_item_new_with_label(item.Label!)
+                        : gtk_menu_item_new_with_label(item.Label!);
+                    if (item.IsCheckItem && item.IsChecked)
+                        gtk_check_menu_item_set_active(menuItem, true);
+                    if (item.Id is { } itemId)
+                        ItemsById[itemId] = menuItem;
+
                     var tag = (IntPtr)(++_nextTag);
                     Handlers[tag] = item.OnClick!;
                     var activate = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, void>)&OnActivate;
@@ -165,6 +215,10 @@ internal static unsafe class LinuxMenu
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_bar_new();
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_new();
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_item_new_with_label([MarshalAs(UnmanagedType.LPUTF8Str)] string label);
+    [DllImport(Gtk)] private static extern IntPtr gtk_check_menu_item_new_with_label([MarshalAs(UnmanagedType.LPUTF8Str)] string label);
+    [DllImport(Gtk)] private static extern void gtk_check_menu_item_set_active(IntPtr item, [MarshalAs(UnmanagedType.I1)] bool active);
+    [DllImport(Gtk)] private static extern void gtk_menu_item_set_label(IntPtr item, [MarshalAs(UnmanagedType.LPUTF8Str)] string label);
+    [DllImport(Gtk)] private static extern void gtk_widget_set_sensitive(IntPtr widget, [MarshalAs(UnmanagedType.I1)] bool sensitive);
     [DllImport(Gtk)] private static extern IntPtr gtk_separator_menu_item_new();
     [DllImport(Gtk)] private static extern void gtk_menu_item_set_submenu(IntPtr menuItem, IntPtr submenu);
     [DllImport(Gtk)] private static extern void gtk_menu_shell_append(IntPtr menuShell, IntPtr child);

@@ -20,9 +20,20 @@ CarbonApp.Create(config)
             Console.WriteLine("[Carbon] Tray mutation applied.");
             Console.Out.Flush();
         })
-    .UseMenu(menu => menu
-        .AddMenu("App", app => app
-            .AddItem("About", () => { })
-            .AddSeparator()
-            .AddItem("Quit", () => Environment.Exit(0), "CmdOrCtrl+Q")))
+    .UseMenu(
+        menu => menu
+            .AddMenu("App", app => app
+                .AddItem("About", () => { }, id: "about")
+                .AddCheckItem("Verbose", () => { }, isChecked: false, id: "verbose")
+                .AddSeparator()
+                .AddItem("Quit", () => Environment.Exit(0), "CmdOrCtrl+Q")),
+        // Task 2.4: exercise runtime mutation so the smoke proves the setters actually run.
+        onReady: menu =>
+        {
+            menu.SetEnabled("about", false);
+            menu.SetChecked("verbose", true);
+            menu.SetLabel("about", "About Carbon");
+            Console.WriteLine("[Carbon] Menu mutation applied.");
+            Console.Out.Flush();
+        })
     .Run();
