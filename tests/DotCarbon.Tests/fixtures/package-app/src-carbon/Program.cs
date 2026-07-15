@@ -39,7 +39,20 @@ CarbonApp.Create(config)
                     .AddSubmenu("Archived", archived => archived
                         .AddItem("Old Project", () => { })))
                 .AddSeparator()
-                .AddItem("Quit", () => Environment.Exit(0), "CmdOrCtrl+Q")),
+                .AddItem("Quit", () => Environment.Exit(0), "CmdOrCtrl+Q"))
+            // Task 2.6: predefined roles, including a relabelled one and the two roles that are
+            // implemented on every platform.
+            .AddMenu("Edit", edit => edit
+                .AddPredefined(CarbonMenuRole.Undo)
+                .AddPredefined(CarbonMenuRole.Redo)
+                .AddSeparator()
+                .AddPredefined(CarbonMenuRole.Cut)
+                .AddPredefined(CarbonMenuRole.Copy)
+                .AddPredefined(CarbonMenuRole.Paste)
+                .AddPredefined(CarbonMenuRole.SelectAll, "Select Everything")
+                .AddSeparator()
+                .AddPredefined(CarbonMenuRole.Minimize)
+                .AddPredefined(CarbonMenuRole.CloseWindow)),
         // Task 2.4: exercise runtime mutation so the smoke proves the setters actually run.
         onReady: menu =>
         {

@@ -29,6 +29,7 @@ internal static unsafe class LinuxMenu
     private static CarbonMenuBuilder? _pending;
     private static string? _pendingTitle;
     private static Action<CarbonMenuHandle>? _onReady;
+    private static IntPtr _window;
 
     // --- runtime mutation (Task 2.4) ---------------------------------------------------------
     // GTK is not thread-safe, so setters are queued onto the GTK loop with g_idle_add.
@@ -107,6 +108,8 @@ internal static unsafe class LinuxMenu
                 return;
             }
 
+            // Predefined roles act on the window, so it must be known before the items are built.
+            _window = window;
             var menuBar = BuildMenuBar(builder);
 
             // Keep the webview alive while it is detached from the window.
@@ -188,6 +191,17 @@ internal static unsafe class LinuxMenu
                 gtk_menu_item_set_submenu(menuItem, child);
                 if (item.Id is { } submenuId) ItemsById[submenuId] = menuItem;
             }
+            else if (item.Role is { } role)
+            {
+                // GTK has no menu roles; only the window/app actions have a sensible mapping.
+                var predefined = PredefinedRole(role, item.Label);
+                if (predefined is null) continue;
+                menuItem = gtk_menu_item_new_with_label(predefined.Value.Label);
+                var roleTag = (IntPtr)(++_nextTag);
+                Handlers[roleTag] = predefined.Value.Action;
+                var roleActivate = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, void>)&OnActivate;
+                g_signal_connect_data(menuItem, "activate", roleActivate, roleTag, IntPtr.Zero, 0);
+            }
             else
             {
                 menuItem = item.IsCheckItem
@@ -206,6 +220,19 @@ internal static unsafe class LinuxMenu
             gtk_menu_shell_append(menu, menuItem);
         }
     }
+
+    /// <summary>
+    /// GTK has no predefined menu roles. Quit, CloseWindow and Minimize map onto the window; the rest
+    /// (Copy/Paste/Hide/Services/About) are macOS conventions with no GTK analogue and are skipped
+    /// rather than rendered as dead items. Clipboard shortcuts already work in WebKitGTK natively.
+    /// </summary>
+    private static (string Label, Action Action)? PredefinedRole(CarbonMenuRole role, string? label) => role switch
+    {
+        CarbonMenuRole.Quit => (label ?? "Quit", () => { if (_window != IntPtr.Zero) gtk_window_close(_window); }),
+        CarbonMenuRole.CloseWindow => (label ?? "Close", () => { if (_window != IntPtr.Zero) gtk_window_close(_window); }),
+        CarbonMenuRole.Minimize => (label ?? "Minimize", () => { if (_window != IntPtr.Zero) gtk_window_iconify(_window); }),
+        _ => null,
+    };
 
     [UnmanagedCallersOnly]
     private static void OnActivate(IntPtr item, IntPtr userData)
@@ -226,6 +253,8 @@ internal static unsafe class LinuxMenu
     [DllImport(Gtk)] private static extern void gtk_box_pack_start(IntPtr box, IntPtr child,
         [MarshalAs(UnmanagedType.I1)] bool expand, [MarshalAs(UnmanagedType.I1)] bool fill, uint padding);
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_bar_new();
+    [DllImport(Gtk)] private static extern void gtk_window_close(IntPtr window);
+    [DllImport(Gtk)] private static extern void gtk_window_iconify(IntPtr window);
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_new();
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_item_new_with_label([MarshalAs(UnmanagedType.LPUTF8Str)] string label);
     [DllImport(Gtk)] private static extern IntPtr gtk_check_menu_item_new_with_label([MarshalAs(UnmanagedType.LPUTF8Str)] string label);

@@ -2,6 +2,33 @@ using DotCarbon.Core.Runtime;
 
 namespace DotCarbon.Host.Desktop;
 
+/// <summary>
+/// A standard menu action wired to the platform's own implementation. On macOS these map to native
+/// selectors dispatched through the responder chain — which is how the system expects them to work,
+/// and notably how ⌘C/⌘V reach the webview at all (AppKit only delivers those key equivalents if
+/// matching menu items exist). Windows and Linux have no equivalent roles: <see cref="Quit"/>,
+/// <see cref="CloseWindow"/> and <see cref="Minimize"/> are implemented there, and the rest are
+/// macOS-only conventions that are ignored (see <c>AddPredefined</c>).
+/// </summary>
+public enum CarbonMenuRole
+{
+    Quit,
+    About,
+    Services,
+    Copy,
+    Cut,
+    Paste,
+    SelectAll,
+    Undo,
+    Redo,
+    Minimize,
+    Zoom,
+    Hide,
+    HideOthers,
+    ShowAll,
+    CloseWindow,
+}
+
 /// <summary>Fluent builder for a native desktop app menu.</summary>
 public sealed class CarbonMenuBuilder
 {
@@ -58,6 +85,23 @@ public sealed class CarbonMenuGroupBuilder
         return this;
     }
 
+    /// <summary>
+    /// A standard item handled by the platform (see <see cref="CarbonMenuRole"/>). The label and
+    /// shortcut default to the platform's conventions; pass <paramref name="label"/> to override.
+    /// An app menu with Copy/Cut/Paste/SelectAll roles is what makes those shortcuts work in the
+    /// webview on macOS.
+    ///
+    /// Note that macOS populates a menu titled "Edit" with items of its own (Emoji &amp; Symbols,
+    /// Start Dictation, AutoFill, and an Option-key "Close All" alternate). They are added by AppKit
+    /// after the menu is installed, so they will appear alongside whatever is declared here.
+    /// </summary>
+    public CarbonMenuGroupBuilder AddPredefined(CarbonMenuRole role, string? label = null)
+    {
+        _items.Add(new MenuItem(label, OnClick: null, EventName: null, Shortcut: string.Empty,
+            IsSeparator: false, Role: role));
+        return this;
+    }
+
     /// <summary>A nested submenu. Nests to any depth.</summary>
     public CarbonMenuGroupBuilder AddSubmenu(string label, Action<CarbonMenuGroupBuilder> configure)
     {
@@ -88,7 +132,7 @@ internal sealed record MenuGroup(string Label, IReadOnlyList<MenuItem> Items);
 internal sealed record MenuItem(
     string? Label, Action? OnClick, string? EventName, string Shortcut, bool IsSeparator,
     string? Id = null, bool IsCheckItem = false, bool IsChecked = false,
-    IReadOnlyList<MenuItem>? Children = null);
+    IReadOnlyList<MenuItem>? Children = null, CarbonMenuRole? Role = null);
 
 /// <summary>
 /// A live app menu. Handed to <c>UseMenu</c>'s <c>onReady</c> callback once the native menu exists, so
@@ -198,7 +242,8 @@ public static class DesktopMenuExtensions
     /// </summary>
     private static MenuItem BindItem(MenuItem item, AppHandle app)
     {
-        if (item.IsSeparator) return item;
+        // Separators and predefined roles carry no user handler for us to resolve.
+        if (item.IsSeparator || item.Role is not null) return item;
 
         if (item.Children is { } children)
             return item with { Children = children.Select(child => BindItem(child, app)).ToArray() };

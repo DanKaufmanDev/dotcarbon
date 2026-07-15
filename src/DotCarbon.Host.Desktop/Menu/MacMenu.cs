@@ -113,6 +113,10 @@ internal static unsafe class MacMenu
             {
                 menuItem = Send(Cls("NSMenuItem"), Sel("separatorItem"));
             }
+            else if (item.Role is { } role)
+            {
+                menuItem = NewPredefinedItem(role, item.Label);
+            }
             else if (item.Children is { } children)
             {
                 // A submenu item has no action of its own — AppKit opens the attached NSMenu.
@@ -131,6 +135,54 @@ internal static unsafe class MacMenu
             SendPtr(menu, Sel("addItem:"), menuItem);
         }
     }
+
+    /// <summary>
+    /// A standard AppKit item (Task 2.6). Deliberately leaves the target nil so the selector travels
+    /// the responder chain to whatever is focused — that is how Copy/Paste reach the webview, and why
+    /// setting a target here would break them. Services gets an NSMenu handed to NSApp.
+    /// </summary>
+    private static IntPtr NewPredefinedItem(CarbonMenuRole role, string? label)
+    {
+        var (selector, key, defaultLabel) = RoleInfo(role);
+        var item = NewMenuItem(label ?? defaultLabel,
+            selector.Length == 0 ? IntPtr.Zero : Sel(selector), key);
+
+        if (role == CarbonMenuRole.Services)
+        {
+            var services = Send(Send(Cls("NSMenu"), Sel("alloc")), Sel("init"));
+            SendPtr(item, Sel("setSubmenu:"), services);
+            SendPtr(Send(Cls("NSApplication"), Sel("sharedApplication")), Sel("setServicesMenu:"), services);
+        }
+        else if (role == CarbonMenuRole.Quit)
+        {
+            // Quit is the one role that must target the application object rather than the chain.
+            SendPtr(item, Sel("setTarget:"), Send(Cls("NSApplication"), Sel("sharedApplication")));
+        }
+
+        return item;
+    }
+
+    // role -> (selector, key equivalent, default label). The key equivalent implies Command; an
+    // uppercase letter additionally implies Shift (so "Z" is Shift-Command-Z for Redo).
+    private static (string Selector, string Key, string Label) RoleInfo(CarbonMenuRole role) => role switch
+    {
+        CarbonMenuRole.Quit => ("terminate:", "q", "Quit"),
+        CarbonMenuRole.About => ("orderFrontStandardAboutPanel:", "", "About"),
+        CarbonMenuRole.Services => ("", "", "Services"),
+        CarbonMenuRole.Copy => ("copy:", "c", "Copy"),
+        CarbonMenuRole.Cut => ("cut:", "x", "Cut"),
+        CarbonMenuRole.Paste => ("paste:", "v", "Paste"),
+        CarbonMenuRole.SelectAll => ("selectAll:", "a", "Select All"),
+        CarbonMenuRole.Undo => ("undo:", "z", "Undo"),
+        CarbonMenuRole.Redo => ("redo:", "Z", "Redo"),
+        CarbonMenuRole.Minimize => ("performMiniaturize:", "m", "Minimize"),
+        CarbonMenuRole.Zoom => ("performZoom:", "", "Zoom"),
+        CarbonMenuRole.Hide => ("hide:", "h", "Hide"),
+        CarbonMenuRole.HideOthers => ("hideOtherApplications:", "", "Hide Others"),
+        CarbonMenuRole.ShowAll => ("unhideAllApplications:", "", "Show All"),
+        CarbonMenuRole.CloseWindow => ("performClose:", "w", "Close Window"),
+        _ => ("", "", role.ToString()),
+    };
 
     private static IntPtr NewActionItem(MenuItem item)
     {

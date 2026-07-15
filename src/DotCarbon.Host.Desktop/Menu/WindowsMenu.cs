@@ -14,6 +14,9 @@ internal static unsafe class WindowsMenu
 {
     private const int GWLP_WNDPROC = -4;
     private const int WM_COMMAND = 0x0111;
+    private const uint WM_CLOSE = 0x0010;
+    private const uint WM_SYSCOMMAND = 0x0112;
+    private static readonly IntPtr SC_MINIMIZE = 0xF020;
 
     private const int MF_STRING = 0x0;
     private const int MF_POPUP = 0x10;
@@ -141,6 +144,17 @@ internal static unsafe class WindowsMenu
                 continue;
             }
 
+            if (item.Role is { } role)
+            {
+                // Windows has no menu roles; only the window/app actions have a sensible mapping.
+                var predefined = PredefinedRole(role, item.Label);
+                if (predefined is null) continue;
+                AppendMenuW(menu, MF_STRING, id, predefined.Value.Label);
+                Handlers[id] = predefined.Value.Action;
+                id++;
+                continue;
+            }
+
             AppendMenuW(menu, MF_STRING, id, item.Label);
             Handlers[id] = item.OnClick!;
             if (item.IsCheckItem && item.IsChecked)
@@ -150,6 +164,21 @@ internal static unsafe class WindowsMenu
             id++;
         }
     }
+
+    /// <summary>
+    /// Windows has no predefined menu roles. Quit, CloseWindow and Minimize map onto the window, and
+    /// the rest (Copy/Paste/Hide/Services/About) are macOS conventions with no Win32 analogue — those
+    /// are skipped rather than rendered as dead items. Clipboard shortcuts already work in the WebView
+    /// natively via the keyboard.
+    /// </summary>
+    private static (string Label, Action Action)? PredefinedRole(CarbonMenuRole role, string? label) => role switch
+    {
+        CarbonMenuRole.Quit => (label ?? "Exit", () => PostMessageW(_window, WM_CLOSE, IntPtr.Zero, IntPtr.Zero)),
+        CarbonMenuRole.CloseWindow => (label ?? "Close", () => PostMessageW(_window, WM_CLOSE, IntPtr.Zero, IntPtr.Zero)),
+        CarbonMenuRole.Minimize => (label ?? "Minimize",
+            () => PostMessageW(_window, WM_SYSCOMMAND, SC_MINIMIZE, IntPtr.Zero)),
+        _ => null,
+    };
 
     [UnmanagedCallersOnly]
     private static IntPtr WndProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam)
@@ -179,6 +208,7 @@ internal static unsafe class WindowsMenu
     private static extern bool AppendMenuW(IntPtr hMenu, int flags, IntPtr idNewItem, string? newItem);
     [DllImport("user32.dll")] private static extern bool SetMenu(IntPtr hwnd, IntPtr hMenu);
     [DllImport("user32.dll")] private static extern bool DrawMenuBar(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern bool PostMessageW(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] private static extern bool EnableMenuItem(IntPtr hMenu, int idEnableItem, int enable);
     [DllImport("user32.dll")] private static extern bool CheckMenuItem(IntPtr hMenu, int idCheckItem, int check);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]

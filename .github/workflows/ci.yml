@@ -255,6 +255,11 @@ jobs:
             echo "macOS tray icon failed to load"
             grep -E "could not load the icon|icon file not found|could not decode icon" smoke.log; exit 1
           fi
+          # Task 2.6: the fixture's second menu ("Edit") is built entirely from predefined roles, so
+          # the top-level count reaching 2 is what proves role items were constructed rather than
+          # throwing. The roles' selectors/targets were verified against a live NSMenu by hand.
+          grep -q "Native menu ready (2 top-level menu(s))" smoke.log || {
+            echo "macOS predefined-role menu was not built"; grep -a "Native menu" smoke.log; exit 1; }
       - name: Report tray status (Windows/Linux)
         if: runner.os != 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app
@@ -297,3 +302,8 @@ jobs:
             grep -aiE "menu|gtk|hmenu|setmenu|window handle|display" smoke.log | tail -20
             exit 1
           fi
+          # Task 2.6: these backends implement only the window roles (Quit/CloseWindow/Minimize) and
+          # skip the macOS-only ones, but building the role menu must not throw either.
+          grep -q "Native menu ready (2 top-level menu(s))" smoke.log || {
+            echo "::error::${{ runner.os }} predefined-role menu was not built"
+            grep -a "Native menu" smoke.log; exit 1; }
