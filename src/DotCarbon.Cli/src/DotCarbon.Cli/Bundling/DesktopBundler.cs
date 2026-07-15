@@ -4,9 +4,7 @@ using DotCarbon.Core.Config;
 namespace DotCarbon.Cli.Bundling;
 
 /// <summary>
-/// Packages a Carbon app for desktop (macOS, Windows, Linux). This is the normalized
-/// front door for the existing production build: it describes the pipeline as an
-/// ordered plan, then drives the same battle-tested build engine.
+/// Plans and packages a Carbon desktop app for macOS, Windows, or Linux.
 /// </summary>
 internal sealed class DesktopBundler : IBundlerTarget
 {
@@ -34,13 +32,11 @@ internal sealed class DesktopBundler : IBundlerTarget
                 $"{ctx.Target}, {(ctx.Aot ? "NativeAOT" : "single-file self-contained")}, frontend embedded in the binary"),
         };
 
-        // Package
         if (ctx.Package)
             steps.Add(new("Package installer", PackageFormat(ctx, os)));
         else
             steps.Add(new("Package installer", PackageFormat(ctx, os), Skipped: true, SkipReason: "--no-package"));
 
-        // Code signing (macOS + Windows have signing; Linux does not here)
         if (os is "osx" or "win")
         {
             var (signs, why) = SignState(ctx, os);
@@ -49,7 +45,6 @@ internal sealed class DesktopBundler : IBundlerTarget
                 : new(SignLabel(os), "sign the packaged app", Skipped: true, SkipReason: why));
         }
 
-        // Notarization (macOS only)
         if (os == "osx")
         {
             var notarize = ctx.Package && HasMacNotarization(ctx.Config);
@@ -59,7 +54,6 @@ internal sealed class DesktopBundler : IBundlerTarget
                     SkipReason: !ctx.Package ? "--no-package" : "no notarization profile configured"));
         }
 
-        // Updater artifacts
         var wantUpdater = ctx.UpdaterArtifacts || ctx.Config.Bundle.Updater.CreateArtifacts;
         steps.Add(wantUpdater
             ? new("Sign updater artifacts", "produce signed updater metadata (latest.json + signature)")

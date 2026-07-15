@@ -4,14 +4,8 @@ using DotCarbon.Core.Runtime;
 namespace DotCarbon.Host.Desktop;
 
 /// <summary>
-/// Headless launch verification. When <c>CARBON_SMOKE=1</c> the app boots exactly as normal —
-/// creating its window(s), tray, menu, plugins, and the JS bridge — prints machine-readable markers,
-/// then closes itself. That lets CI on each OS install the packaged app, launch it, and assert it
-/// actually starts (not just that the installer file exists). Completely inert without the env var,
-/// so it never affects a shipped app.
-///
-/// Markers (grep-able): <c>[[CARBON_SMOKE]] boot host=… plugins=… windows=…</c> and
-/// <c>[[CARBON_SMOKE]] exit ok</c>. Tray/menu backends print their own "ready" lines when they run.
+/// Enables deterministic launch checks when <c>CARBON_SMOKE=1</c>. The app follows its normal
+/// startup path, prints machine-readable markers, and closes after the native loop begins.
 /// </summary>
 internal static class DesktopSmoke
 {
@@ -42,7 +36,7 @@ internal static class DesktopSmoke
             $"[[CARBON_SMOKE]] boot host={HostName()} plugins={handle.Plugins.Count} windows={handle.Windows.Count}");
         Console.Out.Flush();
 
-        // The native main window now exists. Let its message loop pump before closing it.
+        // Give the native loop time to process startup before requesting a close.
         _ = Task.Run(async () =>
         {
             await Task.Delay(ReadDelay());

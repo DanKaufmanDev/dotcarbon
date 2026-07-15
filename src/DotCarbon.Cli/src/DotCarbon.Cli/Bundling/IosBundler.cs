@@ -69,20 +69,18 @@ internal sealed class IosBundler
             return 1;
         }
 
-        // Surface the Xcode/workload mismatch up front with a fix, instead of a cryptic MSBuild error.
+        // Report toolchain drift before MSBuild fails deep in the native targets.
         await MobileBundleSupport.WarnIfXcodeMismatchAsync();
 
         var prepared = await PrepareAsync(config, workingDir, iosDir, project);
         if (prepared is null) return 1;
 
-        // Best-effort strip of accumulated extended attributes so a repeat dev build's codesign
-        // doesn't choke on "detritus" (won't beat an actively-syncing cloud folder — see the warning).
+        // File providers can attach metadata that codesign rejects.
         MobileBundleSupport.StripExtendedAttributes(prepared.ProjectDirectory);
         Environment.SetEnvironmentVariable("COPYFILE_DISABLE", "1");
 
         var (configuration, rid, publish, archive) = ResolveMode(mode);
 
-        // Device/archive builds must be signed.
         var signingArgs = string.Empty;
         if (mode is "device" or "archive")
         {
@@ -129,7 +127,7 @@ internal sealed class IosBundler
         return 0;
     }
 
-    /// <summary>Build + run on a booted simulator (`dotnet build -t:Run`). Hot reload is roadmap Phase 11.</summary>
+    /// <summary>Builds and runs the app on a booted iOS simulator.</summary>
     public async Task<int> DevAsync(CarbonConfig config, string workingDir)
     {
         var iosDir = PlatformService.PlatformDir(workingDir, "ios");
@@ -328,7 +326,7 @@ internal sealed class IosBundler
     private sealed record PreparedBuild(
         string Project, string ProjectDirectory, string EmbedProps, string CodesignTargets);
 
-    // mode → (configuration, runtimeIdentifier, usePublish, archive)
+    // Keep mode selection in one place so planning and execution stay aligned.
     private static (string Configuration, string Rid, bool Publish, bool Archive) ResolveMode(string mode) => mode switch
     {
         "device" => ("Release", "ios-arm64", false, false),

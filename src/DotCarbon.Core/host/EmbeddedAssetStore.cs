@@ -11,11 +11,8 @@ internal static class EmbeddedAssetStore
     private static SecurityConfig _security = new();
     private static string? _localAssetRoot;
 
-    // The assembly the bundler embedded carbon.json + the frontend into. On desktop that is the
-    // entry assembly (the app exe); on Android/iOS Assembly.GetEntryAssembly() is null (the app starts
-    // from an Activity/AppDelegate, not a managed Main), so we scan loaded assemblies for the one that
-    // actually carries the Carbon resources. Never throws — dev builds with no embedded assets fall
-    // back to the local asset root + on-disk carbon.json.
+    // Mobile apps may not have a managed entry assembly, so locate the assembly that owns the
+    // embedded frontend instead of assuming it is the process entry point.
     private static readonly Assembly? AssetAssembly = ResolveAssetAssembly();
 
     private static readonly IReadOnlyDictionary<string, string> Assets =
@@ -51,7 +48,7 @@ internal static class EmbeddedAssetStore
             }
             catch
             {
-                // Some assemblies (e.g. reflection-only or native) can't enumerate resources.
+                // A few runtime-provided assemblies do not expose manifest resources.
             }
             return false;
         }
@@ -63,7 +60,7 @@ internal static class EmbeddedAssetStore
             if (!assembly.IsDynamic && HasCarbonResources(assembly))
                 return assembly;
 
-        // No embedded assets (dev/server mode): keep entry if present so nothing else changes.
+        // Development hosts can run without embedded assets.
         return entry;
     }
 

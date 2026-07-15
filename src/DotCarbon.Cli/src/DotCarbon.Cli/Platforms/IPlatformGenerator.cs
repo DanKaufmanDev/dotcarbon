@@ -3,9 +3,7 @@ using DotCarbon.Core.Config;
 namespace DotCarbon.Cli.Platforms;
 
 /// <summary>
-/// Generates a native platform shell (Android/iOS/desktop) from the Carbon app model.
-/// Generators are pure: given a config, they return the same files — that reproducibility
-/// is what lets sync detect drift and preserve user edits.
+/// Generates deterministic platform files so sync can detect and preserve user edits.
 /// </summary>
 internal interface IPlatformGenerator
 {

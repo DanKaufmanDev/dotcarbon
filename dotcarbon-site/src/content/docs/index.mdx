@@ -1,0 +1,108 @@
+---
+title: DotCarbon
+description: Build native desktop and mobile apps with C#, .NET, and any Vite frontend.
+template: splash
+hero:
+  title: Native apps with C# and the web
+  tagline: Bring any Vite frontend. Write application logic in .NET. Ship for macOS, Windows, Linux, Android, and iOS from one project.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Get started
+      link: /start/create-project/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/DanKaufmanDev/dotcarbon
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, Tabs, TabItem } from '@astrojs/starlight/components';
+
+<div class="platform-strip" aria-label="Supported platforms">
+  <span>macOS</span><span>Windows</span><span>Linux</span><span>Android</span><span>iOS</span>
+</div>
+
+## Create a project
+
+<Tabs syncKey="pm">
+  <TabItem label="npm">
+  ```bash
+  npx @dotcarbon/create-app my-app
+  ```
+  </TabItem>
+  <TabItem label="pnpm">
+  ```bash
+  pnpm dlx @dotcarbon/create-app my-app
+  ```
+  </TabItem>
+  <TabItem label="yarn">
+  ```bash
+  yarn dlx @dotcarbon/create-app my-app
+  ```
+  </TabItem>
+  <TabItem label="bun">
+  ```bash
+  bunx @dotcarbon/create-app my-app
+  ```
+  </TabItem>
+</Tabs>
+
+```bash
+cd my-app
+carbon dev
+```
+
+<p class="status-note">
+  DotCarbon is pre-release software. The runtime, bundler, mobile hosts, and plugin APIs are usable,
+  but minor releases may still refine public contracts before 1.0.
+</p>
+
+## One project, native everywhere
+
+<CardGrid>
+  <Card title="Your frontend" icon="puzzle">
+    Use React, Vue, Svelte, Solid, Preact, Vanilla, or an existing Vite application.
+  </Card>
+  <Card title="The .NET ecosystem" icon="seti:c-sharp">
+    Write commands and services in C#. Use ordinary NuGet packages without a Carbon-specific wrapper.
+  </Card>
+  <Card title="Typed bridge" icon="approve-check">
+    Source-generated C# handlers and generated TypeScript declarations keep IPC calls checked end to end.
+  </Card>
+  <Card title="Native webviews" icon="laptop">
+    Carbon uses the operating system webview rather than shipping a browser engine with every app.
+  </Card>
+  <Card title="Capabilities" icon="lock">
+    Assign command permissions to labeled windows and keep privileged plugins explicitly scoped.
+  </Card>
+  <Card title="Production bundler" icon="rocket">
+    Produce desktop installers, mobile packages, signed updater metadata, icons, and platform resources.
+  </Card>
+</CardGrid>
+
+## The application model
+
+Your frontend invokes a named command. Carbon dispatches it to generated C# code, serializes the
+result, and resolves the frontend promise. The same backend assembly can be referenced by desktop,
+Android, and iOS hosts.
+
+```csharp title="src-shared/AppCommands.cs"
+public partial class AppCommands : IPlugin
+{
+    public string Namespace => "app";
+
+    [CarbonCommand("greet")]
+    public string Greet(GreetRequest request) => $"Hello, {request.Name}!";
+}
+```
+
+```ts title="ui/src/app.ts"
+import { invoke } from '@dotcarbon/api'
+
+const message = await invoke('app:greet', { name: 'Ada' })
+```
+
+Continue with [Create a project](/start/create-project/), or read the
+[architecture overview](/learn/architecture/) to see how the hosts, runtime, bridge, and bundler fit together.

@@ -1,10 +1,8 @@
 namespace DotCarbon.Core.Host;
 
 /// <summary>
-/// A platform-agnostic webview surface the Carbon runtime drives. Desktop (Photino),
-/// Android (Android WebView) and iOS (WKWebView) each provide an implementation; the
-/// runtime — command dispatch, capabilities, events, lifecycle — never touches a
-/// concrete webview. This is the seam described in the bundler roadmap's Core/Host split.
+/// Platform-neutral webview operations used by the runtime. Each host adapts these operations to
+/// its native webview without leaking platform types into Core.
 /// </summary>
 public interface ICarbonWebView
 {

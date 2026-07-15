@@ -39,7 +39,7 @@ internal static class PluginCompatibility
                     .FirstOrDefault(d => d.NuGetPackage.Equals(package, StringComparison.OrdinalIgnoreCase));
                 byPackage[package] = definition is not null
                     ? new ReferencedPlugin(package, definition.Namespace, definition.EffectivePlatforms)
-                    : new ReferencedPlugin(package, package, Platforms); // unknown plugin → assume cross-platform
+                    : new ReferencedPlugin(package, package, Platforms); // Third-party packages are cross-platform unless declared otherwise.
             }
         }
 
@@ -75,12 +75,12 @@ internal static class PluginCompatibility
 
             if (kind == "PackageReference")
             {
-                // A NuGet package id (e.g. DotCarbon.Plugins.FileSystem) — use it verbatim.
+                // Package references already contain the plugin's canonical name.
                 yield return include;
             }
             else
             {
-                // A .csproj path — the project name is the file name without extension.
+                // Project references use the project filename as their package identity.
                 var fileName = include.Replace('\\', '/').Split('/').Last();
                 yield return Path.GetFileNameWithoutExtension(fileName);
             }

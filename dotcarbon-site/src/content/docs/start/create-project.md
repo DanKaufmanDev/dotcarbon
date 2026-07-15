@@ -1,0 +1,73 @@
+---
+title: Create a project
+description: Scaffold and run a new DotCarbon application.
+---
+
+## Scaffold
+
+```bash
+npx @dotcarbon/create-app my-app
+cd my-app
+```
+
+The interactive flow asks for a frontend, language, and package manager. For scripts or CI, provide
+the choices explicitly:
+
+```bash
+npx @dotcarbon/create-app my-app \
+  --template vue \
+  --lang ts \
+  --pm pnpm \
+  --yes
+```
+
+Supported templates are `react`, `vue`, `svelte`, `solid`, `preact`, and `vanilla`. TypeScript is the
+default; pass `--lang js` for JavaScript. Use `--no-install` when another process owns dependency installation.
+
+The scaffolder pins current compatible DotCarbon packages when it creates the project. Update the CLI
+and rerun dependency updates normally when moving an existing app to a later release.
+
+## Run the desktop app
+
+```bash
+carbon dev
+```
+
+Carbon starts the configured Vite command, waits for `build.devUrl`, starts the .NET host with
+`dotnet watch`, generates `carbon.d.ts`, and syncs local app commands into the main capability file.
+
+## Add a command
+
+```csharp
+public record SumArgs(int A, int B);
+
+public partial class AppCommands : IPlugin
+{
+    public string Namespace => "app";
+
+    [CarbonCommand("sum")]
+    public int Sum(SumArgs args) => args.A + args.B;
+}
+```
+
+Call it from the frontend:
+
+```ts
+import { invoke } from '@dotcarbon/api'
+
+const total = await invoke('app:sum', { a: 20, b: 22 })
+```
+
+`carbon dev` notices the new command and refreshes the generated TypeScript declarations.
+
+## Build
+
+```bash
+carbon build
+```
+
+The production build compiles the frontend, embeds it with `carbon.json`, and publishes a
+self-contained desktop application into `out/<target>/`. Add `--bundle` for a native installer.
+
+Next, learn how Carbon [maps a project to each native host](/learn/architecture/) or review the
+[development workflow](/develop/workflow/).

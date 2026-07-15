@@ -1,11 +1,7 @@
 namespace DotCarbon.Cli.Bundling;
 
 /// <summary>
-/// One platform bundle target (desktop, android, ios). Every target shares the same
-/// Carbon app model and produces its own platform-specific output. Separating frontend
-/// build, .NET publish, platform packaging, signing, notarization and artifacts into a
-/// described plan is the whole point of the abstraction: <see cref="Plan"/> answers
-/// "what will happen", <see cref="ExecuteAsync"/> does it.
+/// A platform bundler that can describe its work before producing an artifact.
 /// </summary>
 internal interface IBundlerTarget
 {
@@ -17,7 +13,7 @@ internal interface IBundlerTarget
 
     /// <summary>
     /// Whether this target can run on the current machine/config. When false, <paramref name="reason"/>
-    /// is an actionable message (e.g. "not implemented yet — roadmap Phase 5").
+    /// explains what the user needs to change.
     /// </summary>
     bool IsSupported(BundleContext context, out string? reason);
 

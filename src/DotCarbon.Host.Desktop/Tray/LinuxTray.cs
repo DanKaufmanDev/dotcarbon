@@ -3,13 +3,8 @@ using System.Runtime.InteropServices;
 namespace DotCarbon.Host.Desktop;
 
 /// <summary>
-/// Linux system tray via GtkStatusIcon + GtkMenu. GTK3 is already loaded (Photino uses WebKitGTK),
-/// so this P/Invokes libgtk-3 / libgobject directly. Menu clicks route to C# handlers through
-/// "activate" signal callbacks; the icon's "popup-menu" signal shows the menu.
-///
-/// NOTE: written on macOS and NOT runtime-verified — validate on Linux. GtkStatusIcon is deprecated
-/// and some desktops (e.g. GNOME without an extension) hide status icons; a StatusNotifierItem /
-/// libayatana-appindicator backend is the longer-term path.
+/// GTK3 system tray implementation. GtkStatusIcon availability depends on the user's desktop
+/// environment; unsupported desktops continue without a tray.
 /// </summary>
 internal static unsafe class LinuxTray
 {
@@ -25,10 +20,8 @@ internal static unsafe class LinuxTray
     {
         try
         {
-            // The tray is built from a setup handler, which on Linux runs before Photino has called
-            // gtk_init inside its run loop. gtk_init_check is idempotent — it establishes the display
-            // connection now (a later Photino gtk_init is a no-op). Without a display (true headless,
-            // no X server), skip gracefully instead of hitting a fatal Gtk-ERROR.
+            // Tray setup runs before Photino initializes GTK. Initialize it here and skip cleanly
+            // when no display is available.
             if (!gtk_init_check(IntPtr.Zero, IntPtr.Zero))
             {
                 Console.Error.WriteLine("[Carbon] System tray: no display connection; skipping tray.");
@@ -85,7 +78,7 @@ internal static unsafe class LinuxTray
         gtk_menu_popup_at_pointer(_menu, IntPtr.Zero);
     }
 
-    // --- GTK / GObject interop ---------------------------------------------------------------
+    // GTK and GObject interop
 
     [DllImport(Gtk)] [return: MarshalAs(UnmanagedType.I1)] private static extern bool gtk_init_check(IntPtr argc, IntPtr argv);
     [DllImport(Gtk)] private static extern IntPtr gtk_status_icon_new();

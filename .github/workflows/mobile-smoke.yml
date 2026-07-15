@@ -1,13 +1,5 @@
-# Mobile runtime smoke (Phase 1, Tasks 1.3 / 1.4) — boot the app on a real Android emulator and iOS
-# simulator and assert the WebView actually loaded and ran JS. Kept in its own workflow because these
-# jobs are slow (emulator/simulator boot) and, unlike the desktop smokes, have NOT been verified from
-# the author's environment (no KVM / no full Xcode there). Treat the first runs as a starting point —
-# the marker asserted (`[[CARBON_WEB_READY]]`) is emitted by the shared C# command after a WebView
-# bridge invoke succeeds, but the scaffold/build/deploy plumbing may still need CI iteration.
-#
-# Both jobs scaffold the native shell the real way (`carbon platform add`) from the minimal committed
-# app root at tests/mobile-smoke/, which references the *published* DotCarbon packages — so a green run
-# proves the shipped mobile hosts boot an app end-to-end.
+# Build generated mobile shells, boot them on an emulator or simulator, and require a successful
+# JavaScript-to-C# bridge call. These jobs stay separate from the faster desktop matrix.
 name: Mobile smoke
 
 on:
@@ -70,7 +62,7 @@ jobs:
             adb install -r -t "$APK"
             adb logcat -c
             adb shell monkey -p dev.dotcarbon.mobilesmoke -c android.intent.category.LAUNCHER 1
-            timeout 90 bash -lc 'until adb logcat -d | grep -q "\[\[CARBON_WEB_READY\]\]"; do sleep 2; done' && echo "WebView booted and ran JS on the emulator ✅" || { echo "::error::no [[CARBON_WEB_READY]] marker in logcat — needs iteration"; adb logcat -d | tail -100; exit 1; }
+            timeout 90 bash -lc 'until adb logcat -d | grep -q "\[\[CARBON_WEB_READY\]\]"; do sleep 2; done' && echo "WebView booted and completed the bridge call" || { echo "::error::no [[CARBON_WEB_READY]] marker in logcat"; adb logcat -d | tail -100; exit 1; }
 
   ios-simulator-smoke:
     name: iOS simulator smoke
@@ -126,7 +118,7 @@ jobs:
             fi
             sleep 2
           done
-          echo "::error::no [[CARBON_WEB_READY]] marker in the simulator log — needs iteration"
+          echo "::error::no [[CARBON_WEB_READY]] marker in the simulator log"
           echo "----- stdout -----"
           cat "$IOS_STDOUT"
           echo "----- stderr -----"

@@ -6,9 +6,7 @@ namespace DotCarbon.Host.Android;
 
 /// <summary>
 /// The Android <see cref="ICarbonWebView"/>: an adapter over a native <see cref="WebView"/>.
-/// Desktop-only window operations (min/max/fullscreen/position) are no-ops — a mobile app is a
-/// single, full-screen surface. Bridge messages flow JS→native via <see cref="CarbonJsBridge"/>
-/// (which calls <see cref="DispatchMessage"/>) and native→JS via <see cref="SendMessageAsync"/>.
+/// Adapts Android's full-screen WebView to Carbon's platform-neutral webview contract.
 /// </summary>
 public sealed class AndroidWebView : ICarbonWebView
 {
@@ -57,7 +55,7 @@ public sealed class AndroidWebView : ICarbonWebView
 
     public Task SendMessageAsync(string message)
     {
-        // Deliver on the UI thread; encode as a JS string literal for window.__carbonReceive.
+        // WebView evaluation must run on the Android UI thread.
         var literal = JsonSerializer.Serialize(message);
         Native.Post(() => Native.EvaluateJavascript($"window.__carbonReceive({literal})", null));
         return Task.CompletedTask;

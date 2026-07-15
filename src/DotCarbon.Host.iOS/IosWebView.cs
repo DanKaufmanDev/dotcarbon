@@ -6,10 +6,7 @@ using WebKit;
 namespace DotCarbon.Host.iOS;
 
 /// <summary>
-/// The iOS <see cref="ICarbonWebView"/>: an adapter over a native <see cref="WKWebView"/>.
-/// Desktop-only window operations are no-ops (a mobile app is one full-screen surface). Bridge
-/// messages flow JS→native via <see cref="CarbonScriptMessageHandler"/> (which calls
-/// <see cref="DispatchMessage"/>) and native→JS via <see cref="SendMessageAsync"/>.
+/// Adapts a native <see cref="WKWebView"/> to Carbon's platform-neutral webview contract.
 /// </summary>
 public sealed class IosWebView : ICarbonWebView
 {

@@ -9,11 +9,8 @@ using Xunit;
 namespace DotCarbon.Tests;
 
 /// <summary>
-/// End-to-end verification of the updater pipeline (Phase 1, Task 1.7): a real ECDSA-signed
-/// artifact + manifest are served over a loopback HttpListener, and the plugin runs
-/// check → download → integrity/signature verification against them. The final "launch installer
-/// and restart" step spawns an OS installer and exits the process, so it is exercised at the
-/// argument-validation level here and left to the per-OS interactive/CI smoke.
+/// Exercises update checks, downloads, and signature verification against a local HTTP server.
+/// Installer launch remains covered by platform smoke tests because it terminates the test process.
 /// </summary>
 public class UpdaterPluginTests
 {
@@ -90,8 +87,7 @@ public class UpdaterPluginTests
     [Fact]
     public async Task Download_rejects_a_tampered_artifact()
     {
-        // Manifest advertises the sha256/signature of the original bytes, but the server ships
-        // different bytes — the integrity check must fail rather than accept the swap.
+        // The server swaps the advertised artifact to prove verification rejects changed bytes.
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var artifact = Encoding.UTF8.GetBytes("trusted-payload");
         using var server = UpdateServer.Start(key, artifact, LatestVersion, tamper: true);
@@ -163,7 +159,7 @@ public class UpdaterPluginTests
             listener.Prefixes.Add(prefix);
             listener.Start();
 
-            // camelCase keys — the Tauri-style manifest convention a developer publishes.
+            // Published manifests use camelCase keys.
             var manifest = $$"""
                 {
                   "version": "{{version}}",
@@ -175,7 +171,7 @@ public class UpdaterPluginTests
                 }
                 """;
 
-            // When tampering, ship different bytes than the manifest describes.
+            // Keep the signed metadata unchanged while replacing the response body.
             var served = tamper ? Encoding.UTF8.GetBytes("evil-swapped-payload!!") : artifact;
 
             var server = new UpdateServer(listener, prefix + "manifest.json");

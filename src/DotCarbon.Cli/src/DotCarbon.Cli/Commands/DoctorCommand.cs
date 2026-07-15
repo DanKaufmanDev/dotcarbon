@@ -7,8 +7,7 @@ using DotCarbon.Core.Config;
 namespace DotCarbon.Cli.Commands;
 
 /// <summary>
-/// <c>carbon doctor</c> — reports the plugin platform matrix and warns when the app references
-/// plugins that don't support a mobile target.
+/// Registers diagnostics for configuration, plugins, platforms, and signing.
 /// </summary>
 public static class DoctorCommand
 {

@@ -7,9 +7,7 @@ public static class CarbonAndroid
     public const string JsInterfaceName = "CarbonNative";
 
     /// <summary>
-    /// Injected at document start so <c>@dotcarbon/api</c> works unchanged: it expects Photino's
-    /// <c>window.external.sendMessage</c> / <c>receiveMessage</c>. Here those map to the Android
-    /// JS interface (JS→native) and a receiver the native side calls via evaluateJavascript.
+    /// Installs the bridge shape expected by <c>@dotcarbon/api</c> over Android's JavaScript interface.
     /// </summary>
     public const string BridgeShim =
         "(function () {" +

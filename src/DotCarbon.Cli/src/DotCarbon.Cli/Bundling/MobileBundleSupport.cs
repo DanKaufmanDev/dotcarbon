@@ -75,8 +75,8 @@ internal static class MobileBundleSupport
 
     private static string ProjectCondition(string project)
     {
-        // MSBuild resolves symlinked paths before setting MSBuildProjectFullPath, so match the file
-        // name. Referenced backend projects have different project files and remain untouched.
+        // MSBuild resolves symlinks before setting MSBuildProjectFullPath. Matching the filename
+        // still excludes referenced backend projects.
         var projectFile = Path.GetFileName(project).Replace("'", "%27");
         return $"'$(MSBuildProjectFile)' == '{projectFile}'";
     }
@@ -195,7 +195,7 @@ internal static class MobileBundleSupport
         }
         catch
         {
-            // Best-effort: if it fails, the build will still surface any codesign issue itself.
+            // Codesign will report a concrete error if cleanup was not possible.
         }
     }
 
@@ -213,8 +213,7 @@ internal static class MobileBundleSupport
 
     /// <summary>
     /// Warns (with a concrete fix) when the active Xcode's major.minor differs from the installed
-    /// .NET iOS workload's — otherwise the mismatch only shows up as a cryptic MSBuild
-    /// "This version of .NET for iOS requires Xcode X" error deep in the build log.
+    /// .NET iOS workload's, before MSBuild reaches the native targets.
     /// </summary>
     public static async Task WarnIfXcodeMismatchAsync()
     {
@@ -251,13 +250,13 @@ internal static class MobileBundleSupport
         }
     }
 
-    // "Xcode 26.6\nBuild version ..." → "26.6"
+    // xcodebuild returns "Xcode 26.6" on its first line.
     private static string? FirstLineValue(string text, string prefix) =>
         text.Split('\n')
             .FirstOrDefault(line => line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             ?[prefix.Length..].Trim();
 
-    // a `dotnet workload list` row like "ios   26.5.10284/10.0.100   SDK 10.0.300" → "26.5.10284/10.0.100"
+    // The second column contains the workload and manifest versions.
     private static string? IosWorkloadToken(string workloadList) =>
         workloadList.Split('\n')
             .Select(line => line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries))

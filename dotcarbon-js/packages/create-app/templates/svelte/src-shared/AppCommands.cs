@@ -1,8 +1,7 @@
 using DotCarbon.Core.Bridge;
 using DotCarbon.Core.Plugins;
 
-// Shared backend. These [CarbonCommand] classes run on desktop AND mobile —
-// src-carbon (desktop) and the generated .carbon/platforms/* projects both reference this library.
+// Desktop and generated mobile hosts share this command assembly.
 
 public record GreetRequest(string Name);
 

@@ -10,9 +10,7 @@ public static class CarbonIos
     public const string ConsoleHandlerName = "carbonConsole";
 
     /// <summary>
-    /// Injected at document start so <c>@dotcarbon/api</c> works unchanged: it expects Photino's
-    /// <c>window.external.sendMessage</c> / <c>receiveMessage</c>. Here those map to the WKWebView
-    /// message handler (JS→native) and a receiver the native side calls via evaluateJavaScript.
+    /// Installs the bridge shape expected by <c>@dotcarbon/api</c> over WKWebView message handlers.
     /// </summary>
     public const string BridgeShim =
         "(function () {" +
@@ -24,7 +22,7 @@ public static class CarbonIos
         "  window.__carbonReceive = function (message) { if (receiver) { receiver(message); } };" +
         "})();";
 
-    /// <summary>Forwards console.log/warn/error to native stdout so simulator smokes can assert JS boot.</summary>
+    /// <summary>Forwards frontend console output to the native process log.</summary>
     public const string ConsoleShim =
         "(function () {" +
         "  function stringify(item) {" +

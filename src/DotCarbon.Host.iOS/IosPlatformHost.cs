@@ -3,10 +3,7 @@ using DotCarbon.Core.Host;
 namespace DotCarbon.Host.iOS;
 
 /// <summary>
-/// The iOS <see cref="ICarbonPlatformHost"/>. iOS hosts a single WKWebView owned by the
-/// <see cref="CarbonAppDelegate"/>, so <see cref="CreateWebView"/> returns that one view and binds the
-/// runtime callbacks to it. <see cref="Run"/> is a no-op: UIApplication drives the loop, so
-/// <c>CarbonApp.Start()</c> is used instead of the blocking Run.
+/// Connects CarbonApp to the WKWebView and lifecycle owned by <see cref="CarbonAppDelegate"/>.
 /// </summary>
 public sealed class IosPlatformHost : ICarbonPlatformHost
 {
@@ -26,6 +23,6 @@ public sealed class IosPlatformHost : ICarbonPlatformHost
 
     public void Run(ICarbonWebView mainWebView)
     {
-        // UIApplication drives its own loop; nothing to block on here.
+        // UIApplication owns the platform message loop.
     }
 }

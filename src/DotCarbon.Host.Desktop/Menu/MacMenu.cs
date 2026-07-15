@@ -3,8 +3,7 @@ using System.Runtime.InteropServices;
 namespace DotCarbon.Host.Desktop;
 
 /// <summary>
-/// macOS application menu via NSApplication/NSMenu. Menu clicks are routed to C# handlers through a
-/// runtime-created NSObject subclass whose action method is an unmanaged trampoline.
+/// macOS application menu implemented with NSApplication and NSMenu.
 /// </summary>
 internal static unsafe class MacMenu
 {

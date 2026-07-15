@@ -3,11 +3,7 @@ using System.Runtime.InteropServices;
 namespace DotCarbon.Host.Desktop;
 
 /// <summary>
-/// Windows system tray via Shell_NotifyIcon. A hidden window receives the tray callback message and,
-/// on click, shows a popup menu built with CreatePopupMenu; TPM_RETURNCMD gives the chosen id back
-/// synchronously, which maps to a C# handler. Runs on the main thread (Photino pumps the message loop).
-///
-/// NOTE: written on macOS and NOT runtime-verified — validate on Windows.
+/// Windows system tray implemented with Shell_NotifyIcon and a hidden callback window.
 /// </summary>
 internal static unsafe class WindowsTray
 {
@@ -123,7 +119,7 @@ internal static unsafe class WindowsTray
         data.szTip[text.Length] = '\0';
     }
 
-    // --- Win32 interop -----------------------------------------------------------------------
+    // Win32 interop
 
     [StructLayout(LayoutKind.Sequential)]
     private struct WNDCLASSEXW

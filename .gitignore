@@ -30,7 +30,4 @@ out/
 .DS_Store
 Thumbs.db
 templates-js/
-docs/
-
-
-dotcarbon-site/
+/docs/

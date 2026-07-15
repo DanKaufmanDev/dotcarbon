@@ -1,0 +1,38 @@
+---
+title: Development workflow
+description: Run the frontend, backend, type generator, and capability sync together.
+---
+
+```bash
+carbon dev
+```
+
+The desktop development command:
+
+1. Loads and validates `carbon.json`.
+2. Generates application command types and syncs capabilities.
+3. Starts `build.devCommand` when the dev URL is not already available.
+4. Runs the backend with `dotnet watch`.
+5. Loads `build.devUrl` in the native webview.
+6. Watches command sources and refreshes declarations after changes.
+
+Use explicit target aliases when scripting:
+
+```bash
+carbon dev desktop
+carbon dev android
+carbon dev ios
+```
+
+Android and iOS development commands build and deploy through their native .NET workloads. Boot or
+connect the target emulator/device first.
+
+Run one-shot generation in CI or editor tasks:
+
+```bash
+carbon types
+carbon capabilities check
+carbon doctor
+```
+
+If another process already owns the Vite URL, Carbon uses it instead of starting a second server.

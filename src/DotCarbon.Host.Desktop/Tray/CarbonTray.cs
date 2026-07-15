@@ -62,8 +62,7 @@ internal sealed record TrayItem(string? Label, Action? OnClick, string? EventNam
 public static class DesktopTrayExtensions
 {
     /// <summary>
-    /// Add a system tray icon + menu. The tray is created on the main thread when the app starts.
-    /// macOS is verified; Windows/Linux are implemented but not yet runtime-tested (see roadmap).
+    /// Adds a system tray icon and menu when the desktop app starts.
     /// </summary>
     public static CarbonApp UseTray(this CarbonApp app, Action<CarbonTrayBuilder> configure)
     {

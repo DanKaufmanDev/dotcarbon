@@ -1,0 +1,190 @@
+@layer base, starlight, theme, components, utilities;
+
+@import '@fontsource-variable/space-grotesk';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+@import '@astrojs/starlight-tailwind';
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+:root {
+  --sl-font: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --sl-font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace;
+  --carbon-font-display: 'Space Grotesk Variable', var(--sl-font);
+
+  --sl-color-accent-low: #24203f;
+  --sl-color-accent: #8b72ff;
+  --sl-color-accent-high: #ded7ff;
+  --sl-color-white: #f8f8fa;
+  --sl-color-gray-1: #e3e3e8;
+  --sl-color-gray-2: #b9bac3;
+  --sl-color-gray-3: #858793;
+  --sl-color-gray-4: #5d5f69;
+  --sl-color-gray-5: #363840;
+  --sl-color-gray-6: #24262d;
+  --sl-color-gray-7: #1b1d22;
+  --sl-color-black: #121317;
+  --sl-color-bg: #121317;
+  --sl-color-bg-nav: rgba(18, 19, 23, 0.96);
+  --sl-color-bg-sidebar: #15161b;
+  --sl-color-bg-inline-code: #24262d;
+  --sl-color-hairline-shade: rgba(255, 255, 255, 0.09);
+  --carbon-cyan: #69d2d0;
+  --carbon-green: #8ad48e;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #e9e5ff;
+  --sl-color-accent: #6748dc;
+  --sl-color-accent-high: #2e1c72;
+  --sl-color-white: #191a20;
+  --sl-color-gray-1: #282a31;
+  --sl-color-gray-2: #3f424b;
+  --sl-color-gray-3: #696d78;
+  --sl-color-gray-4: #9498a3;
+  --sl-color-gray-5: #c8cad1;
+  --sl-color-gray-6: #e8e9ed;
+  --sl-color-gray-7: #f3f4f6;
+  --sl-color-black: #ffffff;
+  --sl-color-bg: #fbfbfc;
+  --sl-color-bg-nav: rgba(251, 251, 252, 0.96);
+  --sl-color-bg-sidebar: #f6f6f8;
+  --sl-color-bg-inline-code: #ececf0;
+  --sl-color-hairline-shade: rgba(18, 19, 23, 0.1);
+}
+
+body {
+  letter-spacing: 0;
+}
+
+header.header {
+  border-bottom: 1px solid var(--sl-color-hairline-shade);
+  backdrop-filter: blur(12px);
+}
+
+@media (min-width: 50rem) {
+  .sidebar-pane {
+    border-inline-end: 1px solid var(--sl-color-hairline-shade);
+  }
+
+  header .header > div:has(> site-search) {
+    justify-content: flex-end;
+  }
+
+  header .header site-search button[data-open-modal] {
+    min-width: 15rem;
+  }
+}
+
+.site-title,
+.hero h1,
+.sl-markdown-content :is(h1, h2, h3, h4),
+.content-panel h1 {
+  font-family: var(--carbon-font-display);
+  letter-spacing: 0;
+}
+
+.site-title span {
+  font-weight: 700;
+}
+
+.hero {
+  padding-block: clamp(3rem, 7vw, 6rem) clamp(2rem, 4vw, 3.5rem);
+}
+
+.hero h1 {
+  max-width: 16ch;
+  font-size: clamp(2.8rem, 7vw, 5.4rem);
+  line-height: 0.98;
+  font-weight: 700;
+}
+
+.hero .tagline {
+  max-width: 42rem;
+  color: var(--sl-color-gray-2);
+  font-size: clamp(1rem, 2vw, 1.2rem);
+}
+
+.hero .hero-html {
+  color: var(--sl-color-accent-high);
+}
+
+.hero .actions a {
+  border-radius: 0.375rem;
+}
+
+.hero .actions a[data-variant='primary'] {
+  box-shadow: none;
+}
+
+.hero img {
+  width: clamp(9rem, 20vw, 15rem);
+  height: auto;
+  image-rendering: auto;
+}
+
+.card {
+  border: 1px solid var(--sl-color-hairline-shade) !important;
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--sl-color-bg) 82%, var(--sl-color-gray-6));
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.card:hover {
+  border-color: color-mix(in srgb, var(--sl-color-accent) 55%, transparent) !important;
+  background: color-mix(in srgb, var(--sl-color-bg) 72%, var(--sl-color-gray-6));
+}
+
+.expressive-code,
+.expressive-code figure {
+  border-radius: 0.375rem;
+}
+
+.sl-markdown-content table {
+  font-size: 0.9rem;
+}
+
+.sl-markdown-content th {
+  font-family: var(--carbon-font-display);
+  letter-spacing: 0;
+}
+
+@media (max-width: 50rem) {
+  .sl-markdown-content table {
+    white-space: nowrap;
+  }
+}
+
+.platform-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-block: 1.25rem 2rem;
+}
+
+.platform-strip span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--sl-color-hairline-shade);
+  border-radius: 999px;
+  color: var(--sl-color-gray-2);
+  font-family: var(--sl-font-mono);
+  font-size: 0.78rem;
+}
+
+.home-command {
+  margin-block: 1.5rem 2.5rem;
+}
+
+.home-command .expressive-code {
+  margin-block: 0;
+}
+
+.status-note {
+  padding: 0.8rem 1rem;
+  border-inline-start: 3px solid var(--carbon-cyan);
+  background: color-mix(in srgb, var(--carbon-cyan) 8%, transparent);
+  color: var(--sl-color-gray-2);
+}

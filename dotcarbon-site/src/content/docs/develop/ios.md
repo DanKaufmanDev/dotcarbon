@@ -1,0 +1,47 @@
+---
+title: iOS
+description: Generate, develop, and bundle the .NET iOS host.
+---
+
+iOS builds require macOS, Xcode, and the iOS workload:
+
+```bash
+dotnet workload install ios
+carbon platform add ios
+```
+
+Configure the bundle under `bundle.ios`:
+
+```json
+{
+  "bundle": {
+    "ios": {
+      "bundleIdentifier": "dev.example.app",
+      "minimumOSVersion": "15.0",
+      "developmentTeam": "TEAMID"
+    }
+  }
+}
+```
+
+Usage descriptions in `permissions.descriptions` become Info.plist values during platform sync.
+
+Build and run against a booted simulator:
+
+```bash
+carbon dev ios
+carbon bundle ios --simulator
+```
+
+Device and archive builds require an installed signing identity and provisioning profile:
+
+```bash
+carbon bundle ios --device
+carbon bundle ios --archive
+```
+
+Carbon stages generated iOS projects in a local build cache before invoking the .NET iOS SDK. This
+keeps native-link output consistent and avoids signing failures caused by cloud file-provider metadata.
+
+The active Xcode version must match the installed workload. `carbon doctor` prints a concrete warning
+when they differ.

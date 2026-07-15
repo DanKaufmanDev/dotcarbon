@@ -4,10 +4,7 @@ using System.Runtime.InteropServices;
 namespace DotCarbon.Host.Desktop;
 
 /// <summary>
-/// macOS system tray via the Objective-C runtime (NSStatusBar / NSStatusItem / NSMenu). Photino has
-/// no tray API, so this talks to libobjc directly. The tray is created lazily on the main dispatch
-/// queue (so NSApplication has finished launching), and menu clicks are routed to C# handlers through
-/// a runtime-created NSObject subclass whose action method is an unmanaged trampoline.
+/// macOS system tray built with NSStatusItem and NSMenu through the Objective-C runtime.
 /// </summary>
 internal static unsafe class MacTray
 {
@@ -22,7 +19,7 @@ internal static unsafe class MacTray
     private static IntPtr _target;        // retained action target
     private static bool _targetClassRegistered;
 
-    /// <summary>Schedule tray creation on the main queue; it runs once the run loop starts.</summary>
+    /// <summary>Schedules tray creation on the main queue after NSApplication starts.</summary>
     public static void Create(CarbonTrayBuilder builder)
     {
         _pending = builder;
@@ -106,7 +103,7 @@ internal static unsafe class MacTray
         catch (Exception ex) { Console.Error.WriteLine($"[Carbon] Tray handler failed: {ex.Message}"); }
     }
 
-    // --- Objective-C runtime + libdispatch interop -------------------------------------------
+    // Objective-C runtime and libdispatch interop
 
     [DllImport(LibObjC)] private static extern IntPtr objc_getClass([MarshalAs(UnmanagedType.LPUTF8Str)] string name);
     [DllImport(LibObjC)] private static extern IntPtr sel_registerName([MarshalAs(UnmanagedType.LPUTF8Str)] string name);

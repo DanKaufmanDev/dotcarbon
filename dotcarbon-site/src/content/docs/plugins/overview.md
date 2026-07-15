@@ -1,0 +1,62 @@
+---
+title: Plugin system
+description: Add reusable native capabilities and third-party DotCarbon plugins.
+---
+
+Plugins are ordinary NuGet packages that participate in the Carbon runtime and optionally ship a
+matching npm package. A plugin can register generated bridge commands, read configuration, use DI,
+observe lifecycle events, emit events, declare permissions and supported platforms, and release
+resources during shutdown.
+
+## Add a first-party plugin
+
+```bash
+carbon add plugin Store
+```
+
+For catalog plugins, Carbon adds the NuGet and npm packages, registers the C# plugin, and updates the
+main capability file. Review any scope warning printed by the command.
+
+## Add a third-party plugin
+
+```bash
+carbon add plugin Acme.DotCarbon.Camera \
+  --class CameraPlugin \
+  --using Acme.DotCarbon.Camera \
+  --namespace camera \
+  --npm acme/dotcarbon-camera \
+  '--command=camera:*'
+```
+
+The npm package is optional. Without one, call the plugin through `invoke('camera:command', payload)`.
+
+## Register manually
+
+```csharp
+CarbonApp.Create(config)
+    .UseDesktop()
+    .UsePlugin<StorePlugin>()
+    .Run();
+```
+
+`UsePlugin<T>()` and `WithPlugin<T>()` resolve the plugin through dependency injection. Use
+`WithWindowPlugin` for desktop plugins that need the native window used by a specific webview.
+
+## First-party catalog
+
+| Plugin | Platforms | Purpose |
+| --- | --- | --- |
+| Clipboard | Desktop | Read and write text clipboard content |
+| Deep Link | Desktop | Receive registered application URLs |
+| Dialog | Desktop | Native file and message dialogs |
+| File System | Desktop, Android, iOS | Scoped text file operations |
+| Global Shortcut | Desktop | Register system-wide keyboard shortcuts |
+| HTTP | Desktop, Android, iOS | Scoped backend HTTP requests |
+| Notification | Desktop | Native notifications |
+| Opener | Desktop | Open and reveal approved paths and URLs |
+| OS | Desktop, Android, iOS | Platform and host information |
+| Shell | Desktop | Scoped process execution |
+| Single Instance | Desktop | Keep one process and forward launch arguments |
+| Store | Desktop, Android, iOS | Persistent JSON key/value settings |
+| Updater | Desktop | Signed update check, download, and install |
+| Window | Desktop | Control labeled windows from TypeScript |

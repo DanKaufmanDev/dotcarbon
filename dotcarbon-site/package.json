@@ -1,0 +1,23 @@
+{
+  "name": "dotcarbon-site",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.41.3",
+    "@astrojs/starlight-tailwind": "^5.0.0",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@fontsource-variable/space-grotesk": "^5.2.10",
+    "@tailwindcss/vite": "^4.3.2",
+    "astro": "^7.0.2",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^4.3.2"
+  }
+}

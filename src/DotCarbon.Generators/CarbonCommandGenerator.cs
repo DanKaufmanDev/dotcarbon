@@ -49,8 +49,8 @@ public sealed class CarbonCommandGenerator : IIncrementalGenerator
     {
         if (methods.IsDefaultOrEmpty) return;
 
-        // If the assembly ships a JsonSerializerContext, route serialization through it
-        // (keeps existing plugin packages working). Otherwise generate it inline — zero boilerplate.
+        // Reuse an app-provided serializer context when available; otherwise generate one with the
+        // command bindings so consumers do not need additional setup.
         var context = contexts.FirstOrDefault(c => IsJsonContext(c!));
         var contextFq = context is null ? null : Fq(context);
 

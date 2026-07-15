@@ -1,0 +1,76 @@
+---
+title: Prerequisites
+description: Install the tools required to develop and package DotCarbon applications.
+---
+
+## Core tools
+
+| Tool | Supported version | Used for |
+| --- | --- | --- |
+| [.NET SDK](https://dotnet.microsoft.com/download) | 10 or newer | Runtime, C# compilation, CLI |
+| [Node.js](https://nodejs.org/) | 18 or newer | Frontend tooling and project creation |
+| npm, pnpm, yarn, or Bun | Current stable | Frontend dependencies |
+| Git | Current stable | Templates and source control |
+
+Install the Carbon CLI as a global .NET tool:
+
+```bash
+dotnet tool install --global DotCarbon.Cli
+carbon --help
+```
+
+Upgrade an existing installation with:
+
+```bash
+dotnet tool update --global DotCarbon.Cli
+```
+
+## Desktop prerequisites
+
+### macOS
+
+The desktop host uses the system WebKit webview. Xcode Command Line Tools are required for universal
+launchers, signing, and notarization.
+
+```bash
+xcode-select --install
+```
+
+### Windows
+
+Windows applications use WebView2. Windows 11 includes the Evergreen runtime. Carbon installers can
+download the bootstrapper or carry an offline installer for older or disconnected systems.
+
+Install WiX 4 before creating `.msi` packages:
+
+```powershell
+dotnet tool install --global wix --version 4.*
+```
+
+### Linux
+
+The desktop host requires GTK 3 and WebKitGTK at runtime. Package names vary by distribution. The
+CI workflow installs the Ubuntu packages needed for builds and headless smoke tests.
+
+AppImage generation also needs FUSE 2 on many distributions. Carbon can locate or download a matching
+`appimagetool` binary.
+
+## Mobile prerequisites
+
+Android builds require the .NET Android workload, Android SDK, and a JDK. Carbon discovers `JAVA_HOME`
+and the JetBrains Runtime bundled with Android Studio.
+
+```bash
+dotnet workload install android
+```
+
+iOS builds require macOS, Xcode, and the .NET iOS workload:
+
+```bash
+dotnet workload install ios
+xcodebuild -version
+dotnet workload list
+```
+
+The installed iOS workload must support the active Xcode version. `carbon doctor` reports mismatches
+before a native build starts.

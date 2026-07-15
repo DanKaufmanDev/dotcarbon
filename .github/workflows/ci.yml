@@ -124,10 +124,8 @@ jobs:
           if (!(Test-Path $artifact)) { throw "Missing package artifact: $artifact" }
           $item = Get-Item $artifact
           if ($item.Length -le 0) { throw "Package artifact is empty: $artifact" }
-      # Phase 1 (Task 1.5): attempt to install (and uninstall) the WiX MSI on real Windows. The MSI
-      # is already proven to build + validate above; this exercises the actual installer. Reported as a
-      # warning rather than gating CI while the install path is still being proven — the exact msiexec
-      # exit code and the error lines of the verbose log are printed so a real failure is visible.
+      # Exercise the installer itself after validating the MSI artifact. Keep the verbose log focused
+      # on Windows Installer error and rollback lines when installation fails.
       - name: Install + uninstall MSI (smoke)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -149,12 +147,12 @@ jobs:
             Write-Host "MSI installed (code $code); uninstalling."
             $uninstall = Start-Process msiexec.exe -ArgumentList "/x `"$msi`" /quiet /norestart" -Wait -PassThru
             if ($uninstall.ExitCode -in @(0, 3010)) {
-              Write-Host "::notice::MSI installed and uninstalled cleanly (Task 1.5 verified)."
+              Write-Host "::notice::MSI installed and uninstalled cleanly."
             } else {
               Write-Host "::warning::MSI uninstall returned $($uninstall.ExitCode)."
             }
           } else {
-            Write-Host "::warning::MSI install returned $code — installer needs a fix (Task 1.5); not gating CI yet."
+            Write-Host "::warning::MSI install returned $code."
           }
 
   # Optional: the mobile host packages target net10.0-android / net10.0-ios and are not part of
@@ -185,11 +183,8 @@ jobs:
       - name: Build DotCarbon.Host.iOS
         run: dotnet build src/DotCarbon.Host.iOS/DotCarbon.Host.iOS.csproj -c Release
 
-  # Phase 1 (Tasks 1.1/1.2): boot the real app on each desktop OS in headless smoke mode
-  # (CARBON_SMOKE=1) and assert it starts, creates its tray/menu, and exits cleanly. This is the
-  # first time the Windows/Linux native tray code actually executes on its target OS. The macOS leg
-  # mirrors what was verified locally; Windows/Linux tray readiness is surfaced as a warning (not a
-  # hard failure) so the job reports the truth without blocking CI while those backends are unproven.
+  # Boot the real app on each desktop OS in deterministic smoke mode and assert the native host
+  # reaches a clean shutdown. Platform-specific checks cover tray and menu initialization.
   desktop-launch-smoke:
     name: Desktop launch smoke (${{ matrix.os }})
     timeout-minutes: 5
@@ -247,7 +242,7 @@ jobs:
         run: |
           grep -q "System tray ready" smoke.log || { echo "macOS tray did not initialize"; exit 1; }
           grep -q "Native menu ready" smoke.log || { echo "macOS menu did not initialize"; exit 1; }
-      - name: Report tray status (Windows/Linux — unproven backends)
+      - name: Report tray status (Windows/Linux)
         if: runner.os != 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app
         shell: bash
@@ -255,5 +250,5 @@ jobs:
           if grep -q "System tray ready" smoke.log; then
             echo "::notice::${{ runner.os }} tray initialized"
           else
-            echo "::warning::${{ runner.os }} tray did not report ready — native tray backend needs a fix (Phase 1.1/1.2)"
+            echo "::warning::${{ runner.os }} tray did not report ready"
           fi

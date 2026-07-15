@@ -13,7 +13,7 @@ public sealed class CarbonWebViewClient : WebViewClient
 {
     public override void OnPageStarted(WebView? view, string? url, Bitmap? favicon)
     {
-        // Define window.external before the page's own scripts run (they access it lazily).
+        // Install the bridge before application scripts can access window.external.
         view?.EvaluateJavascript(CarbonAndroid.BridgeShim, null);
         base.OnPageStarted(view, url, favicon);
     }

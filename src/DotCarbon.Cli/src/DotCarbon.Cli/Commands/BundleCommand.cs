@@ -5,9 +5,7 @@ using DotCarbon.Core.Config;
 namespace DotCarbon.Cli.Commands;
 
 /// <summary>
-/// <c>carbon bundle [desktop|android|ios]</c> — one app model, many platform outputs.
-/// Desktop is fully wired; android/ios are reserved targets. <c>carbon build</c> stays
-/// as the desktop alias and shares the same build engine.
+/// Registers the platform-specific <c>carbon bundle</c> commands.
 /// </summary>
 public static class BundleCommand
 {
@@ -19,7 +17,7 @@ public static class BundleCommand
         bundle.AddCommand(AndroidSubcommand());
         bundle.AddCommand(IosSubcommand());
 
-        // `carbon bundle` with no subcommand → desktop with sensible defaults.
+        // Preserve the convenient desktop default when no target is supplied.
         bundle.SetHandler(async context =>
         {
             context.ExitCode = await RunDesktop(

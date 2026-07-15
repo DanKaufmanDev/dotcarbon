@@ -4,8 +4,7 @@ using Java.Interop;
 namespace DotCarbon.Host.Android;
 
 /// <summary>
-/// The JS→native side of the bridge. Registered on the WebView as <c>CarbonNative</c>; the shim
-/// in <see cref="CarbonAndroid.BridgeShim"/> routes <c>window.external.sendMessage</c> here.
+/// Receives frontend bridge messages through the WebView's <c>CarbonNative</c> interface.
 /// </summary>
 public sealed class CarbonJsBridge : Java.Lang.Object
 {

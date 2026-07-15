@@ -8,7 +8,7 @@ public static class DevCommand
 {
     public static Command Build()
     {
-        // `carbon dev` runs desktop; `carbon dev desktop` is the explicit alias.
+        // `carbon dev` and `carbon dev desktop` intentionally share the same handler.
         var command = new Command("dev", "Start Carbon in development mode (desktop)");
         ConfigureDesktopDev(command);
 
@@ -246,7 +246,7 @@ public static class DevCommand
 
         if (watch)
         {
-            // dotnet watch rebuilds/restarts the host (and applies C# hot reload) on source changes.
+            // dotnet watch owns backend rebuilds and process restarts.
             Console.WriteLine("[Carbon] Starting .NET host (dotnet watch — rebuilds on C# changes)...");
             await RunProcess(
                 "dotnet", "watch --non-interactive run",

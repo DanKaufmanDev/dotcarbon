@@ -196,13 +196,13 @@ async function ensureCarbonCli(autoYes: boolean, interactive: boolean) {
 
 function detectPackageManager(): PackageManager {
     for (const m of ['pnpm', 'bun', 'yarn', 'npm'] as const) {
-        try { execSync(`${m} --version`, { stdio: 'ignore' }); return m } catch { /* keep looking */ }
+        try { execSync(`${m} --version`, { stdio: 'ignore' }); return m } catch { /* Try the next package manager. */ }
     }
     return 'npm'
 }
 
-// Resolves true when deps are usable. pnpm exits non-zero on its ignored-builds
-// warning even though node_modules is fully populated — treat that as success.
+// pnpm can return a failure for blocked build scripts after populating node_modules. Treat that
+// state as installed so scaffolding can finish with the warning intact.
 function runInstall(pm: PackageManager, cwd: string): Promise<boolean> {
     return new Promise((resolve) => {
         const proc = spawn(pm, ['install'], { cwd, stdio: 'ignore', shell: process.platform === 'win32' })
@@ -228,7 +228,7 @@ async function replaceInDir(dir: string, search: string, replace: string) {
             try {
                 const content = await readFile(fullPath, 'utf-8')
                 if (content.includes(search)) await writeFile(fullPath, content.replaceAll(search, replace))
-            } catch { /* skip binary/unreadable */ }
+            } catch { /* Ignore files that cannot be decoded as text. */ }
         }
     }
 }

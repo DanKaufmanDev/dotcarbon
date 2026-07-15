@@ -3,9 +3,7 @@ using DotCarbon.Core.Config;
 namespace DotCarbon.Cli.Platforms;
 
 /// <summary>
-/// Desktop needs no separate native shell — the <c>src-carbon</c> .NET host IS the desktop
-/// shell (built by <c>carbon bundle desktop</c>). This generator just records that so
-/// <c>carbon platform list</c> reports desktop alongside android/ios.
+/// Records desktop as an explicit target. The existing <c>src-carbon</c> project is its native host.
 /// </summary>
 internal sealed class DesktopPlatformGenerator : IPlatformGenerator
 {

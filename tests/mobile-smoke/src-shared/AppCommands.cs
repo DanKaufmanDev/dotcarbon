@@ -1,8 +1,7 @@
 using DotCarbon.Core.Bridge;
 using DotCarbon.Core.Plugins;
 
-// Shared backend for the mobile smoke app — the same [CarbonCommand] pattern desktop uses.
-// The generated .carbon/platforms/{android,ios} projects reference this library.
+// Both generated mobile projects reference this backend to exercise the same command bridge.
 
 public record GreetRequest(string Name);
 

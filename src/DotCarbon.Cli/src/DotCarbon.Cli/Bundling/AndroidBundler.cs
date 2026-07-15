@@ -76,10 +76,8 @@ internal sealed class AndroidBundler
         var args =
             $"publish \"{project}\" -c {configuration} -f net10.0-android " +
             $"-p:AndroidPackageFormat={format} " +
-            // A bundled APK/AAB is installed standalone, so assemblies must be embedded. In Debug the
-            // default is Fast Deployment (assemblies deployed separately by `dotnet run`), which makes
-            // an adb-installed APK abort at startup with "No assemblies found". Force embedding here;
-            // it is already the default for Release.
+            // Debug defaults to fast deployment, which leaves assemblies outside the APK. Bundles
+            // must be self-contained because users and CI install them directly.
             "-p:EmbedAssembliesIntoApk=true " +
             (javaSdk is null ? string.Empty : $"-p:JavaSdkDirectory=\"{javaSdk}\" ") +
             (string.IsNullOrEmpty(signingArgs) ? string.Empty : signingArgs + " ") +
@@ -101,8 +99,7 @@ internal sealed class AndroidBundler
     }
 
     /// <summary>
-    /// Debug build + deploy/run on a connected device or emulator (`dotnet build -t:Run`).
-    /// A hot-reload dev loop (Vite over the emulator's 10.0.2.2 host bridge) is roadmap Phase 11.
+    /// Builds and runs a debug app on the connected device or emulator.
     /// </summary>
     public async Task<int> DevAsync(CarbonConfig config, string workingDir)
     {

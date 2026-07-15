@@ -34,7 +34,7 @@ public abstract class CarbonActivity : Activity
 
         var webView = _webView = new AndroidWebView(native);
         native.AddJavascriptInterface(new CarbonJsBridge(webView.DispatchMessage), CarbonAndroid.JsInterfaceName);
-        // The bridge shim is injected on page start by CarbonWebViewClient (see OnPageStarted).
+        // CarbonWebViewClient installs the bridge when navigation begins.
 
         SetContentView(native);
 
