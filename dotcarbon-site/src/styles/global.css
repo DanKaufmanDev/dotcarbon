@@ -31,6 +31,9 @@
   --sl-color-hairline-shade: rgba(255, 255, 255, 0.09);
   --carbon-cyan: #69d2d0;
   --carbon-green: #8ad48e;
+  --carbon-dot: rgba(189, 178, 255, 0.13);
+  --carbon-glow-primary: rgba(118, 83, 255, 0.24);
+  --carbon-glow-secondary: rgba(74, 205, 214, 0.13);
 }
 
 :root[data-theme='light'] {
@@ -51,10 +54,49 @@
   --sl-color-bg-sidebar: #f6f6f8;
   --sl-color-bg-inline-code: #ececf0;
   --sl-color-hairline-shade: rgba(18, 19, 23, 0.1);
+  --carbon-dot: rgba(73, 53, 145, 0.12);
+  --carbon-glow-primary: rgba(113, 78, 229, 0.16);
+  --carbon-glow-secondary: rgba(40, 166, 178, 0.1);
 }
 
 body {
   letter-spacing: 0;
+}
+
+html[data-has-hero] .main-pane {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+}
+
+html[data-has-hero] .main-pane::before,
+html[data-has-hero] .main-pane::after {
+  position: absolute;
+  inset-inline: 0;
+  z-index: 0;
+  pointer-events: none;
+  content: '';
+}
+
+html[data-has-hero] .main-pane::before {
+  inset-block: 0;
+  background-image: radial-gradient(circle, var(--carbon-dot) 1px, transparent 1.2px);
+  background-position: 0 0;
+  background-size: 26px 26px;
+  mask-image: linear-gradient(to bottom, #000 0, #000 40rem, transparent 88rem);
+}
+
+html[data-has-hero] .main-pane::after {
+  top: 0;
+  height: 54rem;
+  background:
+    radial-gradient(circle at 16% 12%, var(--carbon-glow-primary), transparent 38%),
+    radial-gradient(circle at 84% 8%, var(--carbon-glow-secondary), transparent 34%);
+}
+
+html[data-has-hero] .main-pane > main {
+  position: relative;
+  z-index: 1;
 }
 
 header.header {
@@ -150,6 +192,18 @@ header.header {
 }
 
 @media (max-width: 50rem) {
+  html[data-has-hero] .main-pane::before {
+    background-size: 22px 22px;
+    mask-image: linear-gradient(to bottom, #000 0, #000 34rem, transparent 68rem);
+  }
+
+  html[data-has-hero] .main-pane::after {
+    height: 42rem;
+    background:
+      radial-gradient(circle at 50% 13%, var(--carbon-glow-primary), transparent 44%),
+      radial-gradient(circle at 88% 34%, var(--carbon-glow-secondary), transparent 30%);
+  }
+
   .sl-markdown-content table {
     white-space: nowrap;
   }

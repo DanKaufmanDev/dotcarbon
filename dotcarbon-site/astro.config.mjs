@@ -10,10 +10,10 @@ export default defineConfig({
       title: 'DotCarbon',
       description: 'Build native desktop and mobile apps with C#, .NET, and any Vite frontend.',
       logo: {
-        src: './src/assets/houston.webp',
+        src: './src/assets/logo.webp',
         alt: 'DotCarbon',
       },
-      favicon: '/favicon.svg',
+      favicon: '/favicon.ico',
       customCss: ['./src/styles/global.css'],
       lastUpdated: true,
       pagination: true,
