@@ -85,6 +85,8 @@ public class RuntimeCapabilityTests
         public bool IsMinimized { get; private set; }
         public bool IsAlwaysOnTop { get; private set; } = options.AlwaysOnTop;
         public bool IsResizable { get; private set; } = options.Resizable;
+        public bool IsVisible { get; private set; } = true;
+        public bool IsFocused { get; private set; }
 
         public void SetTitle(string title) => Title = title;
         public void SetSize(int width, int height) => (Width, Height) = (width, height);
@@ -95,6 +97,10 @@ public class RuntimeCapabilityTests
         public void SetFullscreen(bool fullscreen) => IsFullscreen = fullscreen;
         public void SetAlwaysOnTop(bool alwaysOnTop) => IsAlwaysOnTop = alwaysOnTop;
         public void SetResizable(bool resizable) => IsResizable = resizable;
+        public void Show() => (IsVisible, IsFocused) = (true, true);
+        public void Hide() => (IsVisible, IsFocused) = (false, false);
+        public void SetFocus() => IsFocused = true;
+        public void RequestUserAttention() { }
         public void LoadUri(Uri uri) { }
         public void LoadString(string html) { }
         public Task SendMessageAsync(string message) => Task.CompletedTask;

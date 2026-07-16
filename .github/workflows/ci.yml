@@ -263,6 +263,25 @@ jobs:
           else
             echo "::warning::${{ runner.os }} runner did not execute the webview; the JS tray/menu path is not covered by this job (Linux gates it)"
           fi
+          # Task 3.1: show/hide/focus are native window ops (Photino provides none), so this runs on
+          # the real NSWindow/GtkWindow with no webview involved — it gates on macOS and Linux, where
+          # those windows exist, unlike the JS path above. Windows has an HWND but is unverified, so
+          # its result is reported, not gated. The visibility transitions are deterministic; focus can
+          # vary on a headless runner, so it is reported rather than asserted.
+          win=$(grep -a "\[\[CARBON_WIN\]\]" smoke.log | tail -1 || true)
+          if [ -n "$win" ]; then
+            echo "::notice::${{ runner.os }} window controls: $win"
+            case "${{ runner.os }}" in
+              macOS|Linux)
+                echo "$win" | grep -q "visible_initial=True hidden=False reshown=True" || {
+                  echo "window show/hide did not change visibility as expected"; echo "$win"; exit 1; }
+                ;;
+            esac
+          elif [ "${{ runner.os }}" != "Windows" ]; then
+            echo "window controls (Task 3.1) never reported on ${{ runner.os }}"; exit 1
+          else
+            echo "::warning::Windows window controls did not report (unverified backend)"
+          fi
       - name: Assert tray + menu (macOS — verified path)
         if: runner.os == 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app

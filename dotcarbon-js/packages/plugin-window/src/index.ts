@@ -12,6 +12,8 @@ export interface WindowState {
     minimized: boolean
     alwaysOnTop: boolean
     resizable: boolean
+    visible: boolean
+    focused: boolean
 }
 
 export interface CreateWindowOptions {
@@ -98,6 +100,15 @@ export class WebviewWindow {
 
     close = (): Promise<void> =>
         invoke('window:close', { label: this.label })
+
+    // Task 3.1 — visibility & focus.
+    show = (): Promise<void> => invoke('window:show', { label: this.label })
+    hide = (): Promise<void> => invoke('window:hide', { label: this.label })
+    setFocus = (): Promise<void> => invoke('window:set_focus', { label: this.label })
+    isVisible = (): Promise<boolean> => invoke('window:is_visible', { label: this.label })
+    isFocused = (): Promise<boolean> => invoke('window:is_focused', { label: this.label })
+    requestUserAttention = (): Promise<void> =>
+        invoke('window:request_user_attention', { label: this.label })
 }
 
 export { WebviewWindow as CarbonWindow }
@@ -125,6 +136,12 @@ export const carbonWindow = {
     setResizable: (resizable: boolean): Promise<void> =>
         invoke('window:set_resizable', { resizable }),
     close: (): Promise<void> => invoke('window:close', {}),
+    show: (): Promise<void> => invoke('window:show', {}),
+    hide: (): Promise<void> => invoke('window:hide', {}),
+    setFocus: (): Promise<void> => invoke('window:set_focus', {}),
+    isVisible: (): Promise<boolean> => invoke('window:is_visible', {}),
+    isFocused: (): Promise<boolean> => invoke('window:is_focused', {}),
+    requestUserAttention: (): Promise<void> => invoke('window:request_user_attention', {}),
 }
 
 declare module '@dotcarbon/api' {
@@ -138,6 +155,12 @@ declare module '@dotcarbon/api' {
         'window:set_position': { args: { x: number; y: number; label?: string }; result: void }
         'window:center': { args: { label?: string }; result: void }
         'window:minimize': { args: { label?: string }; result: void }
+        'window:show': { args: { label?: string }; result: void }
+        'window:hide': { args: { label?: string }; result: void }
+        'window:set_focus': { args: { label?: string }; result: void }
+        'window:is_visible': { args: { label?: string }; result: boolean }
+        'window:is_focused': { args: { label?: string }; result: boolean }
+        'window:request_user_attention': { args: { label?: string }; result: void }
         'window:maximize': { args: { label?: string }; result: void }
         'window:unmaximize': { args: { label?: string }; result: void }
         'window:set_fullscreen': { args: { fullscreen: boolean; label?: string }; result: void }

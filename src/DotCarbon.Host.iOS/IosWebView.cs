@@ -37,6 +37,9 @@ public sealed class IosWebView : ICarbonWebView
     public bool IsMinimized => false;
     public bool IsAlwaysOnTop => false;
     public bool IsResizable => false;
+    // Task 3.1: a mobile app has one window that is always shown and focused while it runs.
+    public bool IsVisible => true;
+    public bool IsFocused => true;
 
     public void SetTitle(string title) => _title = title; // no OS title bar on iOS
     public void SetSize(int width, int height) { }
@@ -47,6 +50,10 @@ public sealed class IosWebView : ICarbonWebView
     public void SetFullscreen(bool fullscreen) { }
     public void SetAlwaysOnTop(bool alwaysOnTop) { }
     public void SetResizable(bool resizable) { }
+    public void Show() { }
+    public void Hide() { }
+    public void SetFocus() { }
+    public void RequestUserAttention() { }
 
     public void LoadUri(Uri uri) =>
         Native.InvokeOnMainThread(() => Native.LoadRequest(new NSUrlRequest(new NSUrl(uri.ToString()))));

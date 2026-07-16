@@ -27,6 +27,32 @@ CarbonApp.Create(config)
                 Console.Error.Flush();
             });
     })
+    // Task 3.1: drive show/hide/focus on the real native window and read the OS state back, so the
+    // smoke proves these actually move the window rather than just returning. Pure native — no
+    // webview needed — so unlike the JS path this runs on the macOS CI runner too. The window ops
+    // touch AppKit/GTK, which are main-thread-only, so this runs through Photino.Invoke (the UI
+    // thread) rather than a threadpool task — the same thread the bridge would call them on.
+    .OnLifecycle(e =>
+    {
+        if (e.Kind != CarbonLifecycleEventKind.WindowCreated || e.Window is not { } window) return;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(800); // let the window finish laying out
+            window.Photino().Invoke(() =>
+            {
+                var view = window.Native;
+                var shown = view.IsVisible;
+                view.Hide();
+                var hidden = view.IsVisible;
+                view.Show();
+                var reshown = view.IsVisible;
+                view.SetFocus();
+                Console.WriteLine(
+                    $"[[CARBON_WIN]] visible_initial={shown} hidden={hidden} reshown={reshown} focused={view.IsFocused}");
+                Console.Out.Flush();
+            });
+        });
+    })
     .UseTray(
         tray => tray
             .SetTitle("●")

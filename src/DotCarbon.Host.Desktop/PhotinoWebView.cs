@@ -13,6 +13,13 @@ public sealed class PhotinoWebView : ICarbonWebView
     /// <summary>The underlying Photino window (for desktop-only plugins that need native access).</summary>
     public PhotinoWindow Window { get; }
 
+    /// <summary>
+    /// The native window handle (NSWindow / GtkWindow) resolved for the show/hide/focus operations
+    /// Photino does not provide. Cached once so a later retitle cannot lose it; unused on Windows,
+    /// where the HWND comes straight from Photino. See <see cref="NativeWindowControls"/>.
+    /// </summary>
+    internal IntPtr NativeWindow { get; set; }
+
     internal PhotinoWebView(CarbonWebViewContext context)
     {
         var options = context.Options;
@@ -70,6 +77,8 @@ public sealed class PhotinoWebView : ICarbonWebView
     public bool IsMinimized => Window.Minimized;
     public bool IsAlwaysOnTop => Window.Topmost;
     public bool IsResizable => Window.Resizable;
+    public bool IsVisible => NativeWindowControls.IsVisible(this);
+    public bool IsFocused => NativeWindowControls.IsFocused(this);
 
     public void SetTitle(string title) => Window.SetTitle(title);
     public void SetSize(int width, int height) => Window.SetSize(width, height);
@@ -80,6 +89,12 @@ public sealed class PhotinoWebView : ICarbonWebView
     public void SetFullscreen(bool fullscreen) => Window.SetFullScreen(fullscreen);
     public void SetAlwaysOnTop(bool alwaysOnTop) => Window.SetTopMost(alwaysOnTop);
     public void SetResizable(bool resizable) => Window.SetResizable(resizable);
+
+    // Task 3.1 — native show/hide/focus/attention (Photino provides none of these).
+    public void Show() => NativeWindowControls.Show(this);
+    public void Hide() => NativeWindowControls.Hide(this);
+    public void SetFocus() => NativeWindowControls.SetFocus(this);
+    public void RequestUserAttention() => NativeWindowControls.RequestUserAttention(this);
 
     public void LoadUri(Uri uri) => Window.Load(uri);
     public void LoadString(string html) => Window.LoadRawString(html);

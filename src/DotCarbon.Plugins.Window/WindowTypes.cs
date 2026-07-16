@@ -44,7 +44,9 @@ public record WindowState(
     bool Maximized,
     bool Minimized,
     bool AlwaysOnTop,
-    bool Resizable)
+    bool Resizable,
+    bool Visible = true,
+    bool Focused = false)
 {
     public WindowState(
         string title,

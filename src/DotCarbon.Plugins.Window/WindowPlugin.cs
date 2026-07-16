@@ -165,6 +165,56 @@ public partial class WindowPlugin : IPlugin
 
     public Task<WindowState> GetState() => GetState(new TargetWindowArgs());
 
+    // --- visibility & focus (Task 3.1) -------------------------------------------------------
+
+    [CarbonCommand("show")]
+    public Task Show(TargetWindowArgs args)
+    {
+        Resolve(args.Label).View.Show();
+        return Task.CompletedTask;
+    }
+
+    public Task Show() => Show(new TargetWindowArgs());
+
+    [CarbonCommand("hide")]
+    public Task Hide(TargetWindowArgs args)
+    {
+        Resolve(args.Label).View.Hide();
+        return Task.CompletedTask;
+    }
+
+    public Task Hide() => Hide(new TargetWindowArgs());
+
+    [CarbonCommand("set_focus")]
+    public Task SetFocus(TargetWindowArgs args)
+    {
+        Resolve(args.Label).View.SetFocus();
+        return Task.CompletedTask;
+    }
+
+    public Task SetFocus() => SetFocus(new TargetWindowArgs());
+
+    [CarbonCommand("is_visible")]
+    public Task<bool> IsVisible(TargetWindowArgs args) =>
+        Task.FromResult(Resolve(args.Label).View.IsVisible);
+
+    public Task<bool> IsVisible() => IsVisible(new TargetWindowArgs());
+
+    [CarbonCommand("is_focused")]
+    public Task<bool> IsFocused(TargetWindowArgs args) =>
+        Task.FromResult(Resolve(args.Label).View.IsFocused);
+
+    public Task<bool> IsFocused() => IsFocused(new TargetWindowArgs());
+
+    [CarbonCommand("request_user_attention")]
+    public Task RequestUserAttention(TargetWindowArgs args)
+    {
+        Resolve(args.Label).View.RequestUserAttention();
+        return Task.CompletedTask;
+    }
+
+    public Task RequestUserAttention() => RequestUserAttention(new TargetWindowArgs());
+
     private (string Label, ICarbonWebView View) Resolve(string? label)
     {
         var window = string.IsNullOrWhiteSpace(label)
@@ -184,5 +234,7 @@ public partial class WindowPlugin : IPlugin
         Maximized: window.IsMaximized,
         Minimized: window.IsMinimized,
         AlwaysOnTop: window.IsAlwaysOnTop,
-        Resizable: window.IsResizable);
+        Resizable: window.IsResizable,
+        Visible: window.IsVisible,
+        Focused: window.IsFocused);
 }
