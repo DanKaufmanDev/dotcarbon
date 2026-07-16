@@ -214,7 +214,10 @@ public sealed class CarbonTrayHandle
         else if (OperatingSystem.IsLinux()) LinuxTray.SetIcon(full);
     }
 
-    /// <summary>The hover tooltip.</summary>
+    /// <summary>
+    /// The hover tooltip. Ignored on Linux when the tray is a StatusNotifierItem: the panel owns the
+    /// icon and libayatana-appindicator exposes no tooltip API (Tauri behaves the same).
+    /// </summary>
     public void SetTooltip(string tooltip)
     {
         ArgumentNullException.ThrowIfNull(tooltip);

@@ -3,8 +3,11 @@ using System.Runtime.InteropServices;
 namespace DotCarbon.Host.Desktop;
 
 /// <summary>
-/// GTK3 system tray implementation. GtkStatusIcon availability depends on the user's desktop
-/// environment; unsupported desktops continue without a tray.
+/// Linux system tray. Prefers StatusNotifierItem via <see cref="LinuxAppIndicator"/>, which is the
+/// only path stock GNOME renders, and falls back to GtkStatusIcon where that library is missing —
+/// older or X11-panel desktops. The two backends differ in what they can do (see
+/// <see cref="CarbonTrayEventKind"/> and <see cref="SetTooltip"/>), so the setters route by backend.
+/// Desktops that support neither continue without a tray.
 /// </summary>
 internal static unsafe class LinuxTray
 {
@@ -16,6 +19,7 @@ internal static unsafe class LinuxTray
     private static int _nextTag;
     private static IntPtr _menu;
     private static Action<CarbonTrayEvent>? _onEvent;
+    private static bool _useAppIndicator;
     private static IntPtr _statusIcon;
 
     // --- runtime mutation (Task 2.3) ---------------------------------------------------------
@@ -24,23 +28,31 @@ internal static unsafe class LinuxTray
 
     private static readonly System.Collections.Concurrent.ConcurrentQueue<Action> IdleWork = new();
 
+    /// <summary>
+    /// A StatusNotifierItem has no tooltip — libayatana-appindicator exposes no such API, since the
+    /// panel decides what hovering does. Unsupported there, same as Tauri.
+    /// </summary>
     public static void SetTooltip(string tooltip) => Post(() =>
     {
+        if (_useAppIndicator) return;
         if (_statusIcon != IntPtr.Zero) gtk_status_icon_set_tooltip_text(_statusIcon, tooltip);
     });
 
     public static void SetIcon(string path) => Post(() =>
     {
+        if (_useAppIndicator) { LinuxAppIndicator.SetIcon(path); return; }
         if (_statusIcon != IntPtr.Zero) gtk_status_icon_set_from_file(_statusIcon, path);
     });
 
     public static void SetVisible(bool visible) => Post(() =>
     {
+        if (_useAppIndicator) { LinuxAppIndicator.SetVisible(visible); return; }
         if (_statusIcon != IntPtr.Zero) gtk_status_icon_set_visible(_statusIcon, visible);
     });
 
     public static void Remove() => Post(() =>
     {
+        if (_useAppIndicator) { LinuxAppIndicator.Remove(); return; }
         if (_statusIcon == IntPtr.Zero) return;
         gtk_status_icon_set_visible(_statusIcon, false);
         g_object_unref(_statusIcon);
@@ -77,6 +89,27 @@ internal static unsafe class LinuxTray
                 return;
             }
 
+            _menu = gtk_menu_new();
+            FillMenu(_menu, builder.Items);
+            gtk_widget_show_all(_menu);
+
+            // Task 2.9: prefer StatusNotifierItem — GtkStatusIcon is invisible on stock GNOME. The
+            // panel owns an SNI icon, so this path has no click events and no tooltip; that is what
+            // Tauri does on Linux too. GtkStatusIcon remains the fallback where the library is absent,
+            // and it keeps its button events.
+            if (LinuxAppIndicator.TryCreate(builder, _menu))
+            {
+                _useAppIndicator = true;
+                if (builder.EventHandler is not null)
+                    Console.WriteLine(
+                        "[Carbon] Tray: pointer events are not available on Linux via StatusNotifierItem; " +
+                        "the panel owns the icon.");
+                Console.WriteLine(
+                    $"[Carbon] System tray ready ({builder.Items.Count} item(s)) via appindicator.");
+                CarbonTray.NotifyReady(onReady);
+                return;
+            }
+
             _statusIcon = gtk_status_icon_new();
             if (builder.IconPath is { } iconPath)
                 gtk_status_icon_set_from_file(_statusIcon, iconPath);
@@ -84,10 +117,6 @@ internal static unsafe class LinuxTray
                 gtk_status_icon_set_from_icon_name(_statusIcon, "application-x-executable");
             gtk_status_icon_set_tooltip_text(_statusIcon, builder.Title);
             gtk_status_icon_set_visible(_statusIcon, true);
-
-            _menu = gtk_menu_new();
-            FillMenu(_menu, builder.Items);
-            gtk_widget_show_all(_menu);
 
             var popup = (IntPtr)(delegate* unmanaged<IntPtr, uint, uint, IntPtr, void>)&OnPopup;
             g_signal_connect_data(_statusIcon, "popup-menu", popup, IntPtr.Zero, IntPtr.Zero, 0);
@@ -103,7 +132,8 @@ internal static unsafe class LinuxTray
                 g_signal_connect_data(_statusIcon, "button-release-event", press, IntPtr.Zero, IntPtr.Zero, 0);
             }
 
-            Console.WriteLine($"[Carbon] System tray ready ({builder.Items.Count} item(s)).");
+            Console.WriteLine(
+                $"[Carbon] System tray ready ({builder.Items.Count} item(s)) via GtkStatusIcon.");
             CarbonTray.NotifyReady(onReady);
         }
         catch (Exception ex)

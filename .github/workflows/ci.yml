@@ -204,6 +204,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb dbus-x11 at-spi2-core libgtk-3-0 libglib2.0-0 libnotify4 \
             && (sudo apt-get install -y libwebkit2gtk-4.1-0 || sudo apt-get install -y libwebkit2gtk-4.0-37)
+          # Task 2.9: without this the tray silently falls back to GtkStatusIcon and the
+          # StatusNotifierItem path never runs, so the assert below would prove nothing. Tolerated if
+          # the distro drops it — the assert keys off whether the library is actually present.
+          sudo apt-get install -y libayatana-appindicator3-1 \
+            || echo "::warning::libayatana-appindicator3-1 unavailable; the SNI tray path will not be covered"
       - name: Launch app in smoke mode
         working-directory: tests/DotCarbon.Tests/fixtures/package-app
         env:
@@ -277,6 +282,22 @@ jobs:
             echo "::notice::${{ runner.os }} tray initialized"
           else
             echo "::warning::${{ runner.os }} tray did not report ready"
+          fi
+          # Task 2.9: when libayatana-appindicator is present, Linux must take the StatusNotifierItem
+          # path. Silently degrading to GtkStatusIcon is precisely the bug worth catching, so that
+          # combination fails the job; a missing library is an environment gap, not a code fault, and
+          # only warns. Neither case can assert the icon is *rendered* — that needs a panel
+          # implementing the SNI host, which a headless runner has not got.
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            if ! ldconfig -p | grep -q libayatana-appindicator3; then
+              echo "::warning::libayatana-appindicator absent; SNI tray path not covered by this run"
+            elif grep -q "via appindicator" smoke.log; then
+              echo "::notice::Linux tray used StatusNotifierItem"
+            else
+              echo "::error::Linux tray fell back to GtkStatusIcon despite libayatana-appindicator being installed"
+              grep -a "System tray ready\|appindicator\|Tray:" smoke.log | tail -5
+              exit 1
+            fi
           fi
           # Task 2.3 runtime mutation — reported (not gated) on these backends, which are only
           # verified by this job rather than on a real desktop.
