@@ -73,6 +73,39 @@ CarbonApp.Create(config)
                 // no-ops rather than throwing). The actual window move needs a real drag to verify.
                 view.StartDragging();
                 Console.WriteLine("[[CARBON_DRAG]] start_dragging ok");
+
+                // Task 3.3: drive chrome toggles and read the NSWindow state back, so the smoke proves
+                // each actually changes the window rather than just returning.
+                if (view is PhotinoWebView pw)
+                {
+                    view.SetDecorations(false);
+                    var deco = pw.MacHasStyleBit("titled");
+                    view.SetDecorations(true);
+                    var decoBack = pw.MacHasStyleBit("titled");
+
+                    view.SetClosable(false);
+                    var closable = pw.MacHasStyleBit("closable");
+
+                    view.SetContentProtected(true);
+                    var protadd = pw.MacIsContentProtected();
+                    view.SetContentProtected(false);
+
+                    view.SetIgnoreCursorEvents(true);
+                    var ignore = pw.MacIgnoresCursor();
+                    view.SetIgnoreCursorEvents(false);
+                    var ignoreBack = pw.MacIgnoresCursor();
+
+                    // Exercise the rest for crash-safety; their effect isn't a simple readback here.
+                    view.SetMinimizable(false);
+                    view.SetMaximizable(false);
+                    view.SetAlwaysOnBottom(true);
+                    view.SetAlwaysOnBottom(false);
+                    view.SetSkipTaskbar(true);
+
+                    Console.WriteLine(
+                        $"[[CARBON_CHROME]] deco_off={deco} deco_on={decoBack} closable_off={closable} " +
+                        $"protected={protadd} ignore_on={ignore} ignore_off={ignoreBack}");
+                }
                 Console.Out.Flush();
             });
         });

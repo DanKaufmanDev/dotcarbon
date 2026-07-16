@@ -108,6 +108,15 @@ public class RuntimeCapabilityTests
         public void SetFocus() => IsFocused = true;
         public void RequestUserAttention() { }
         public void StartDragging() { }
+        public void SetDecorations(bool decorations) { }
+        public void SetClosable(bool closable) { }
+        public void SetMinimizable(bool minimizable) { }
+        public void SetMaximizable(bool maximizable) { }
+        public void SetAlwaysOnBottom(bool alwaysOnBottom) { }
+        public void SetSkipTaskbar(bool skip) { }
+        public void SetContentProtected(bool protectedContent) { }
+        public void SetIgnoreCursorEvents(bool ignore) { }
+        public void SetIcon(string path) { }
         public void LoadUri(Uri uri) { }
         public void LoadString(string html) { }
         public Task SendMessageAsync(string message) => Task.CompletedTask;
