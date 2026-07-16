@@ -20,6 +20,33 @@ internal static unsafe class MacTray
     private static IntPtr _statusItem;   // retained so it stays in the menu bar
     private static IntPtr _target;        // retained action target
     private static bool _targetClassRegistered;
+    private static IntPtr _menu;          // retained; popped by hand on the takeover path
+    private static Action<CarbonTrayEvent>? _onEvent;
+    private static bool _menuOnLeftClick = true;
+
+    // NSEventType (NSEvent.h)
+    private const long NSEventTypeLeftMouseDown = 1;
+    private const long NSEventTypeLeftMouseUp = 2;
+    private const long NSEventTypeRightMouseDown = 3;
+    private const long NSEventTypeRightMouseUp = 4;
+    private const long NSEventTypeOtherMouseDown = 25;
+    private const long NSEventTypeOtherMouseUp = 26;
+
+    // NSEventMask — the button's action only fires for the event types we opt into here.
+    private const nint NSEventMaskLeftMouseDown = 1 << 1;
+    private const nint NSEventMaskLeftMouseUp = 1 << 2;
+    private const nint NSEventMaskRightMouseDown = 1 << 3;
+    private const nint NSEventMaskRightMouseUp = 1 << 4;
+    private const nint NSEventMaskOtherMouseDown = 1 << 25;
+    private const nint NSEventMaskOtherMouseUp = 1 << 26;
+
+    // NSTrackingAreaOptions. InVisibleRect makes AppKit track the button's live bounds, which also
+    // means the rect passed to initWithRect: is ignored — handy, since reading NSRect back through
+    // objc_msgSend is ABI-sensitive.
+    private const nint NSTrackingMouseEnteredAndExited = 0x01;
+    private const nint NSTrackingMouseMoved = 0x02;
+    private const nint NSTrackingActiveAlways = 0x80;
+    private const nint NSTrackingInVisibleRect = 0x200;
 
     /// <summary>Schedules tray creation on the main queue after NSApplication starts.</summary>
     public static void Create(CarbonTrayBuilder builder, Action<CarbonTrayHandle>? onReady = null)
@@ -125,10 +152,22 @@ internal static unsafe class MacTray
                 ApplyIcon(iconPath, builder.IconIsTemplate);
 
             _target = CreateActionTarget();
+            _onEvent = builder.EventHandler;
+            _menuOnLeftClick = builder.MenuOnLeftClick;
 
-            var menu = Send(Send(Cls("NSMenu"), Sel("alloc")), Sel("init"));
-            FillMenu(menu, builder.Items);
-            SendPtr(_statusItem, Sel("setMenu:"), menu);
+            _menu = Send(Send(Cls("NSMenu"), Sel("alloc")), Sel("init"));
+            FillMenu(_menu, builder.Items);
+            Send(_menu, Sel("retain"));
+
+            // Handing the menu to the status item lets AppKit own the button, which means it swallows
+            // the clicks — so the only way to report pointer events (or to suppress the menu on left
+            // click) is to keep the menu to ourselves and pop it by hand. Apps that want neither keep
+            // the plain path, which stays exactly as it was.
+            if (_onEvent is not null || !_menuOnLeftClick)
+                TakeOverButton(button);
+            else
+                SendPtr(_statusItem, Sel("setMenu:"), _menu);
+
             Console.WriteLine($"[Carbon] System tray ready ({builder.Items.Count} item(s)).");
         }
         catch (Exception ex)
@@ -170,6 +209,34 @@ internal static unsafe class MacTray
         }
     }
 
+    /// <summary>
+    /// Route the status button's clicks to us instead of AppKit's menu handling, and start tracking
+    /// the pointer for enter/move/leave (Task 2.8).
+    /// </summary>
+    private static void TakeOverButton(IntPtr button)
+    {
+        if (button == IntPtr.Zero) return;
+
+        SendPtr(button, Sel("setTarget:"), _target);
+        SendPtr(button, Sel("setAction:"), Sel("carbonTrayButton:"));
+        // Buttons only send their action on mouse-up by default, which would lose every press and
+        // every non-left button.
+        SendSetLong(button, Sel("sendActionOn:"),
+            NSEventMaskLeftMouseDown | NSEventMaskLeftMouseUp |
+            NSEventMaskRightMouseDown | NSEventMaskRightMouseUp |
+            NSEventMaskOtherMouseDown | NSEventMaskOtherMouseUp);
+
+        if (_onEvent is null) return; // no one is listening; skip the tracking overhead
+
+        var area = SendTrackingInit(
+            Send(Cls("NSTrackingArea"), Sel("alloc")), Sel("initWithRect:options:owner:userInfo:"),
+            default,
+            NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways |
+            NSTrackingInVisibleRect,
+            _target, IntPtr.Zero);
+        SendPtr(button, Sel("addTrackingArea:"), area);
+    }
+
     private static IntPtr CreateActionTarget()
     {
         if (!_targetClassRegistered)
@@ -177,10 +244,110 @@ internal static unsafe class MacTray
             var cls = objc_allocateClassPair(Cls("NSObject"), "CarbonTrayTarget", 0);
             var imp = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, IntPtr, void>)&OnMenuClick;
             class_addMethod(cls, Sel("carbonTrayClick:"), imp, "v@:@");
+
+            var buttonImp = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, IntPtr, void>)&OnButtonAction;
+            class_addMethod(cls, Sel("carbonTrayButton:"), buttonImp, "v@:@");
+
+            // The tracking area's owner receives these; NSObject doesn't declare them, so add them.
+            var enterImp = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, IntPtr, void>)&OnMouseEntered;
+            class_addMethod(cls, Sel("mouseEntered:"), enterImp, "v@:@");
+            var exitImp = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, IntPtr, void>)&OnMouseExited;
+            class_addMethod(cls, Sel("mouseExited:"), exitImp, "v@:@");
+            var moveImp = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, IntPtr, void>)&OnMouseMoved;
+            class_addMethod(cls, Sel("mouseMoved:"), moveImp, "v@:@");
+
             objc_registerClassPair(cls);
             _targetClassRegistered = true;
         }
         return Send(Send(Cls("CarbonTrayTarget"), Sel("alloc")), Sel("init"));
+    }
+
+    // --- pointer events (Task 2.8) -----------------------------------------------------------
+
+    [UnmanagedCallersOnly]
+    private static void OnButtonAction(IntPtr self, IntPtr cmd, IntPtr sender)
+    {
+        try
+        {
+            var nsEvent = Send(Send(Cls("NSApplication"), Sel("sharedApplication")), Sel("currentEvent"));
+            if (nsEvent == IntPtr.Zero) return;
+
+            var type = (long)SendGetLong(nsEvent, Sel("type"));
+            var (button, state) = type switch
+            {
+                NSEventTypeLeftMouseDown => (CarbonTrayMouseButton.Left, CarbonTrayButtonState.Down),
+                NSEventTypeLeftMouseUp => (CarbonTrayMouseButton.Left, CarbonTrayButtonState.Up),
+                NSEventTypeRightMouseDown => (CarbonTrayMouseButton.Right, CarbonTrayButtonState.Down),
+                NSEventTypeRightMouseUp => (CarbonTrayMouseButton.Right, CarbonTrayButtonState.Up),
+                NSEventTypeOtherMouseDown => (CarbonTrayMouseButton.Middle, CarbonTrayButtonState.Down),
+                NSEventTypeOtherMouseUp => (CarbonTrayMouseButton.Middle, CarbonTrayButtonState.Up),
+                _ => (CarbonTrayMouseButton.Left, CarbonTrayButtonState.Up),
+            };
+
+            // A double click arrives as a second up with clickCount 2; report it as its own kind the
+            // way Tauri does rather than as another plain Click.
+            var isDouble = state == CarbonTrayButtonState.Up &&
+                (long)SendGetLong(nsEvent, Sel("clickCount")) == 2;
+            Emit(isDouble ? CarbonTrayEventKind.DoubleClick : CarbonTrayEventKind.Click, button, state);
+
+            // The menu opens on press, matching every other menu-bar item.
+            var opensMenu = state == CarbonTrayButtonState.Down &&
+                (button == CarbonTrayMouseButton.Right ||
+                    (button == CarbonTrayMouseButton.Left && _menuOnLeftClick));
+            if (opensMenu) PopUpMenu(sender);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Carbon] Tray event failed: {ex.Message}");
+        }
+    }
+
+    [UnmanagedCallersOnly]
+    private static void OnMouseEntered(IntPtr self, IntPtr cmd, IntPtr nsEvent) =>
+        EmitPointer(CarbonTrayEventKind.Enter);
+
+    [UnmanagedCallersOnly]
+    private static void OnMouseExited(IntPtr self, IntPtr cmd, IntPtr nsEvent) =>
+        EmitPointer(CarbonTrayEventKind.Leave);
+
+    [UnmanagedCallersOnly]
+    private static void OnMouseMoved(IntPtr self, IntPtr cmd, IntPtr nsEvent) =>
+        EmitPointer(CarbonTrayEventKind.Move);
+
+    private static void EmitPointer(CarbonTrayEventKind kind)
+    {
+        try { Emit(kind, CarbonTrayMouseButton.Left, CarbonTrayButtonState.Up); }
+        catch (Exception ex) { Console.Error.WriteLine($"[Carbon] Tray event failed: {ex.Message}"); }
+    }
+
+    private static void Emit(CarbonTrayEventKind kind, CarbonTrayMouseButton button, CarbonTrayButtonState state)
+    {
+        if (_onEvent is not { } handler) return;
+
+        var cursor = SendGetPoint(Cls("NSEvent"), Sel("mouseLocation"));
+        handler(new CarbonTrayEvent(
+            kind, button, state,
+            new CarbonTrayPoint(cursor.X, cursor.Y),
+            IconRect()));
+    }
+
+    /// <summary>The icon's screen rect: the status item's window frame.</summary>
+    private static CarbonTrayRect IconRect()
+    {
+        var button = _statusItem == IntPtr.Zero ? IntPtr.Zero : Send(_statusItem, Sel("button"));
+        var window = button == IntPtr.Zero ? IntPtr.Zero : Send(button, Sel("window"));
+        if (window == IntPtr.Zero) return default;
+
+        var frame = GetRect(window, Sel("frame"));
+        return new CarbonTrayRect(frame.X, frame.Y, frame.Width, frame.Height);
+    }
+
+    private static void PopUpMenu(IntPtr button)
+    {
+        if (_menu == IntPtr.Zero || button == IntPtr.Zero) return;
+        // Positioning in the button's own coordinates drops the menu directly under the icon.
+        SendPopUp(_menu, Sel("popUpMenuPositioningItem:atLocation:inView:"),
+            IntPtr.Zero, default, button);
     }
 
     [UnmanagedCallersOnly]
@@ -207,6 +374,36 @@ internal static unsafe class MacTray
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern void SendSetLong(IntPtr receiver, IntPtr selector, nint arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern void SendSetBool(IntPtr receiver, IntPtr selector, [MarshalAs(UnmanagedType.I1)] bool arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern nint SendGetLong(IntPtr receiver, IntPtr selector);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CGPoint
+    {
+        public double X, Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CGRect
+    {
+        public double X, Y, Width, Height;
+    }
+
+    // NSPoint is two doubles, which both ABIs return in registers, so plain objc_msgSend is correct.
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern CGPoint SendGetPoint(IntPtr receiver, IntPtr selector);
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendPopUp(IntPtr receiver, IntPtr selector, IntPtr item, CGPoint location, IntPtr view);
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendTrackingInit(IntPtr receiver, IntPtr selector, CGRect rect, nint options, IntPtr owner, IntPtr userInfo);
+
+    // NSRect is 32 bytes: arm64 returns it in v0-v3 (and has no objc_msgSend_stret at all), while
+    // x86_64 classes it as MEMORY and returns it through a hidden pointer — i.e. a different entry
+    // point. Calling the wrong one yields garbage rather than a crash, so pick by architecture.
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern CGRect SendGetRect(IntPtr receiver, IntPtr selector);
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend_stret")] private static extern void SendGetRectStret(out CGRect result, IntPtr receiver, IntPtr selector);
+
+    private static CGRect GetRect(IntPtr receiver, IntPtr selector)
+    {
+        if (RuntimeInformation.ProcessArchitecture != Architecture.X64) return SendGetRect(receiver, selector);
+        SendGetRectStret(out var rect, receiver, selector);
+        return rect;
+    }
 
     [DllImport(LibSystem)] private static extern void dispatch_async_f(IntPtr queue, IntPtr context, IntPtr work);
 

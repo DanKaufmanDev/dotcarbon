@@ -15,6 +15,7 @@ internal static unsafe class LinuxTray
     private static readonly Dictionary<IntPtr, Action> Handlers = new();
     private static int _nextTag;
     private static IntPtr _menu;
+    private static Action<CarbonTrayEvent>? _onEvent;
     private static IntPtr _statusIcon;
 
     // --- runtime mutation (Task 2.3) ---------------------------------------------------------
@@ -91,6 +92,17 @@ internal static unsafe class LinuxTray
             var popup = (IntPtr)(delegate* unmanaged<IntPtr, uint, uint, IntPtr, void>)&OnPopup;
             g_signal_connect_data(_statusIcon, "popup-menu", popup, IntPtr.Zero, IntPtr.Zero, 0);
 
+            // Task 2.8. GtkStatusIcon only reports button presses — it has no motion or crossing
+            // signals, so Enter/Move/Leave are unavailable here (see CarbonTrayEventKind). Both
+            // handlers return FALSE so the menu's own popup-menu signal still fires.
+            _onEvent = builder.EventHandler;
+            if (_onEvent is not null)
+            {
+                var press = (IntPtr)(delegate* unmanaged<IntPtr, IntPtr, IntPtr, int>)&OnButtonEvent;
+                g_signal_connect_data(_statusIcon, "button-press-event", press, IntPtr.Zero, IntPtr.Zero, 0);
+                g_signal_connect_data(_statusIcon, "button-release-event", press, IntPtr.Zero, IntPtr.Zero, 0);
+            }
+
             Console.WriteLine($"[Carbon] System tray ready ({builder.Items.Count} item(s)).");
             CarbonTray.NotifyReady(onReady);
         }
@@ -98,6 +110,78 @@ internal static unsafe class LinuxTray
         {
             Console.Error.WriteLine($"[Carbon] Failed to create the Linux tray: {ex.Message}");
         }
+    }
+
+    // --- pointer events (Task 2.8) -----------------------------------------------------------
+
+    // GdkEventType values we care about.
+    private const int GdkButtonPress = 4;
+    private const int Gdk2ButtonPress = 5;
+    private const int GdkButtonRelease = 7;
+
+    /// <summary>
+    /// GdkEventButton, as laid out by GDK on 64-bit. Only the fields we read are named; the rest are
+    /// padding placeholders so the offsets line up.
+    /// </summary>
+    [StructLayout(LayoutKind.Explicit)]
+    private struct GdkEventButton
+    {
+        [FieldOffset(0)] public int Type;
+        [FieldOffset(48)] public uint State;
+        [FieldOffset(52)] public uint Button;
+        [FieldOffset(64)] public double XRoot;
+        [FieldOffset(72)] public double YRoot;
+    }
+
+    [UnmanagedCallersOnly]
+    private static int OnButtonEvent(IntPtr statusIcon, IntPtr eventPtr, IntPtr userData)
+    {
+        // Returning FALSE lets GTK carry on emitting popup-menu, which is what opens the menu.
+        try
+        {
+            if (_onEvent is not { } handler || eventPtr == IntPtr.Zero) return 0;
+
+            var e = Marshal.PtrToStructure<GdkEventButton>(eventPtr);
+            // A double click arrives as GDK_2BUTTON_PRESS *in addition to* the plain presses, so
+            // reporting it as its own kind rather than a third Click keeps the stream honest.
+            var kind = e.Type switch
+            {
+                Gdk2ButtonPress => CarbonTrayEventKind.DoubleClick,
+                GdkButtonPress or GdkButtonRelease => CarbonTrayEventKind.Click,
+                _ => (CarbonTrayEventKind?)null,
+            };
+            if (kind is not { } eventKind) return 0;
+
+            var button = e.Button switch
+            {
+                2u => CarbonTrayMouseButton.Middle,
+                3u => CarbonTrayMouseButton.Right,
+                _ => CarbonTrayMouseButton.Left,
+            };
+            var state = e.Type == GdkButtonRelease ? CarbonTrayButtonState.Up : CarbonTrayButtonState.Down;
+
+            handler(new CarbonTrayEvent(
+                eventKind, button, state, new CarbonTrayPoint(e.XRoot, e.YRoot), IconRect()));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Carbon] Tray event failed: {ex.Message}");
+        }
+        return 0;
+    }
+
+    /// <summary>The icon's screen rect. Most modern panels decline to report this.</summary>
+    private static CarbonTrayRect IconRect()
+    {
+        if (_statusIcon == IntPtr.Zero) return default;
+        if (!gtk_status_icon_get_geometry(_statusIcon, IntPtr.Zero, out var area, IntPtr.Zero)) return default;
+        return new CarbonTrayRect(area.X, area.Y, area.Width, area.Height);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GdkRectangle
+    {
+        public int X, Y, Width, Height;
     }
 
     /// <summary>Add tray items to a GtkMenu, recursing into submenus (Task 2.7).</summary>
@@ -148,6 +232,7 @@ internal static unsafe class LinuxTray
 
     [DllImport(Gtk)] [return: MarshalAs(UnmanagedType.I1)] private static extern bool gtk_init_check(IntPtr argc, IntPtr argv);
     [DllImport(Gtk)] private static extern IntPtr gtk_status_icon_new();
+    [DllImport(Gtk)] [return: MarshalAs(UnmanagedType.I1)] private static extern bool gtk_status_icon_get_geometry(IntPtr icon, IntPtr screen, out GdkRectangle area, IntPtr orientation);
     [DllImport(GObject)] private static extern void g_object_unref(IntPtr obj);
     [DllImport(GLib)] private static extern uint g_idle_add(IntPtr function, IntPtr data);
     [DllImport(Gtk)] private static extern void gtk_status_icon_set_from_icon_name(IntPtr icon, [MarshalAs(UnmanagedType.LPUTF8Str)] string name);

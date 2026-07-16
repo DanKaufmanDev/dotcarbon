@@ -18,7 +18,20 @@ CarbonApp.Create(config)
                 .AddSubmenu("Deeper", deeper => deeper
                     .AddItem("Nested", () => { })))
             .AddSeparator()
-            .AddItem("Quit", () => Environment.Exit(0)),
+            .AddItem("Quit", () => Environment.Exit(0))
+            // Task 2.8: pointer events on the icon. Registering a handler is what makes macOS hand us
+            // the button instead of letting AppKit own it, so the smoke covers that path.
+            // Move fires continuously while the pointer is over the icon, so it is handled but not
+            // logged — otherwise one pass over the menu bar floods the smoke log.
+            .OnEvent(e =>
+            {
+                if (e.Kind == CarbonTrayEventKind.Move) return;
+                Console.WriteLine(
+                    $"[Carbon] Tray event: {e.Kind} {e.Button} {e.ButtonState} " +
+                    $"at ({e.Position.X},{e.Position.Y}) rect=({e.Rect.X},{e.Rect.Y},{e.Rect.Width},{e.Rect.Height})");
+            })
+            .OnEvent("tray:pointer")
+            .ShowMenuOnLeftClick(true),
         // Task 2.3: exercise runtime mutation so the smoke proves the setters actually run.
         onReady: tray =>
         {

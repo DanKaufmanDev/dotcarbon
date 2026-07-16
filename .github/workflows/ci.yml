@@ -250,6 +250,14 @@ jobs:
             echo "macOS tray/menu mutation reported an error"
             grep -E "Tray update failed|Tray onReady failed|Menu update failed|Menu onReady failed" smoke.log; exit 1
           fi
+          # Task 2.8: the fixture registers a tray event handler, which puts macOS on the takeover
+          # path (we own the status button and pop the menu ourselves). "System tray ready" above
+          # therefore proves that path builds. The events themselves need a pointer over the menu
+          # bar, which a CI runner has not got — they were verified by hand on a real desktop.
+          if grep -q "Tray event failed" smoke.log; then
+            echo "macOS tray event handling reported an error"
+            grep -a "Tray event failed" smoke.log; exit 1
+          fi
           # Task 2.5: the fixture sets a real PNG tray icon; a load failure must not pass silently.
           if grep -qE "could not load the icon|icon file not found|could not decode icon" smoke.log; then
             echo "macOS tray icon failed to load"
@@ -282,6 +290,11 @@ jobs:
           if grep -qE "Tray update failed|Tray onReady failed|Menu update failed|Menu onReady failed" smoke.log; then
             echo "::warning::${{ runner.os }} tray/menu mutation reported an error"
             grep -E "Tray update failed|Tray onReady failed|Menu update failed|Menu onReady failed" smoke.log | tail -5
+          fi
+          # Task 2.8 — tray pointer events; same caveat as macOS, no pointer on a runner.
+          if grep -q "Tray event failed" smoke.log; then
+            echo "::warning::${{ runner.os }} tray event handling reported an error"
+            grep -a "Tray event failed" smoke.log | tail -5
           fi
           if grep -qE "could not load the icon|icon file not found|could not decode icon|GDI\+ startup failed" smoke.log; then
             echo "::warning::${{ runner.os }} tray icon failed to load"

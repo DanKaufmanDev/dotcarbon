@@ -2,6 +2,50 @@ using DotCarbon.Core.Runtime;
 
 namespace DotCarbon.Host.Desktop;
 
+/// <summary>
+/// What the pointer did to the tray icon (Tauri's <c>TrayIconEvent</c>). Platform support differs:
+/// macOS reports all five; Windows and Linux report <see cref="Click"/>, <see cref="DoubleClick"/>
+/// and (Windows only) <see cref="Move"/>. See <c>CarbonTrayBuilder.OnEvent</c>.
+/// </summary>
+public enum CarbonTrayEventKind
+{
+    Click,
+    DoubleClick,
+    Enter,
+    Move,
+    Leave,
+}
+
+public enum CarbonTrayMouseButton
+{
+    Left,
+    Right,
+    Middle,
+}
+
+public enum CarbonTrayButtonState
+{
+    Up,
+    Down,
+}
+
+/// <summary>A screen-coordinate point.</summary>
+public readonly record struct CarbonTrayPoint(double X, double Y);
+
+/// <summary>The tray icon's rectangle in screen coordinates. Zero-sized if the platform won't say.</summary>
+public readonly record struct CarbonTrayRect(double X, double Y, double Width, double Height);
+
+/// <summary>
+/// A tray pointer event. <see cref="Button"/> and <see cref="ButtonState"/> are only meaningful for
+/// <see cref="CarbonTrayEventKind.Click"/> and <see cref="CarbonTrayEventKind.DoubleClick"/>.
+/// </summary>
+public sealed record CarbonTrayEvent(
+    CarbonTrayEventKind Kind,
+    CarbonTrayMouseButton Button,
+    CarbonTrayButtonState ButtonState,
+    CarbonTrayPoint Position,
+    CarbonTrayRect Rect);
+
 /// <summary>Fluent builder for a system tray icon and its menu.</summary>
 public sealed class CarbonTrayBuilder
 {
@@ -9,6 +53,9 @@ public sealed class CarbonTrayBuilder
     internal string? IconPath { get; private set; }
     internal bool IconIsTemplate { get; private set; }
     internal List<TrayItem> Items { get; } = [];
+    internal Action<CarbonTrayEvent>? EventHandler { get; private set; }
+    internal string? EventName { get; private set; }
+    internal bool MenuOnLeftClick { get; private set; } = true;
 
     /// <summary>The tray button text (an emoji or short glyph reads best in the menu bar).</summary>
     public CarbonTrayBuilder SetTitle(string title)
@@ -66,13 +113,56 @@ public sealed class CarbonTrayBuilder
         return this;
     }
 
+    /// <summary>
+    /// Handle pointer events on the icon itself, as opposed to its menu items. See
+    /// <see cref="CarbonTrayEventKind"/> for what each platform actually reports. Runs on the
+    /// platform's UI thread, so keep it short and don't block.
+    /// </summary>
+    public CarbonTrayBuilder OnEvent(Action<CarbonTrayEvent> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        EventHandler = handler;
+        return this;
+    }
+
+    /// <summary>
+    /// Forward pointer events on the icon to the frontend under <paramref name="eventName"/>, where
+    /// they arrive as a <c>CarbonTrayEvent</c> payload. Composes with <see cref="OnEvent(Action{CarbonTrayEvent})"/>.
+    /// </summary>
+    public CarbonTrayBuilder OnEvent(string eventName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
+        EventName = eventName;
+        return this;
+    }
+
+    /// <summary>
+    /// Whether a left click opens the menu (default true, same as Tauri's
+    /// <c>show_menu_on_left_click</c>). Turn it off to make left click purely an event — useful for
+    /// toggling a window — while right click still opens the menu. macOS only: Windows and Linux
+    /// open the menu on either button regardless.
+    /// </summary>
+    public CarbonTrayBuilder ShowMenuOnLeftClick(bool show = true)
+    {
+        MenuOnLeftClick = show;
+        return this;
+    }
+
     internal void Add(TrayItem item) => Items.Add(item);
 
     internal CarbonTrayBuilder Bind(AppHandle app)
     {
-        var bound = new CarbonTrayBuilder().SetTitle(Title);
+        var bound = new CarbonTrayBuilder().SetTitle(Title).ShowMenuOnLeftClick(MenuOnLeftClick);
         if (IconPath is { } icon) bound.SetIcon(icon, IconIsTemplate);
         foreach (var item in Items) bound.Add(BindItem(item, app));
+
+        // A named event and a handler are independent opt-ins; run both when both are set.
+        var emit = EventName is { } name ? DesktopTrayEventEmitter.Create(app, name) : null;
+        var handler = EventHandler;
+        if (emit is not null && handler is not null) bound.OnEvent(e => { handler(e); emit(e); });
+        else if (emit is not null) bound.OnEvent(emit);
+        else if (handler is not null) bound.OnEvent(handler);
+
         return bound;
     }
 

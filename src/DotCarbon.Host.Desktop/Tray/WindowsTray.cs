@@ -13,12 +13,26 @@ internal static unsafe class WindowsTray
     private const int WM_RBUTTONUP = 0x0205;
     private const int WM_DESTROY = 0x0002;
 
+    // Notify-icon mouse messages (Task 2.8).
+    private const int WM_MOUSEMOVE = 0x0200;
+    private const int WM_LBUTTONDOWN = 0x0201;
+    private const int WM_LBUTTONDBLCLK = 0x0203;
+    private const int WM_RBUTTONDOWN = 0x0204;
+    private const int WM_RBUTTONDBLCLK = 0x0206;
+    private const int WM_MBUTTONDOWN = 0x0207;
+    private const int WM_MBUTTONUP = 0x0208;
+    private const int WM_MBUTTONDBLCLK = 0x0209;
+
+    /// <summary>Shell_NotifyIcon identifies our icon by (hWnd, uID).</summary>
+    private const int TrayIconId = 1;
+
     private const int NIM_ADD = 0x0;
     private const int NIF_MESSAGE = 0x1;
     private const int NIF_ICON = 0x2;
     private const int NIF_TIP = 0x4;
 
     private const int MF_STRING = 0x0;
+    private const int MF_POPUP = 0x10;
     private const int MF_SEPARATOR = 0x800;
     private const int TPM_RIGHTBUTTON = 0x2;
     private const int TPM_RETURNCMD = 0x100;
@@ -28,6 +42,7 @@ internal static unsafe class WindowsTray
     private static IntPtr _hwnd;
     private static IntPtr _menu;
     private static IntPtr _wndProcPtr; // keep the delegate ptr rooted
+    private static Action<CarbonTrayEvent>? _onEvent;
 
     // --- runtime mutation (Task 2.3) ---------------------------------------------------------
     // The Windows tray is icon-only, so SetTitle has no analogue here (see CarbonTrayHandle).
@@ -133,7 +148,7 @@ internal static unsafe class WindowsTray
             {
                 cbSize = sizeof(NOTIFYICONDATA),
                 hWnd = _hwnd,
-                uID = 1,
+                uID = TrayIconId,
                 uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
                 uCallbackMessage = CallbackMessage,
                 hIcon = _icon != IntPtr.Zero ? _icon : LoadIconW(IntPtr.Zero, IDI_APPLICATION),
@@ -172,19 +187,8 @@ internal static unsafe class WindowsTray
 
             _menu = CreatePopupMenu();
             var id = 1; // TPM_RETURNCMD reserves 0 for "no selection"
-            foreach (var item in builder.Items)
-            {
-                if (item.IsSeparator)
-                {
-                    AppendMenuW(_menu, MF_SEPARATOR, IntPtr.Zero, null);
-                }
-                else
-                {
-                    AppendMenuW(_menu, MF_STRING, id, item.Label);
-                    Handlers[id] = item.OnClick!;
-                    id++;
-                }
-            }
+            FillMenu(_menu, builder.Items, ref id);
+            _onEvent = builder.EventHandler;
 
             // Load the custom icon *before* building the struct — it reads _icon.
             if (builder.IconPath is { } iconPath) _icon = LoadIcon(iconPath);
@@ -194,7 +198,7 @@ internal static unsafe class WindowsTray
             {
                 cbSize = sizeof(NOTIFYICONDATA),
                 hWnd = _hwnd,
-                uID = 1,
+                uID = TrayIconId,
                 uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
                 uCallbackMessage = CallbackMessage,
                 hIcon = _icon != IntPtr.Zero ? _icon : LoadIconW(IntPtr.Zero, IDI_APPLICATION),
@@ -222,12 +226,94 @@ internal static unsafe class WindowsTray
     {
         if (msg == CallbackMessage)
         {
+            // Legacy notify-icon packing: the mouse message is in lParam, the icon id in wParam.
             var mouseMsg = (int)(lParam.ToInt64() & 0xFFFF);
+            ReportEvent(mouseMsg);
             if (mouseMsg is WM_RBUTTONUP or WM_LBUTTONUP)
                 ShowMenu(hwnd);
             return IntPtr.Zero;
         }
         return DefWindowProcW(hwnd, msg, wParam, lParam);
+    }
+
+    /// <summary>
+    /// Translate a notify-icon mouse message into a tray event (Task 2.8). Enter and Leave are absent:
+    /// the shell only reports those as NIN_POPUPOPEN/NIN_POPUPCLOSE under NOTIFYICON_VERSION_4, which
+    /// would also re-pack wParam/lParam for every other message here — not a trade worth making
+    /// blind, since no one on this project can exercise a real Windows tray yet.
+    /// </summary>
+    private static void ReportEvent(int mouseMsg)
+    {
+        if (_onEvent is not { } handler) return;
+
+        var (kind, button, state) = mouseMsg switch
+        {
+            WM_MOUSEMOVE => (CarbonTrayEventKind.Move, CarbonTrayMouseButton.Left, CarbonTrayButtonState.Up),
+            WM_LBUTTONDOWN => (CarbonTrayEventKind.Click, CarbonTrayMouseButton.Left, CarbonTrayButtonState.Down),
+            WM_LBUTTONUP => (CarbonTrayEventKind.Click, CarbonTrayMouseButton.Left, CarbonTrayButtonState.Up),
+            WM_RBUTTONDOWN => (CarbonTrayEventKind.Click, CarbonTrayMouseButton.Right, CarbonTrayButtonState.Down),
+            WM_RBUTTONUP => (CarbonTrayEventKind.Click, CarbonTrayMouseButton.Right, CarbonTrayButtonState.Up),
+            WM_MBUTTONDOWN => (CarbonTrayEventKind.Click, CarbonTrayMouseButton.Middle, CarbonTrayButtonState.Down),
+            WM_MBUTTONUP => (CarbonTrayEventKind.Click, CarbonTrayMouseButton.Middle, CarbonTrayButtonState.Up),
+            WM_LBUTTONDBLCLK => (CarbonTrayEventKind.DoubleClick, CarbonTrayMouseButton.Left, CarbonTrayButtonState.Up),
+            WM_RBUTTONDBLCLK => (CarbonTrayEventKind.DoubleClick, CarbonTrayMouseButton.Right, CarbonTrayButtonState.Up),
+            WM_MBUTTONDBLCLK => (CarbonTrayEventKind.DoubleClick, CarbonTrayMouseButton.Middle, CarbonTrayButtonState.Up),
+            _ => (CarbonTrayEventKind.Move, CarbonTrayMouseButton.Left, CarbonTrayButtonState.Up),
+        };
+        if (kind == CarbonTrayEventKind.Move && mouseMsg != WM_MOUSEMOVE) return; // not a message we report
+
+        try
+        {
+            GetCursorPos(out var cursor);
+            handler(new CarbonTrayEvent(
+                kind, button, state, new CarbonTrayPoint(cursor.X, cursor.Y), IconRect()));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Carbon] Tray event failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>The icon's screen rect, which the shell can decline to give us.</summary>
+    private static CarbonTrayRect IconRect()
+    {
+        var id = new NOTIFYICONIDENTIFIER
+        {
+            cbSize = (uint)sizeof(NOTIFYICONIDENTIFIER),
+            hWnd = _hwnd,
+            uID = TrayIconId,
+        };
+        if (Shell_NotifyIconGetRect(ref id, out var rect) != 0) return default;
+        return new CarbonTrayRect(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+    }
+
+    /// <summary>
+    /// Add tray items to an HMENU, recursing into submenus. A popup carries the submenu handle where a
+    /// command id would go, so it never gets a handler; ids must stay unique across the whole tree,
+    /// hence the counter by reference (same shape as WindowsMenu).
+    /// </summary>
+    private static void FillMenu(IntPtr menu, IReadOnlyList<TrayItem> items, ref int id)
+    {
+        foreach (var item in items)
+        {
+            if (item.IsSeparator)
+            {
+                AppendMenuW(menu, MF_SEPARATOR, IntPtr.Zero, null);
+                continue;
+            }
+
+            if (item.Children is { } children)
+            {
+                var child = CreatePopupMenu();
+                FillMenu(child, children, ref id);
+                AppendMenuW(menu, MF_POPUP, child, item.Label);
+                continue;
+            }
+
+            AppendMenuW(menu, MF_STRING, id, item.Label);
+            Handlers[id] = item.OnClick!;
+            id++;
+        }
     }
 
     private static void ShowMenu(IntPtr hwnd)
@@ -280,6 +366,18 @@ internal static unsafe class WindowsTray
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT { public int X, Y; }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NOTIFYICONIDENTIFIER
+    {
+        public uint cbSize;
+        public IntPtr hWnd;
+        public uint uID;
+        public Guid guidItem;
+    }
+
     [DllImport("kernel32.dll")] private static extern IntPtr GetModuleHandleW(IntPtr lpModuleName);
     [DllImport("user32.dll")] private static extern ushort RegisterClassExW(ref WNDCLASSEXW wc);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -310,6 +408,7 @@ internal static unsafe class WindowsTray
     private static extern bool AppendMenuW(IntPtr hMenu, int flags, IntPtr idNewItem, string? newItem);
     [DllImport("user32.dll")] private static extern int TrackPopupMenu(IntPtr hMenu, int flags, int x, int y, int reserved, IntPtr hwnd, IntPtr rect);
     [DllImport("user32.dll")] private static extern bool GetCursorPos(out POINT point);
+    [DllImport("shell32.dll")] private static extern int Shell_NotifyIconGetRect(ref NOTIFYICONIDENTIFIER id, out RECT rect);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("shell32.dll")] private static extern bool Shell_NotifyIconW(int message, ref NOTIFYICONDATA data);
 }
