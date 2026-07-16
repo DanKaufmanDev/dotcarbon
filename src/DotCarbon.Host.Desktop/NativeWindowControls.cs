@@ -85,6 +85,33 @@ internal static unsafe class NativeWindowControls
 
     public static (int, int) OuterPosition(PhotinoWebView view) => (view.X, view.Y);
 
+    /// <summary>
+    /// Apply the title-bar style (config `window.titleBarStyle`). "transparent" turns the window into
+    /// a full-window app: the content view fills the whole frame, the traffic lights float over it,
+    /// and the title is hidden. macOS only — Windows and Linux keep a normal title bar until custom
+    /// frame work lands. "visible" (or anything else) is the default and does nothing.
+    /// </summary>
+    /// <returns>True if a non-default style was applied (so the caller can re-assert the size).</returns>
+    public static bool SetTitleBarStyle(PhotinoWebView view, string? style)
+    {
+        if (!string.Equals(style, "transparent", StringComparison.OrdinalIgnoreCase)) return false;
+        if (OperatingSystem.IsMacOS()) { MacFullSizeContent(MacWindow(view)); return true; }
+        // Windows and Linux keep a normal title bar for now.
+        return false;
+    }
+
+    private static void MacFullSizeContent(IntPtr window)
+    {
+        if (window == IntPtr.Zero) return;
+        const long NSWindowStyleMaskFullSizeContentView = 1 << 15;
+        const long NSWindowTitleVisibilityHidden = 1;
+
+        var mask = (long)SendLong(window, Sel("styleMask"));
+        SendSetLong(window, Sel("setStyleMask:"), (nint)(mask | NSWindowStyleMaskFullSizeContentView));
+        SendBool(window, Sel("setTitlebarAppearsTransparent:"), true);
+        SendSetLong(window, Sel("setTitleVisibility:"), (nint)NSWindowTitleVisibilityHidden);
+    }
+
     public static (int, int) InnerPosition(PhotinoWebView view)
     {
         if (OperatingSystem.IsWindows())
@@ -243,6 +270,7 @@ internal static unsafe class NativeWindowControls
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendLongArg(IntPtr receiver, IntPtr sel, long arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern nint SendLong(IntPtr receiver, IntPtr sel);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern void SendBool(IntPtr receiver, IntPtr sel, [MarshalAs(UnmanagedType.I1)] bool arg);
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern void SendSetLong(IntPtr receiver, IntPtr sel, nint arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] [return: MarshalAs(UnmanagedType.I1)] private static extern bool SendReturnBool(IntPtr receiver, IntPtr sel);
 
     private static IntPtr Cls(string name) => objc_getClass(name);

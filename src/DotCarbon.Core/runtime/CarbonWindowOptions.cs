@@ -23,6 +23,8 @@ public sealed class CarbonWindowOptions
     public bool Maximized { get; set; }
     public bool AlwaysOnTop { get; set; }
     public bool Decorations { get; set; } = true;
+    /// <summary>See <see cref="Config.WindowConfig.TitleBarStyle"/> — "visible" or "transparent".</summary>
+    public string TitleBarStyle { get; set; } = "visible";
     public bool Transparent { get; set; }
     public bool DevTools { get; set; } = true;
     public bool ContextMenu { get; set; } = true;
@@ -49,6 +51,7 @@ public sealed class CarbonWindowOptions
         Maximized = config.Maximized,
         AlwaysOnTop = config.AlwaysOnTop,
         Decorations = config.Decorations,
+        TitleBarStyle = config.TitleBarStyle,
         Transparent = config.Transparent,
         DevTools = config.DevTools,
         ContextMenu = config.ContextMenu,

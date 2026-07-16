@@ -91,6 +91,7 @@
                 "maximized": { "type": "boolean", "default": false },
                 "alwaysOnTop": { "type": "boolean", "default": false },
                 "decorations": { "type": "boolean", "default": true, "description": "Window chrome (title bar + border). Set false for a frameless window." },
+                "titleBarStyle": { "type": "string", "enum": ["visible", "transparent"], "default": "visible", "description": "Title bar style. 'transparent' makes the webview fill the whole window with the controls floating over it (a full-window app); macOS only, falls back to a normal title bar elsewhere." },
                 "transparent": { "type": "boolean", "default": false, "description": "Transparent window background." },
                 "devtools": { "type": "boolean", "default": false, "description": "Allow opening the webview dev tools." },
                 "contextMenu": { "type": "boolean", "default": true, "description": "Allow the webview's right-click context menu." },

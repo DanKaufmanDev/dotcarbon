@@ -73,6 +73,15 @@ public class WindowConfig
 
     public bool Decorations { get; set; } = true;
 
+    /// <summary>
+    /// How the title bar is drawn. "visible" (default) is a normal OS title bar with the content
+    /// below it. "transparent" makes the webview fill the whole window with the traffic-light controls
+    /// floating over it and the title hidden — a full-window app. macOS only for now; elsewhere it
+    /// falls back to a normal title bar. Distinct from <see cref="Decorations"/> = false, which removes
+    /// the frame and controls entirely.
+    /// </summary>
+    public string TitleBarStyle { get; set; } = "visible";
+
     public bool Transparent { get; set; } = false;
 
     public bool DevTools { get; set; } = true;

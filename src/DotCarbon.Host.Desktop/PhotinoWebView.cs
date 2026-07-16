@@ -20,11 +20,17 @@ public sealed class PhotinoWebView : ICarbonWebView
     /// </summary>
     internal IntPtr NativeWindow { get; set; }
 
+    private readonly string _titleBarStyle;
+    private readonly int _requestedWidth;
+    private readonly int _requestedHeight;
+
     internal PhotinoWebView(CarbonWebViewContext context)
     {
         var options = context.Options;
         var callbacks = context.Callbacks;
         var parent = (context.Parent as PhotinoWebView)?.Window;
+        _titleBarStyle = options.TitleBarStyle;
+        (_requestedWidth, _requestedHeight) = (options.Width, options.Height);
 
         Window = new PhotinoWindow(parent)
             .SetTitle(options.Title)
@@ -39,7 +45,19 @@ public sealed class PhotinoWebView : ICarbonWebView
             .SetContextMenuEnabled(options.ContextMenu)
             .RegisterCustomSchemeHandler("carbon", ServeCarbonAsset)
             .RegisterWindowCreatingHandler((_, _) => callbacks.Creating?.Invoke())
-            .RegisterWindowCreatedHandler((_, _) => callbacks.Created?.Invoke())
+            .RegisterWindowCreatedHandler((_, _) =>
+            {
+                // The native window exists now, so the title-bar style (Task 3.2 full-window mode)
+                // can be applied. Runs on Photino's UI thread, where AppKit calls are valid.
+                // Making the title bar transparent shrinks the frame to the old content height (AppKit
+                // folds the title bar into the content), so the requested size is re-applied — the
+                // window stays as asked and the webview fills all of it.
+                // Window is assigned by the time this fires (it runs after the app starts), which the
+                // compiler can't see from inside the constructor's own initializer chain.
+                if (NativeWindowControls.SetTitleBarStyle(this, _titleBarStyle))
+                    Window!.SetSize(_requestedWidth, _requestedHeight);
+                callbacks.Created?.Invoke();
+            })
             .RegisterWindowClosingHandler((_, _) => callbacks.Closing?.Invoke() ?? false)
             .RegisterFocusInHandler((_, _) => callbacks.Focused?.Invoke())
             .RegisterFocusOutHandler((_, _) => callbacks.Blurred?.Invoke())
@@ -106,6 +124,19 @@ public sealed class PhotinoWebView : ICarbonWebView
     public void SetFullscreen(bool fullscreen) => Window.SetFullScreen(fullscreen);
     public void SetAlwaysOnTop(bool alwaysOnTop) => Window.SetTopMost(alwaysOnTop);
     public void SetResizable(bool resizable) => Window.SetResizable(resizable);
+
+    /// <summary>
+    /// Apply a title-bar style at runtime (config `window.titleBarStyle` uses the same call at
+    /// creation). "transparent" makes the webview fill the whole window on macOS.
+    /// </summary>
+    public void SetTitleBarStyle(string style)
+    {
+        // Capture the size first: applying a transparent title bar shrinks the frame to the old
+        // content height, so it must be restored to what it was, not what it becomes.
+        var (width, height) = (Width, Height);
+        if (NativeWindowControls.SetTitleBarStyle(this, style))
+            Window.SetSize(width, height);
+    }
 
     // Task 3.1 — native show/hide/focus/attention (Photino provides none of these).
     public void Show() => NativeWindowControls.Show(this);

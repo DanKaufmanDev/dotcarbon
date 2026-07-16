@@ -62,6 +62,12 @@ CarbonApp.Create(config)
                 Console.WriteLine(
                     $"[[CARBON_GEO]] inner={iw}x{ih}@{ix},{iy} outer={ow}x{oh}@{ox},{oy} photino={view.Width}x{view.Height} " +
                     $"min={photino.MinWidth}x{photino.MinHeight} max={photino.MaxWidth}x{photino.MaxHeight}");
+
+                // Task 3.2 full-window mode: switching to a transparent title bar should make the
+                // content view fill the whole frame, so inner height rises to the outer height.
+                if (view is PhotinoWebView pv) pv.SetTitleBarStyle("transparent");
+                var (tw, th) = view.GetInnerSize();
+                Console.WriteLine($"[[CARBON_TITLEBAR]] inner_after={tw}x{th} outer={ow}x{oh}");
                 Console.Out.Flush();
             });
         });

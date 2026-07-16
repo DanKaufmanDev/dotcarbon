@@ -304,6 +304,24 @@ jobs:
           else
             echo "::warning::Windows window geometry did not report (unverified backend)"
           fi
+          # Task 3.2 full-window mode: after switching to a transparent title bar, the content must
+          # fill the whole frame (inner height == outer height). On macOS the title bar folds into the
+          # content and the size is restored, so inner rises to the outer height. Linux keeps a normal
+          # title bar (the call is a no-op there) but is decorationless under xvfb, so inner already
+          # equals outer — the assertion holds either way. macOS is the meaningful gate.
+          tb=$(grep -a "\[\[CARBON_TITLEBAR\]\]" smoke.log | tail -1 || true)
+          if [ -n "$tb" ]; then
+            echo "::notice::${{ runner.os }} $tb"
+            ih=$(echo "$tb" | sed -n 's/.*inner_after=[0-9]*x\([0-9]*\) .*/\1/p')
+            oh=$(echo "$tb" | sed -n 's/.*outer=[0-9]*x\([0-9]*\).*/\1/p')
+            case "${{ runner.os }}" in
+              macOS|Linux)
+                [ "$ih" = "$oh" ] || { echo "transparent title bar did not fill the window ($ih != $oh)"; exit 1; }
+                ;;
+            esac
+          elif [ "${{ runner.os }}" != "Windows" ]; then
+            echo "title-bar style (Task 3.2) never reported on ${{ runner.os }}"; exit 1
+          fi
       - name: Assert tray + menu (macOS — verified path)
         if: runner.os == 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app
