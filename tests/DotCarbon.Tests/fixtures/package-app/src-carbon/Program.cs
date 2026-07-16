@@ -114,6 +114,15 @@ CarbonApp.Create(config)
                 {
                     Console.WriteLine("[[CARBON_CHROME]] toggles ran (no readback off macOS)");
                 }
+
+                // Restore a normal, closable window. On macOS a window with the closable style bit
+                // removed cannot be closed programmatically (performClose: is a no-op), which would
+                // leave the smoke unable to exit — so the toggles must not leave it in that state.
+                view.SetClosable(true);
+                view.SetDecorations(true);
+                view.SetMinimizable(true);
+                view.SetMaximizable(true);
+                view.SetSkipTaskbar(false);
                 Console.Out.Flush();
             });
         });
