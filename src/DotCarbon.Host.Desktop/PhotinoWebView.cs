@@ -145,6 +145,30 @@ public sealed class PhotinoWebView : ICarbonWebView
     public void RequestUserAttention() => NativeWindowControls.RequestUserAttention(this);
     public void StartDragging() => NativeWindowControls.StartDragging(this);
 
+    // Task 3.3 — chrome & behavior (Photino exposes almost none of these at runtime).
+    public void SetDecorations(bool decorations) => NativeWindowControls.SetDecorations(this, decorations);
+    public void SetClosable(bool closable) => NativeWindowControls.SetClosable(this, closable);
+    public void SetMinimizable(bool minimizable) => NativeWindowControls.SetMinimizable(this, minimizable);
+    public void SetMaximizable(bool maximizable) => NativeWindowControls.SetMaximizable(this, maximizable);
+    public void SetAlwaysOnBottom(bool alwaysOnBottom) => NativeWindowControls.SetAlwaysOnBottom(this, alwaysOnBottom);
+    public void SetSkipTaskbar(bool skip) => NativeWindowControls.SetSkipTaskbar(this, skip);
+    public void SetContentProtected(bool protectedContent) => NativeWindowControls.SetContentProtected(this, protectedContent);
+    public void SetIgnoreCursorEvents(bool ignore) => NativeWindowControls.SetIgnoreCursorEvents(this, ignore);
+
+    public void SetIcon(string path)
+    {
+        // Photino's icon setter handles the Windows/Linux taskbar icon; macOS has no title-bar icon.
+        var full = Path.GetFullPath(path);
+        if (File.Exists(full)) Window.SetIconFile(full);
+    }
+
+    /// <summary>macOS: whether a style-mask bit ("titled"/"closable"/"miniaturizable") is set.</summary>
+    public bool MacHasStyleBit(string which) => NativeWindowControls.MacHasStyleBit(this, which);
+    /// <summary>macOS: whether the window is excluded from screen capture.</summary>
+    public bool MacIsContentProtected() => NativeWindowControls.MacIsContentProtected(this);
+    /// <summary>macOS: whether the window passes pointer events through (click-through).</summary>
+    public bool MacIgnoresCursor() => NativeWindowControls.MacIgnoresCursor(this);
+
     public void LoadUri(Uri uri) => Window.Load(uri);
     public void LoadString(string html) => Window.LoadRawString(html);
     public Task SendMessageAsync(string message) => Window.SendWebMessageAsync(message);

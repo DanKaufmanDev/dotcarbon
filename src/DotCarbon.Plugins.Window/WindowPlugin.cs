@@ -228,6 +228,71 @@ public partial class WindowPlugin : IPlugin
 
     public Task StartDragging() => StartDragging(new TargetWindowArgs());
 
+    // --- chrome & behavior (Task 3.3) --------------------------------------------------------
+
+    [CarbonCommand("set_decorations")]
+    public Task SetDecorations(SetFlagArgs args)
+    {
+        Resolve(args.Label).View.SetDecorations(args.Value);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_closable")]
+    public Task SetClosable(SetFlagArgs args)
+    {
+        Resolve(args.Label).View.SetClosable(args.Value);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_minimizable")]
+    public Task SetMinimizable(SetFlagArgs args)
+    {
+        Resolve(args.Label).View.SetMinimizable(args.Value);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_maximizable")]
+    public Task SetMaximizable(SetFlagArgs args)
+    {
+        Resolve(args.Label).View.SetMaximizable(args.Value);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_always_on_bottom")]
+    public Task SetAlwaysOnBottom(SetFlagArgs args)
+    {
+        Resolve(args.Label).View.SetAlwaysOnBottom(args.Value);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_skip_taskbar")]
+    public Task SetSkipTaskbar(SetFlagArgs args)
+    {
+        Resolve(args.Label).View.SetSkipTaskbar(args.Value);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_content_protected")]
+    public Task SetContentProtected(SetFlagArgs args)
+    {
+        Resolve(args.Label).View.SetContentProtected(args.Value);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_ignore_cursor_events")]
+    public Task SetIgnoreCursorEvents(SetFlagArgs args)
+    {
+        Resolve(args.Label).View.SetIgnoreCursorEvents(args.Value);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_icon")]
+    public Task SetIcon(SetIconArgs args)
+    {
+        Resolve(args.Label).View.SetIcon(args.Path);
+        return Task.CompletedTask;
+    }
+
     // --- geometry depth (Task 3.2) -----------------------------------------------------------
 
     [CarbonCommand("set_min_size")]

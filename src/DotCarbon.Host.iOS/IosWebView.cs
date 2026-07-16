@@ -62,6 +62,15 @@ public sealed class IosWebView : ICarbonWebView
     public void SetFocus() { }
     public void RequestUserAttention() { }
     public void StartDragging() { }
+    public void SetDecorations(bool decorations) { }
+    public void SetClosable(bool closable) { }
+    public void SetMinimizable(bool minimizable) { }
+    public void SetMaximizable(bool maximizable) { }
+    public void SetAlwaysOnBottom(bool alwaysOnBottom) { }
+    public void SetSkipTaskbar(bool skip) { }
+    public void SetContentProtected(bool protectedContent) { }
+    public void SetIgnoreCursorEvents(bool ignore) { }
+    public void SetIcon(string path) { }
 
     public void LoadUri(Uri uri) =>
         Native.InvokeOnMainThread(() => Native.LoadRequest(new NSUrlRequest(new NSUrl(uri.ToString()))));

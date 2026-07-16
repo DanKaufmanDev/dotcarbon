@@ -140,6 +140,114 @@ internal static unsafe class NativeWindowControls
         return (view.X, view.Y + (outerH - innerH));
     }
 
+    // --- chrome & behavior (Task 3.3) --------------------------------------------------------
+    // Photino exposes almost none of these at runtime, so each is native. macOS drives most off the
+    // window's style mask; the readback helpers below let the smoke confirm the bits actually change.
+
+    // macOS NSWindowStyleMask bits.
+    private const long NSTitled = 1 << 0;
+    private const long NSClosable = 1 << 1;
+    private const long NSMiniaturizable = 1 << 2;
+
+    public static void SetDecorations(PhotinoWebView view, bool on)
+    {
+        if (OperatingSystem.IsWindows()) WinToggleStyle(Hwnd(view), WS_CAPTION | WS_THICKFRAME, on);
+        else if (OperatingSystem.IsMacOS()) MacSetStyleBit(MacWindow(view), NSTitled, on);
+        else if (OperatingSystem.IsLinux()) gtk_window_set_decorated(GtkWindow(view), on);
+    }
+
+    public static void SetClosable(PhotinoWebView view, bool on)
+    {
+        if (OperatingSystem.IsWindows()) WinToggleStyle(Hwnd(view), WS_SYSMENU, on);
+        else if (OperatingSystem.IsMacOS()) MacSetStyleBit(MacWindow(view), NSClosable, on);
+        else if (OperatingSystem.IsLinux()) gtk_window_set_deletable(GtkWindow(view), on);
+    }
+
+    public static void SetMinimizable(PhotinoWebView view, bool on)
+    {
+        if (OperatingSystem.IsWindows()) WinToggleStyle(Hwnd(view), WS_MINIMIZEBOX, on);
+        else if (OperatingSystem.IsMacOS()) MacSetStyleBit(MacWindow(view), NSMiniaturizable, on);
+        // Linux/GTK has no reliable per-button toggle.
+    }
+
+    public static void SetMaximizable(PhotinoWebView view, bool on)
+    {
+        if (OperatingSystem.IsWindows()) WinToggleStyle(Hwnd(view), WS_MAXIMIZEBOX, on);
+        else if (OperatingSystem.IsMacOS()) MacSetZoomEnabled(MacWindow(view), on);
+        // Linux/GTK has no reliable per-button toggle.
+    }
+
+    public static void SetAlwaysOnBottom(PhotinoWebView view, bool on)
+    {
+        if (OperatingSystem.IsWindows()) WinSetBottom(Hwnd(view), on);
+        else if (OperatingSystem.IsMacOS()) SendSetLong(MacWindow(view), Sel("setLevel:"), (nint)(on ? -1 : 0));
+        else if (OperatingSystem.IsLinux()) gtk_window_set_keep_below(GtkWindow(view), on);
+    }
+
+    public static void SetSkipTaskbar(PhotinoWebView view, bool on)
+    {
+        if (OperatingSystem.IsWindows()) WinSetToolWindow(Hwnd(view), on);
+        else if (OperatingSystem.IsLinux()) gtk_window_set_skip_taskbar_hint(GtkWindow(view), on);
+        // macOS has no per-window taskbar entry (the dock is per-app).
+    }
+
+    public static void SetContentProtected(PhotinoWebView view, bool on)
+    {
+        // macOS NSWindowSharingNone = 0, NSWindowSharingReadOnly = 1 (the default).
+        if (OperatingSystem.IsWindows()) SetWindowDisplayAffinity(Hwnd(view), on ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
+        else if (OperatingSystem.IsMacOS()) SendSetLong(MacWindow(view), Sel("setSharingType:"), (nint)(on ? 0 : 1));
+        // Linux has no standard capture-protection API.
+    }
+
+    public static void SetIgnoreCursorEvents(PhotinoWebView view, bool on)
+    {
+        if (OperatingSystem.IsWindows()) WinSetClickThrough(Hwnd(view), on);
+        else if (OperatingSystem.IsMacOS()) SendBool(MacWindow(view), Sel("setIgnoresMouseEvents:"), on);
+        else if (OperatingSystem.IsLinux()) LinuxSetClickThrough(GtkWindow(view), on);
+    }
+
+    // --- macOS chrome readbacks (verification) -----------------------------------------------
+
+    /// <summary>Whether a style-mask bit is set — lets the smoke confirm a toggle actually took.</summary>
+    public static bool MacHasStyleBit(PhotinoWebView view, string which)
+    {
+        var window = MacWindow(view);
+        if (window == IntPtr.Zero) return false;
+        var mask = (long)SendLong(window, Sel("styleMask"));
+        var bit = which switch
+        {
+            "titled" => NSTitled,
+            "closable" => NSClosable,
+            "miniaturizable" => NSMiniaturizable,
+            _ => 0L,
+        };
+        return (mask & bit) != 0;
+    }
+
+    public static bool MacIsContentProtected(PhotinoWebView view)
+    {
+        var window = MacWindow(view);
+        return window != IntPtr.Zero && (long)SendLong(window, Sel("sharingType")) == 0;
+    }
+
+    public static bool MacIgnoresCursor(PhotinoWebView view) =>
+        MacBool(MacWindow(view), "ignoresMouseEvents");
+
+    private static void MacSetStyleBit(IntPtr window, long bit, bool on)
+    {
+        if (window == IntPtr.Zero) return;
+        var mask = (long)SendLong(window, Sel("styleMask"));
+        SendSetLong(window, Sel("setStyleMask:"), (nint)(on ? mask | bit : mask & ~bit));
+    }
+
+    private static void MacSetZoomEnabled(IntPtr window, bool on)
+    {
+        if (window == IntPtr.Zero) return;
+        const long NSWindowZoomButton = 2;
+        var button = SendLongArg(window, Sel("standardWindowButton:"), NSWindowZoomButton);
+        if (button != IntPtr.Zero) SendBool(button, Sel("setEnabled:"), on);
+    }
+
     // --- Windows -----------------------------------------------------------------------------
 
     private const int SW_HIDE = 0;
@@ -174,6 +282,53 @@ internal static unsafe class NativeWindowControls
         FlashWindowEx(ref info);
     }
 
+    // Window styles (Task 3.3).
+    private const int GWL_STYLE = -16;
+    private const int GWL_EXSTYLE = -20;
+    private const long WS_CAPTION = 0x00C00000;
+    private const long WS_THICKFRAME = 0x00040000;
+    private const long WS_SYSMENU = 0x00080000;
+    private const long WS_MINIMIZEBOX = 0x00020000;
+    private const long WS_MAXIMIZEBOX = 0x00010000;
+    private const long WS_EX_TOOLWINDOW = 0x00000080;
+    private const long WS_EX_TRANSPARENT = 0x00000020;
+    private const long WS_EX_LAYERED = 0x00080000;
+    private const uint WDA_NONE = 0x00;
+    private const uint WDA_EXCLUDEFROMCAPTURE = 0x11;
+    private static readonly IntPtr HWND_BOTTOM = new(1);
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOACTIVATE = 0x0010;
+    private const uint SWP_FRAMECHANGED = 0x0020;
+
+    private static void WinToggleStyle(IntPtr hwnd, long style, bool on) =>
+        WinToggle(hwnd, GWL_STYLE, style, on);
+
+    private static void WinSetToolWindow(IntPtr hwnd, bool on) =>
+        WinToggle(hwnd, GWL_EXSTYLE, WS_EX_TOOLWINDOW, on);
+
+    private static void WinSetClickThrough(IntPtr hwnd, bool on) =>
+        WinToggle(hwnd, GWL_EXSTYLE, WS_EX_TRANSPARENT | WS_EX_LAYERED, on);
+
+    private static void WinToggle(IntPtr hwnd, int index, long flag, bool on)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        var current = (long)GetWindowLongPtrW(hwnd, index);
+        var updated = on ? current | flag : current & ~flag;
+        SetWindowLongPtrW(hwnd, index, (IntPtr)updated);
+        // A GWL_STYLE change only takes visual effect after a frame recalculation.
+        SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
+            SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
+
+    private static void WinSetBottom(IntPtr hwnd, bool on)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        // Sending it to the bottom once is enough to drop it under the stack; there is no persistent
+        // "keep below" on Windows, matching the platform's own behavior.
+        if (on) SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct FLASHWINFO
     {
@@ -200,6 +355,10 @@ internal static unsafe class NativeWindowControls
     [DllImport("user32.dll")] private static extern bool ClientToScreen(IntPtr hwnd, ref POINT point);
     [DllImport("user32.dll")] private static extern bool ReleaseCapture();
     [DllImport("user32.dll")] private static extern IntPtr SendMessageW(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern IntPtr GetWindowLongPtrW(IntPtr hwnd, int index);
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtrW(IntPtr hwnd, int index, IntPtr value);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    [DllImport("user32.dll")] private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint affinity);
 
     // --- macOS -------------------------------------------------------------------------------
 
@@ -351,6 +510,27 @@ internal static unsafe class NativeWindowControls
         gtk_window_present(window);
     }
 
+    /// <summary>
+    /// Toggle click-through (Task 3.3). An empty input-shape region makes GTK pass every pointer event
+    /// under the window; a null region restores normal input.
+    /// </summary>
+    private static void LinuxSetClickThrough(IntPtr window, bool on)
+    {
+        if (window == IntPtr.Zero) return;
+        var gdkWindow = gtk_widget_get_window(window);
+        if (gdkWindow == IntPtr.Zero) return;
+        if (on)
+        {
+            var empty = cairo_region_create();
+            gdk_window_input_shape_combine_region(gdkWindow, empty, 0, 0);
+            cairo_region_destroy(empty);
+        }
+        else
+        {
+            gdk_window_input_shape_combine_region(gdkWindow, IntPtr.Zero, 0, 0);
+        }
+    }
+
     private static void LinuxStartDrag(IntPtr window)
     {
         if (window == IntPtr.Zero) return;
@@ -380,6 +560,14 @@ internal static unsafe class NativeWindowControls
     [DllImport(Gtk)] [return: MarshalAs(UnmanagedType.I1)] private static extern bool gtk_window_is_active(IntPtr window);
     [DllImport(Gtk)] private static extern void gtk_window_set_urgency_hint(IntPtr window, [MarshalAs(UnmanagedType.I1)] bool urgent);
     [DllImport(Gtk)] private static extern void gtk_window_begin_move_drag(IntPtr window, int button, int rootX, int rootY, int timestamp);
+    [DllImport(Gtk)] private static extern void gtk_window_set_decorated(IntPtr window, [MarshalAs(UnmanagedType.I1)] bool setting);
+    [DllImport(Gtk)] private static extern void gtk_window_set_deletable(IntPtr window, [MarshalAs(UnmanagedType.I1)] bool setting);
+    [DllImport(Gtk)] private static extern void gtk_window_set_keep_below(IntPtr window, [MarshalAs(UnmanagedType.I1)] bool setting);
+    [DllImport(Gtk)] private static extern void gtk_window_set_skip_taskbar_hint(IntPtr window, [MarshalAs(UnmanagedType.I1)] bool setting);
+    [DllImport(Gtk)] private static extern IntPtr gtk_widget_get_window(IntPtr widget);
+    [DllImport(Gdk)] private static extern void gdk_window_input_shape_combine_region(IntPtr window, IntPtr shape, int offsetX, int offsetY);
+    [DllImport("libcairo.so.2")] private static extern IntPtr cairo_region_create();
+    [DllImport("libcairo.so.2")] private static extern void cairo_region_destroy(IntPtr region);
     [DllImport(Gdk)] private static extern IntPtr gdk_display_get_default();
     [DllImport(Gdk)] private static extern IntPtr gdk_display_get_default_seat(IntPtr display);
     [DllImport(Gdk)] private static extern IntPtr gdk_seat_get_pointer(IntPtr seat);

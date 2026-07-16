@@ -72,6 +72,35 @@ public interface ICarbonWebView
     /// </summary>
     void StartDragging();
 
+    // --- chrome & behavior (Task 3.3) --------------------------------------------------------
+
+    /// <summary>Show or hide the OS window frame (title bar + border) at runtime.</summary>
+    void SetDecorations(bool decorations);
+
+    /// <summary>Enable or disable the window's close control.</summary>
+    void SetClosable(bool closable);
+
+    /// <summary>Enable or disable the window's minimize control.</summary>
+    void SetMinimizable(bool minimizable);
+
+    /// <summary>Enable or disable the window's maximize/zoom control.</summary>
+    void SetMaximizable(bool maximizable);
+
+    /// <summary>Keep the window below all others (the opposite of always-on-top).</summary>
+    void SetAlwaysOnBottom(bool alwaysOnBottom);
+
+    /// <summary>Hide the window from the taskbar / window list. No per-window effect on macOS.</summary>
+    void SetSkipTaskbar(bool skip);
+
+    /// <summary>Exclude the window from screen capture / screenshots where the OS supports it.</summary>
+    void SetContentProtected(bool protectedContent);
+
+    /// <summary>Make the window click-through, passing pointer events to whatever is behind it.</summary>
+    void SetIgnoreCursorEvents(bool ignore);
+
+    /// <summary>Replace the window/taskbar icon at runtime.</summary>
+    void SetIcon(string path);
+
     /// <summary>Navigate the webview to a URI (carbon://, http://localhost dev server, or an external URL).</summary>
     void LoadUri(Uri uri);
 

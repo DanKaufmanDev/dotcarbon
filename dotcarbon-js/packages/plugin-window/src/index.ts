@@ -130,6 +130,26 @@ export class WebviewWindow {
 
     // Task 3.8 — begin an OS window-move drag (for custom title bars).
     startDragging = (): Promise<void> => invoke('window:start_dragging', { label: this.label })
+
+    // Task 3.3 — chrome & behavior.
+    setDecorations = (decorations: boolean): Promise<void> =>
+        invoke('window:set_decorations', { value: decorations, label: this.label })
+    setClosable = (closable: boolean): Promise<void> =>
+        invoke('window:set_closable', { value: closable, label: this.label })
+    setMinimizable = (minimizable: boolean): Promise<void> =>
+        invoke('window:set_minimizable', { value: minimizable, label: this.label })
+    setMaximizable = (maximizable: boolean): Promise<void> =>
+        invoke('window:set_maximizable', { value: maximizable, label: this.label })
+    setAlwaysOnBottom = (alwaysOnBottom: boolean): Promise<void> =>
+        invoke('window:set_always_on_bottom', { value: alwaysOnBottom, label: this.label })
+    setSkipTaskbar = (skip: boolean): Promise<void> =>
+        invoke('window:set_skip_taskbar', { value: skip, label: this.label })
+    setContentProtected = (protectedContent: boolean): Promise<void> =>
+        invoke('window:set_content_protected', { value: protectedContent, label: this.label })
+    setIgnoreCursorEvents = (ignore: boolean): Promise<void> =>
+        invoke('window:set_ignore_cursor_events', { value: ignore, label: this.label })
+    setIcon = (path: string): Promise<void> =>
+        invoke('window:set_icon', { path, label: this.label })
 }
 
 export { WebviewWindow as CarbonWindow }
@@ -175,6 +195,15 @@ export const carbonWindow = {
     isMinimized: (): Promise<boolean> => invoke('window:is_minimized', {}),
     isFullscreen: (): Promise<boolean> => invoke('window:is_fullscreen', {}),
     startDragging: (): Promise<void> => invoke('window:start_dragging', {}),
+    setDecorations: (decorations: boolean): Promise<void> => invoke('window:set_decorations', { value: decorations }),
+    setClosable: (closable: boolean): Promise<void> => invoke('window:set_closable', { value: closable }),
+    setMinimizable: (minimizable: boolean): Promise<void> => invoke('window:set_minimizable', { value: minimizable }),
+    setMaximizable: (maximizable: boolean): Promise<void> => invoke('window:set_maximizable', { value: maximizable }),
+    setAlwaysOnBottom: (alwaysOnBottom: boolean): Promise<void> => invoke('window:set_always_on_bottom', { value: alwaysOnBottom }),
+    setSkipTaskbar: (skip: boolean): Promise<void> => invoke('window:set_skip_taskbar', { value: skip }),
+    setContentProtected: (protectedContent: boolean): Promise<void> => invoke('window:set_content_protected', { value: protectedContent }),
+    setIgnoreCursorEvents: (ignore: boolean): Promise<void> => invoke('window:set_ignore_cursor_events', { value: ignore }),
+    setIcon: (path: string): Promise<void> => invoke('window:set_icon', { path }),
 }
 
 declare module '@dotcarbon/api' {
@@ -204,6 +233,15 @@ declare module '@dotcarbon/api' {
         'window:is_minimized': { args: { label?: string }; result: boolean }
         'window:is_fullscreen': { args: { label?: string }; result: boolean }
         'window:start_dragging': { args: { label?: string }; result: void }
+        'window:set_decorations': { args: { value: boolean; label?: string }; result: void }
+        'window:set_closable': { args: { value: boolean; label?: string }; result: void }
+        'window:set_minimizable': { args: { value: boolean; label?: string }; result: void }
+        'window:set_maximizable': { args: { value: boolean; label?: string }; result: void }
+        'window:set_always_on_bottom': { args: { value: boolean; label?: string }; result: void }
+        'window:set_skip_taskbar': { args: { value: boolean; label?: string }; result: void }
+        'window:set_content_protected': { args: { value: boolean; label?: string }; result: void }
+        'window:set_ignore_cursor_events': { args: { value: boolean; label?: string }; result: void }
+        'window:set_icon': { args: { path: string; label?: string }; result: void }
         'window:maximize': { args: { label?: string }; result: void }
         'window:unmaximize': { args: { label?: string }; result: void }
         'window:set_fullscreen': { args: { fullscreen: boolean; label?: string }; result: void }

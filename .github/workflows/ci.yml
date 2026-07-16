@@ -331,6 +331,19 @@ jobs:
             echo "start_dragging (Task 3.8) crashed or never reported on ${{ runner.os }}"
             grep -a "CARBON_DRAG\|CARBON_TITLEBAR" smoke.log | tail -3; exit 1
           fi
+          # Task 3.3: chrome toggles read back off the real NSWindow. These are macOS-only readbacks
+          # (the toggles run on every OS but only macOS exposes the state cheaply); the expected line
+          # is the one measured by hand. Linux/Windows just run the toggles for crash-safety.
+          chrome=$(grep -a "\[\[CARBON_CHROME\]\]" smoke.log | tail -1 || true)
+          if [ -n "$chrome" ]; then
+            echo "::notice::${{ runner.os }} $chrome"
+            if [ "${{ runner.os }}" = "macOS" ]; then
+              echo "$chrome" | grep -q "deco_off=False deco_on=True closable_off=False protected=True ignore_on=True ignore_off=False" || {
+                echo "a window chrome toggle did not change the native state as expected"; echo "$chrome"; exit 1; }
+            fi
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            echo "window chrome (Task 3.3) never reported on macOS"; exit 1
+          fi
       - name: Assert tray + menu (macOS — verified path)
         if: runner.os == 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app
