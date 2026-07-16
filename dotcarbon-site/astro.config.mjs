@@ -11,7 +11,7 @@ export default defineConfig({
       description: 'Build native desktop and mobile apps with C#, .NET, and any Vite frontend.',
       logo: {
         src: './src/assets/logo.webp',
-        alt: 'DotCarbon',
+        alt: './src/assets/bp-logo.svg',
       },
       components: {
         ThemeSelect: './src/components/ThemeToggle.astro',
