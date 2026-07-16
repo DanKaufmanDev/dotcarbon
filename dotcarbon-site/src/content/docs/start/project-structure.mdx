@@ -3,28 +3,32 @@ title: Project structure
 description: Understand the files generated for a DotCarbon application.
 ---
 
-```text
-my-app/
-├── carbon.json
-├── carbon.schema.json
-├── src-carbon/
-│   ├── capabilities/
-│   │   └── main.json
-│   ├── icons/
-│   │   └── icon.png
-│   ├── Program.cs
-│   └── my-app.csproj
-├── src-shared/
-│   ├── AppCommands.cs
-│   └── AppLogic.csproj
-├── ui/
-│   ├── src/
-│   │   └── carbon.d.ts
-│   └── package.json
-└── .carbon/
-    └── platforms/
-```
+import { FileTree } from '@astrojs/starlight/components';
 
+<FileTree> 
+- my-app/
+    - .carbon/
+        - platforms/
+            - IOS/
+            - Android/
+    - carbon.json
+    - carbon.schema.json
+    - src-carbon/
+        - capabilities/
+            - main.json
+        - icons/
+            - icon.png
+        - Program.cs
+        - my-carbon-app.csproj
+    - src-shared/
+        - AppCommands.cs
+        - AppLogic.csproj
+    - ui/
+        - src/
+            - App.vue
+            - carbon.d.ts
+            - package.json
+</FileTree>
 ## `carbon.json`
 
 The application manifest describes identity, windows, the frontend build, security, plugins, device

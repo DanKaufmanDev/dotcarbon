@@ -7,11 +7,14 @@ export default defineConfig({
   site: 'https://dotcarbon.dev',
   integrations: [
     starlight({
-      title: 'DotCarbon',
+      title: '.Carbon',
       description: 'Build native desktop and mobile apps with C#, .NET, and any Vite frontend.',
       logo: {
         src: './src/assets/logo.webp',
         alt: 'DotCarbon',
+      },
+      components: {
+        ThemeSelect: './src/components/ThemeToggle.astro',
       },
       favicon: '/favicon.ico',
       customCss: ['./src/styles/global.css'],

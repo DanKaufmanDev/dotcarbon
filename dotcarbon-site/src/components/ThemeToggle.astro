@@ -1,0 +1,97 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+---
+
+<carbon-theme-toggle>
+  <button class="theme-toggle" type="button" aria-label="Switch color theme">
+    <span class="theme-icon theme-icon--sun"><Icon name="sun" size="1.25em" /></span>
+    <span class="theme-icon theme-icon--moon"><Icon name="moon" size="1.25em" /></span>
+  </button>
+</carbon-theme-toggle>
+
+<script>
+  const storageKey = 'starlight-theme';
+
+  class CarbonThemeToggle extends HTMLElement {
+    connectedCallback() {
+      const button = this.querySelector('button');
+      if (!(button instanceof HTMLButtonElement) || button.dataset.ready) return;
+
+      button.dataset.ready = 'true';
+
+      const syncLabel = () => {
+        const current = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+        const next = current === 'dark' ? 'light' : 'dark';
+        const label = `Switch to ${next} theme`;
+        button.setAttribute('aria-label', label);
+        button.title = label;
+      };
+
+      button.addEventListener('click', () => {
+        const current = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        localStorage.setItem(storageKey, next);
+        syncLabel();
+      });
+
+      matchMedia('(prefers-color-scheme: light)').addEventListener('change', (event) => {
+        if (localStorage.getItem(storageKey)) return;
+        document.documentElement.dataset.theme = event.matches ? 'light' : 'dark';
+        syncLabel();
+      });
+
+      syncLabel();
+    }
+  }
+
+  if (!customElements.get('carbon-theme-toggle')) {
+    customElements.define('carbon-theme-toggle', CarbonThemeToggle);
+  }
+</script>
+
+<style is:inline>
+  header.header {
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+</style>
+
+<style>
+  carbon-theme-toggle {
+    display: inline-flex;
+  }
+
+  .theme-toggle {
+    display: inline-grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--sl-color-gray-2);
+    cursor: pointer;
+    transition: color 150ms ease;
+  }
+
+  .theme-toggle:hover {
+    color: var(--sl-color-accent-high);
+  }
+
+  .theme-toggle:focus-visible {
+    outline: 2px solid var(--sl-color-accent-high);
+    outline-offset: 2px;
+  }
+
+  .theme-icon {
+    display: none;
+    grid-area: 1 / 1;
+    line-height: 0;
+  }
+
+  :global(:root[data-theme='dark']) .theme-icon--sun,
+  :global(:root[data-theme='light']) .theme-icon--moon {
+    display: inline-flex;
+  }
+</style>

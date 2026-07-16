@@ -9,12 +9,12 @@ DotCarbon separates application behavior from the platform webview that displays
 Vite frontend
     │ @dotcarbon/api
     ▼
-typed JSON bridge
+Bridge
     │ generated command bindings
     ▼
 DotCarbon.Core ── application state, DI, events, capabilities, plugins
     │
-    ├── DotCarbon.Host.Desktop ── Photino and native OS webview
+    ├── DotCarbon.Host.Desktop ── Native OS webview
     ├── DotCarbon.Host.Android ── Android WebView
     └── DotCarbon.Host.iOS ────── WKWebView
 ```
@@ -47,4 +47,4 @@ Activity or UIApplication lifecycle.
 
 The CLI builds the frontend once, embeds it into the host, and asks the platform toolchain for the
 target artifact. Desktop targets can produce `.app`, `.dmg`, `.msi`, `.AppImage`, `.deb`, and `.rpm`.
-Mobile targets produce APK/AAB and simulator/device/archive iOS builds.
+Mobile targets produce APK/AAB and simulator/device/archive IOS builds.

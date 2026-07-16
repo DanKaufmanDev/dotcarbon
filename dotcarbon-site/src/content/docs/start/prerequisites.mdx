@@ -3,6 +3,8 @@ title: Prerequisites
 description: Install the tools required to develop and package DotCarbon applications.
 ---
 
+import { Aside } from '@astrojs/starlight/components';
+
 ## Core tools
 
 | Tool | Supported version | Used for |
@@ -10,14 +12,18 @@ description: Install the tools required to develop and package DotCarbon applica
 | [.NET SDK](https://dotnet.microsoft.com/download) | 10 or newer | Runtime, C# compilation, CLI |
 | [Node.js](https://nodejs.org/) | 18 or newer | Frontend tooling and project creation |
 | npm, pnpm, yarn, or Bun | Current stable | Frontend dependencies |
-| Git | Current stable | Templates and source control |
 
 Install the Carbon CLI as a global .NET tool:
 
+
+
 ```bash
 dotnet tool install --global DotCarbon.Cli
-carbon --help
+carbon --version
 ```
+
+
+<Aside type="note">@dotcarbon/create-app will prompt and install if not detected</Aside>
 
 Upgrade an existing installation with:
 

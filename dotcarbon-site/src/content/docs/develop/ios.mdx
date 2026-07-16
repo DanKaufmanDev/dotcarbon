@@ -1,9 +1,9 @@
 ---
-title: iOS
-description: Generate, develop, and bundle the .NET iOS host.
+title: IOS
+description: Generate, develop, and bundle the .NET IOS host.
 ---
 
-iOS builds require macOS, Xcode, and the iOS workload:
+IOS builds require macOS, Xcode, and the IOS workload:
 
 ```bash
 dotnet workload install ios
@@ -40,7 +40,7 @@ carbon bundle ios --device
 carbon bundle ios --archive
 ```
 
-Carbon stages generated iOS projects in a local build cache before invoking the .NET iOS SDK. This
+Carbon stages generated IOS projects in a local build cache before invoking the .NET iOS SDK. This
 keeps native-link output consistent and avoids signing failures caused by cloud file-provider metadata.
 
 The active Xcode version must match the installed workload. `carbon doctor` prints a concrete warning

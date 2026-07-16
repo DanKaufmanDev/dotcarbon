@@ -1,15 +1,19 @@
 ---
-title: Carbon Framework
+title: .Carbon Framework
 description: Build native desktop and mobile apps with C#, .NET, and any Vite frontend.
 template: splash
+editUrl: false
+lastUpdated: false
+prev: false
+next: false
 head:
   - tag: title
     content: Carbon Framework
 hero:
-  title: Native apps with C# and the web
-  tagline: Bring any Vite frontend. Write application logic in .NET <br> 
+  title: .CARBON
+  tagline: Bring any Vite frontend. Write application logic in .NET
   image:
-    file: ../../assets/logo.webp
+    file: ../../assets/bp-logo.svg
   actions:
     - text: Get started
       link: /start/create-project/
@@ -21,8 +25,8 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid, Tabs, TabItem } from '@astrojs/starlight/components';
-
+import carbonLogo from '../../assets/logo.webp';
+import { Card, CardGrid, Icon, Tabs, TabItem } from '@astrojs/starlight/components';
 
 <div class="platform-strip" aria-label="Supported platforms">
   <span>MacOS</span><span>Windows</span><span>Linux</span><span>Android</span><span>IOS</span>
@@ -33,35 +37,32 @@ import { Card, CardGrid, Tabs, TabItem } from '@astrojs/starlight/components';
 <Tabs syncKey="pm">
   <TabItem label="npm">
   ```bash
-  npx @dotcarbon/create-app my-app
+  npx @dotcarbon/create-app my-carbon-app
   ```
   </TabItem>
   <TabItem label="pnpm">
   ```bash
-  pnpm dlx @dotcarbon/create-app my-app
+  pnpm dlx @dotcarbon/create-app my-carbon-app
   ```
   </TabItem>
   <TabItem label="yarn">
   ```bash
-  yarn dlx @dotcarbon/create-app my-app
+  yarn dlx @dotcarbon/create-app my-carbon-app
   ```
   </TabItem>
   <TabItem label="bun">
   ```bash
-  bunx @dotcarbon/create-app my-app
+  bunx @dotcarbon/create-app my-carbon-app
   ```
   </TabItem>
 </Tabs>
 
 ```bash
-cd my-app
+cd my-carbon-app
 carbon dev
 ```
 
-<p class="status-note">
-  DotCarbon is pre-release software. The runtime, bundler, mobile hosts, and plugin APIs are usable,
-  but minor releases may still refine public contracts before 1.0.
-</p>
+
 
 ## One project, native everywhere
 
@@ -78,7 +79,7 @@ carbon dev
   <Card title="Native webviews" icon="laptop">
     Carbon uses the operating system webview rather than shipping a browser engine with every app.
   </Card>
-  <Card title="Capabilities" icon="lock">
+  <Card title="Capabilities" icon="padlock">
     Assign command permissions to labeled windows and keep privileged plugins explicitly scoped.
   </Card>
   <Card title="Production bundler" icon="rocket">
@@ -105,8 +106,20 @@ public partial class AppCommands : IPlugin
 ```ts title="ui/src/app.ts"
 import { invoke } from '@dotcarbon/api'
 
-const message = await invoke('app:greet', { name: 'Ada' })
+const message = await invoke('app:greet', { name: 'John Doe' })
 ```
 
 Continue with [Create a project](/start/create-project/), or read the
 [architecture overview](/learn/architecture/) to see how the hosts, runtime, bridge, and bundler fit together.
+
+<footer class="home-footer">
+  <small class="home-copyright">
+    <img src={carbonLogo.src} alt="" />
+    <span aria-hidden="true">&copy;</span>
+    <strong>.CARBON</strong>
+  </small>
+  <a class="home-sponsor" href="https://github.com/sponsors/DanKaufmanDev" target="_blank" rel="noreferrer">
+    <Icon name="heart" size="1.1em" />
+    <span>Sponsor on GitHub</span>
+  </a>
+</footer>
