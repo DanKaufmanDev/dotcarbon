@@ -122,6 +122,48 @@ internal static unsafe class WindowsMenu
     }
 
     /// <summary>
+    /// Replace the whole menu bar (Task 2.11). SetMenu swaps the window's menu; the old HMENU is not
+    /// freed by Windows and must be destroyed explicitly or every rebuild leaks it. The window is
+    /// already subclassed from Create, so WM_COMMAND keeps arriving — only the id tables are rebuilt.
+    /// </summary>
+    public static void Rebuild(CarbonMenuBuilder builder)
+    {
+        if (_window == IntPtr.Zero) return;
+        try
+        {
+            // Cleared before filling, so the ids FillMenu assigns address the new menu rather than
+            // colliding with entries left over from the old one.
+            Handlers.Clear();
+            CommandsById.Clear();
+
+            var menuBar = CreateMenu();
+            var id = 1; // 0 is reserved
+            foreach (var group in builder.Groups)
+            {
+                var submenu = CreatePopupMenu();
+                FillMenu(submenu, group.Items, ref id);
+                AppendMenuW(menuBar, MF_POPUP, submenu, group.Label);
+            }
+
+            if (!SetMenu(_window, menuBar))
+            {
+                Console.Error.WriteLine("[Carbon] Native menu: SetMenu failed on rebuild.");
+                DestroyMenu(menuBar);
+                return;
+            }
+
+            var previous = _menuBar;
+            _menuBar = menuBar;
+            DrawMenuBar(_window);
+            if (previous != IntPtr.Zero) DestroyMenu(previous);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Carbon] Failed to rebuild the Windows menu: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Append items to an HMENU, recursing into submenus (Task 2.7). Command ids must stay unique
     /// across the whole menu, so the counter is threaded through by reference.
     /// </summary>
@@ -201,6 +243,7 @@ internal static unsafe class WindowsMenu
     // --- Win32 interop -----------------------------------------------------------------------
 
     [DllImport("user32.dll")] private static extern IntPtr CreateMenu();
+    [DllImport("user32.dll")] private static extern bool DestroyMenu(IntPtr hMenu);
     [DllImport("user32.dll")] private static extern IntPtr CreatePopupMenu();
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern bool AppendMenuW(IntPtr hMenu, int flags, int idNewItem, string? newItem);

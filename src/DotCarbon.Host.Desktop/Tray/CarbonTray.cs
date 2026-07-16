@@ -234,6 +234,42 @@ public sealed class CarbonTrayHandle
         else if (OperatingSystem.IsLinux()) LinuxTray.SetVisible(visible);
     }
 
+    /// <summary>
+    /// Replace the tray's menu (Task 2.11) — also how items are added or removed at runtime. The icon
+    /// and its click wiring are untouched. Item ids from the previous menu stop resolving, since they
+    /// addressed native items that no longer exist.
+    /// </summary>
+    public void SetMenu(Action<CarbonTrayBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        if (App is not { } app)
+        {
+            Console.Error.WriteLine("[Carbon] Tray: cannot rebuild the menu before the app is running.");
+            return;
+        }
+
+        var builder = new CarbonTrayBuilder();
+        configure(builder);
+        RebuildMenu(builder.Bind(app));
+    }
+
+    internal static void RebuildMenu(CarbonTrayBuilder bound)
+    {
+        if (OperatingSystem.IsMacOS()) MacTray.RebuildMenu(bound);
+        else if (OperatingSystem.IsWindows()) WindowsTray.RebuildMenu(bound);
+        else if (OperatingSystem.IsLinux()) LinuxTray.RebuildMenu(bound);
+    }
+
+    private readonly AppHandle? _app;
+
+    /// <summary>UseTray records the running app; an explicitly supplied one wins for testing.</summary>
+    private AppHandle? App => _app ?? CarbonTray.App;
+
+    internal CarbonTrayHandle(AppHandle? app = null)
+    {
+        _app = app;
+    }
+
     /// <summary>Remove the icon entirely.</summary>
     public void Remove()
     {
@@ -255,7 +291,12 @@ public static class DesktopTrayExtensions
     {
         var builder = new CarbonTrayBuilder();
         configure(builder);
-        app.Setup(handle => CarbonTray.Create(builder.Bind(handle), onReady));
+        app.Setup(handle =>
+        {
+            // Task 2.11: rebuilding rebinds items against the app, so the handle needs it.
+            CarbonTray.App = handle;
+            CarbonTray.Create(builder.Bind(handle), onReady);
+        });
         // Task 2.10: the frontend's tray:* commands only mean anything once a tray exists, so they
         // come with the tray rather than being a separate opt-in.
         app.UsePlugin<TrayPlugin>();
@@ -277,11 +318,14 @@ internal static class CarbonTray
             Console.Error.WriteLine("[Carbon] System tray is not supported on this platform.");
     }
 
+    /// <summary>The running app, recorded by UseTray so a rebuilt menu can rebind its items.</summary>
+    internal static AppHandle? App;
+
     /// <summary>Invoke the ready callback without letting a user exception kill the UI thread.</summary>
     internal static void NotifyReady(Action<CarbonTrayHandle>? onReady)
     {
         if (onReady is null) return;
-        try { onReady(new CarbonTrayHandle()); }
+        try { onReady(new CarbonTrayHandle(App)); }
         catch (Exception ex) { Console.Error.WriteLine($"[Carbon] Tray onReady failed: {ex.Message}"); }
     }
 }

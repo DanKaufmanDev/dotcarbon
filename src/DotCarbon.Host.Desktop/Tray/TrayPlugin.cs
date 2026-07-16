@@ -1,5 +1,6 @@
 using DotCarbon.Core.Bridge;
 using DotCarbon.Core.Plugins;
+using DotCarbon.Core.Runtime;
 
 namespace DotCarbon.Host.Desktop;
 
@@ -35,7 +36,17 @@ public partial class TrayPlugin : IPlugin
 
     [CarbonCommand("remove")]
     public void Remove() => _tray.Remove();
+
+    /// <summary>
+    /// Replace the tray menu with one the frontend describes (Task 2.11). Clicks come back as
+    /// <c>tray:item_clicked</c>, since a declared item has no C# handler to run.
+    /// </summary>
+    [CarbonCommand("set_menu")]
+    public void SetMenu(SetTrayMenuArgs args) =>
+        _tray.SetMenu(tray => MenuSpec.FillTray(tray, args.Items));
 }
+
+public sealed record SetTrayMenuArgs(IReadOnlyList<CarbonMenuItemSpec> Items);
 
 /// <param name="IsTemplate">macOS only; see <see cref="CarbonTrayBuilder.SetIcon"/>.</param>
 public sealed record SetTrayIconArgs(string Path, bool? IsTemplate);

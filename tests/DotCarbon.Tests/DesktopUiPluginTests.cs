@@ -38,7 +38,11 @@ public class DesktopUiPluginTests
         var registry = Register(new TrayPlugin());
 
         Assert.Equal(
-            new[] { "tray:remove", "tray:set_icon", "tray:set_title", "tray:set_tooltip", "tray:set_visible" },
+            new[]
+            {
+                "tray:remove", "tray:set_icon", "tray:set_menu", "tray:set_title", "tray:set_tooltip",
+                "tray:set_visible",
+            },
             registry.Handlers.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
     }
 
@@ -48,7 +52,7 @@ public class DesktopUiPluginTests
         var registry = Register(new MenuPlugin());
 
         Assert.Equal(
-            new[] { "menu:set_checked", "menu:set_enabled", "menu:set_label" },
+            new[] { "menu:set_app_menu", "menu:set_checked", "menu:set_enabled", "menu:set_label" },
             registry.Handlers.Keys.OrderBy(k => k, StringComparer.Ordinal).ToArray());
     }
 
@@ -76,6 +80,53 @@ public class DesktopUiPluginTests
         var registry = Register(new MenuPlugin());
 
         Assert.Null(await registry.Handlers[command](Payload(json)));
+    }
+
+    // Task 2.11. The declared-menu specs are recursive and much richer than the flat argument
+    // records, so they are the likeliest thing to be missing from the serializer context or to break
+    // on a nested shape. Rebuilding is a no-op without a running app, which is what we want here:
+    // the point is that the argument survives the bridge, not that a native menu appears.
+    [Fact]
+    public async Task Set_app_menu_accepts_a_nested_declared_menu()
+    {
+        var registry = Register(new MenuPlugin());
+
+        var json = """
+        {"menus":[{"label":"File","items":[
+            {"id":"new","label":"New","shortcut":"CmdOrCtrl+N"},
+            {"id":"chk","label":"Check","checked":true},
+            {"separator":true},
+            {"label":"Recent","items":[{"id":"deep","label":"Deep","items":[{"id":"deeper","label":"Deeper"}]}]},
+            {"role":"Quit"}
+        ]}]}
+        """;
+
+        Assert.Null(await registry.Handlers["menu:set_app_menu"](Payload(json)));
+    }
+
+    [Fact]
+    public async Task Set_tray_menu_accepts_a_nested_declared_menu()
+    {
+        var registry = Register(new TrayPlugin());
+
+        var json = """
+        {"items":[
+            {"id":"show","label":"Show"},
+            {"separator":true},
+            {"label":"More","items":[{"id":"nested","label":"Nested"}]}
+        ]}
+        """;
+
+        Assert.Null(await registry.Handlers["tray:set_menu"](Payload(json)));
+    }
+
+    [Fact]
+    public async Task Set_app_menu_accepts_an_empty_menu()
+    {
+        var registry = Register(new MenuPlugin());
+
+        // Clearing the menu is a legitimate request, not a malformed one.
+        Assert.Null(await registry.Handlers["menu:set_app_menu"](Payload("""{"menus":[]}""")));
     }
 
     [Fact]

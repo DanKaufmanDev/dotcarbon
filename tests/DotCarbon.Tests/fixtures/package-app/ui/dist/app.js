@@ -54,11 +54,39 @@ async function waitForBridge() {
     await invoke("menu:set_label", { id: "about", label: "About (from JS)" });
     await invoke("menu:set_enabled", { id: "about", enabled: true });
     await invoke("menu:set_checked", { id: "verbose", checked: false });
+    // Task 2.11: replace the whole app menu with one declared here — what Menu.new().setAsAppMenu()
+    // sends. The item set is deliberately different from the C# one so a rebuild is provable.
+    await invoke("menu:set_app_menu", {
+      menus: [
+        {
+          label: "FromJS",
+          items: [
+            { id: "js-one", label: "JS One" },
+            { id: "js-check", label: "JS Check", checked: true },
+            { separator: true },
+            {
+              id: "js-sub",
+              label: "JS Submenu",
+              items: [{ id: "js-nested", label: "JS Nested" }],
+            },
+            { role: "Quit" },
+          ],
+        },
+      ],
+    });
+    // Task 2.11: same for the tray menu.
+    await invoke("tray:set_menu", {
+      items: [
+        { id: "js-tray-one", label: "JS Tray One" },
+        { separator: true },
+        { id: "js-tray-two", label: "JS Tray Two" },
+      ],
+    });
     // The invokes above resolve only if the native side accepted them, so reporting success here
     // means the whole JS -> bridge -> plugin -> native path ran.
     await invoke("__carbon:event_emit", {
       event: "smoke:ui_ok",
-      payload: "tray+menu",
+      payload: "tray+menu+rebuild",
       target: "all",
     });
     document.getElementById("out").textContent = "tray + menu driven from JS";

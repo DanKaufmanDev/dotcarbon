@@ -195,9 +195,9 @@ export function isCarbonApp(): boolean {
 }
 
 // --- tray + native menu (desktop only) ---------------------------------------------------------
-// These control the tray and menu the app declared in C# with UseTray/UseMenu; the commands only
-// exist when it did. Building a tray or menu from here is not supported yet — that needs the native
-// backends to add and remove items at runtime.
+// These drive the tray and menu the app set up in C# with UseTray/UseMenu; the commands only exist
+// when it did. `Menu.new` and `tray.setMenu` replace a menu wholesale, which is also how items are
+// added or removed — no platform can splice an installed menu.
 
 /** What the pointer did to the tray icon. Platform support varies — see `TrayIcon.onEvent`. */
 export type TrayEventKind = 'Click' | 'DoubleClick' | 'Enter' | 'Move' | 'Leave'
@@ -217,6 +217,8 @@ export interface NativeItemEvent {
     label: string
     /** `tray` or `menu`. */
     kind: string
+    /** The item's id, when it was given one. Frontend-declared items are matched on this. */
+    id?: string
 }
 
 export const tray = {
@@ -239,19 +241,72 @@ export const tray = {
      */
     onEvent: (eventName: string, handler: (event: TrayEvent) => void): Promise<UnlistenFn> =>
         listen(eventName, (e) => handler(e.payload as TrayEvent)),
+    /**
+     * Replace the tray's menu, which is also how items are added or removed. The icon is untouched.
+     * Items declared here have no C# handler, so their clicks arrive via `tray.onItem`.
+     */
+    setMenu: (items: MenuItemOptions[]): Promise<void> => invoke('tray:set_menu', { items }),
+    /** Clicks on frontend-declared tray menu items. */
+    onItem: (handler: (event: NativeItemEvent) => void): Promise<UnlistenFn> =>
+        listen('tray:item_clicked', (e) => handler(e.payload as NativeItemEvent)),
+}
+
+/** A standard item the platform implements. Only Quit, CloseWindow and Minimize exist off macOS. */
+export type MenuItemRole =
+    | 'Quit' | 'About' | 'Services' | 'Copy' | 'Cut' | 'Paste' | 'SelectAll'
+    | 'Undo' | 'Redo' | 'Minimize' | 'Zoom' | 'Hide' | 'HideOthers' | 'ShowAll' | 'CloseWindow'
+
+/**
+ * A menu item declared from the frontend. `items` makes it a submenu, `separator` a divider, and
+ * `role` a predefined platform item. Give it an `id` to address it later and to recognise its clicks.
+ */
+export interface MenuItemOptions {
+    id?: string
+    label?: string
+    separator?: boolean
+    /** Present makes it a checkable item, and sets its initial state. */
+    checked?: boolean
+    enabled?: boolean
+    role?: MenuItemRole
+    shortcut?: string
+    items?: MenuItemOptions[]
+}
+
+export interface MenuOptions {
+    label: string
+    items: MenuItemOptions[]
 }
 
 export const menu = {
-    /** Grey an item out. Items are addressed by the `id` given when the menu was built in C#. */
+    /** Grey an item out. Items are addressed by the `id` given when the menu was built. */
     setEnabled: (id: string, enabled: boolean): Promise<void> =>
         invoke('menu:set_enabled', { id, enabled }),
-    /** Tick or untick an item added with `AddCheckItem`. */
+    /** Tick or untick a checkable item. */
     setChecked: (id: string, checked: boolean): Promise<void> =>
         invoke('menu:set_checked', { id, checked }),
     setLabel: (id: string, label: string): Promise<void> => invoke('menu:set_label', { id, label }),
     /** Clicks on items the C# side declared with `AddEventItem`. */
     onItem: (eventName: string, handler: (event: NativeItemEvent) => void): Promise<UnlistenFn> =>
         listen(eventName, (e) => handler(e.payload as NativeItemEvent)),
+}
+
+/**
+ * Build a native menu from the frontend.
+ *
+ * `setAsAppMenu` replaces the whole menu — no platform can splice an installed one, so this is also
+ * how items are added or removed. Ids from the previous menu stop resolving once it runs.
+ *
+ * Items declared here have no C# handler, so their clicks arrive via `Menu.onClick` carrying the
+ * item's id.
+ */
+export const Menu = {
+    new: (menus: MenuOptions[]) => ({
+        /** Install these menus as the application menu, replacing whatever is there. */
+        setAsAppMenu: (): Promise<void> => invoke('menu:set_app_menu', { menus }),
+    }),
+    /** Clicks on frontend-declared app menu items. */
+    onClick: (handler: (event: NativeItemEvent) => void): Promise<UnlistenFn> =>
+        listen('menu:item_clicked', (e) => handler(e.payload as NativeItemEvent)),
 }
 
 // Declared here rather than through `declare module '@dotcarbon/api'` — that form is for other
@@ -265,4 +320,6 @@ export interface CarbonCommands {
     'menu:set_enabled': { args: { id: string; enabled: boolean }; result: void }
     'menu:set_checked': { args: { id: string; checked: boolean }; result: void }
     'menu:set_label': { args: { id: string; label: string }; result: void }
+    'menu:set_app_menu': { args: { menus: MenuOptions[] }; result: void }
+    'tray:set_menu': { args: { items: MenuItemOptions[] }; result: void }
 }

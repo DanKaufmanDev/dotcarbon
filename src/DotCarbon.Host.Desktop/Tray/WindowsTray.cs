@@ -288,6 +288,30 @@ internal static unsafe class WindowsTray
     }
 
     /// <summary>
+    /// Replace the tray's popup menu (Task 2.11). The icon itself is untouched: only the menu that
+    /// TrackPopupMenu shows is swapped. The old HMENU must be destroyed explicitly.
+    /// </summary>
+    public static void RebuildMenu(CarbonTrayBuilder builder)
+    {
+        try
+        {
+            Handlers.Clear();
+
+            var menu = CreatePopupMenu();
+            var id = 1; // TPM_RETURNCMD reserves 0 for "no selection"
+            FillMenu(menu, builder.Items, ref id);
+
+            var previous = _menu;
+            _menu = menu;
+            if (previous != IntPtr.Zero) DestroyMenu(previous);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Carbon] Failed to rebuild the Windows tray menu: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Add tray items to an HMENU, recursing into submenus. A popup carries the submenu handle where a
     /// command id would go, so it never gets a handler; ids must stay unique across the whole tree,
     /// hence the counter by reference (same shape as WindowsMenu).
@@ -402,6 +426,7 @@ internal static unsafe class WindowsTray
         public int SuppressExternalCodecs;
     }
     [DllImport("user32.dll")] private static extern IntPtr CreatePopupMenu();
+    [DllImport("user32.dll")] private static extern bool DestroyMenu(IntPtr hMenu);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern bool AppendMenuW(IntPtr hMenu, int flags, int idNewItem, string? newItem);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]

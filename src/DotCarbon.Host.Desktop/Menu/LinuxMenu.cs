@@ -30,6 +30,8 @@ internal static unsafe class LinuxMenu
     private static string? _pendingTitle;
     private static Action<CarbonMenuHandle>? _onReady;
     private static IntPtr _window;
+    private static IntPtr _box;      // the vertical box holding [menu bar, webview]
+    private static IntPtr _menuBar;
 
     // --- runtime mutation (Task 2.4) ---------------------------------------------------------
     // GTK is not thread-safe, so setters are queued onto the GTK loop with g_idle_add.
@@ -120,6 +122,8 @@ internal static unsafe class LinuxMenu
             gtk_box_pack_start(box, menuBar, expand: false, fill: false, padding: 0);
             gtk_box_pack_start(box, content, expand: true, fill: true, padding: 0);
             g_object_unref(content);
+            _box = box;
+            _menuBar = menuBar;
 
             gtk_container_add(window, box);
             gtk_widget_show_all(window);
@@ -132,6 +136,32 @@ internal static unsafe class LinuxMenu
             Console.Error.WriteLine($"[Carbon] Failed to create the Linux menu: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// Replace the whole menu bar (Task 2.11). The webview is already packed into our box, so unlike
+    /// the first build there is no re-parenting to redo — the old bar is destroyed and a new one
+    /// packed in its place, reordered to the top so it lands above the webview rather than below it.
+    /// Queued onto the GTK loop like every other mutation here.
+    /// </summary>
+    public static void Rebuild(CarbonMenuBuilder builder) => Post(() =>
+    {
+        if (_box == IntPtr.Zero)
+        {
+            Console.Error.WriteLine("[Carbon] Native menu: no menu bar to rebuild.");
+            return;
+        }
+
+        Handlers.Clear();
+        ItemsById.Clear();
+        _nextTag = 0;
+
+        var menuBar = BuildMenuBar(builder);
+        if (_menuBar != IntPtr.Zero) gtk_widget_destroy(_menuBar);
+        gtk_box_pack_start(_box, menuBar, expand: false, fill: false, padding: 0);
+        gtk_box_reorder_child(_box, menuBar, 0);
+        _menuBar = menuBar;
+        gtk_widget_show_all(_box);
+    });
 
     /// <summary>The Photino window: prefer a title match, else the first toplevel that has content.</summary>
     private static IntPtr FindWindow(string? title)
@@ -253,6 +283,8 @@ internal static unsafe class LinuxMenu
     [DllImport(Gtk)] private static extern void gtk_box_pack_start(IntPtr box, IntPtr child,
         [MarshalAs(UnmanagedType.I1)] bool expand, [MarshalAs(UnmanagedType.I1)] bool fill, uint padding);
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_bar_new();
+    [DllImport(Gtk)] private static extern void gtk_widget_destroy(IntPtr widget);
+    [DllImport(Gtk)] private static extern void gtk_box_reorder_child(IntPtr box, IntPtr child, int position);
     [DllImport(Gtk)] private static extern void gtk_window_close(IntPtr window);
     [DllImport(Gtk)] private static extern void gtk_window_iconify(IntPtr window);
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_new();

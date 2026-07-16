@@ -168,6 +168,46 @@ public sealed class CarbonMenuHandle
         else if (OperatingSystem.IsWindows()) WindowsMenu.SetLabel(id, label);
         else if (OperatingSystem.IsLinux()) LinuxMenu.SetLabel(id, label);
     }
+
+    /// <summary>
+    /// Replace the entire menu (Task 2.11) — which is also how items and submenus are added or
+    /// removed at runtime: describe the menu you want and it becomes that. None of the platforms can
+    /// splice an installed menu, so there is no cheaper partial edit to offer.
+    ///
+    /// Ids from the previous menu stop resolving the moment this runs, since they addressed native
+    /// items that no longer exist. Items are rebound to the app the same way <c>UseMenu</c> binds
+    /// them, so event items keep working.
+    /// </summary>
+    public void SetMenu(Action<CarbonMenuBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        if (App is not { } app)
+        {
+            Console.Error.WriteLine("[Carbon] Menu: cannot rebuild before the app is running.");
+            return;
+        }
+
+        var builder = new CarbonMenuBuilder();
+        configure(builder);
+        Rebuild(DesktopMenuExtensions.Bind(builder, app));
+    }
+
+    internal static void Rebuild(CarbonMenuBuilder bound)
+    {
+        if (OperatingSystem.IsMacOS()) MacMenu.Rebuild(bound);
+        else if (OperatingSystem.IsWindows()) WindowsMenu.Rebuild(bound);
+        else if (OperatingSystem.IsLinux()) LinuxMenu.Rebuild(bound);
+    }
+
+    private readonly AppHandle? _app;
+
+    /// <summary>UseMenu records the running app; an explicitly supplied one wins for testing.</summary>
+    private AppHandle? App => _app ?? CarbonMenu.App;
+
+    internal CarbonMenuHandle(AppHandle? app = null)
+    {
+        _app = app;
+    }
 }
 
 /// <summary>Desktop native menu entry points.</summary>
@@ -188,6 +228,8 @@ public static class DesktopMenuExtensions
         // Task 2.10: the frontend's menu:* commands address items in this menu, so they come with it
         // rather than being a separate opt-in.
         app.UsePlugin<MenuPlugin>();
+        // Task 2.11: rebuilding rebinds items against the app, so the handle needs it.
+        app.Setup(handle => CarbonMenu.App = handle);
 
         // macOS's menu belongs to the application, not a window — build it as soon as setup runs.
         if (OperatingSystem.IsMacOS())
@@ -227,7 +269,7 @@ public static class DesktopMenuExtensions
         return app;
     }
 
-    private static CarbonMenuBuilder Bind(CarbonMenuBuilder builder, AppHandle app)
+    internal static CarbonMenuBuilder Bind(CarbonMenuBuilder builder, AppHandle app)
     {
         var bound = new CarbonMenuBuilder();
         foreach (var group in builder.Groups)
@@ -253,7 +295,7 @@ public static class DesktopMenuExtensions
             return item with { Children = children.Select(child => BindItem(child, app)).ToArray() };
 
         var onClick = item.OnClick ??
-            DesktopNativeEventEmitter.Create(app, item.EventName!, item.Label!, "menu");
+            DesktopNativeEventEmitter.Create(app, item.EventName!, item.Label!, "menu", item.Id);
         return item with { OnClick = onClick, EventName = null };
     }
 }
@@ -276,11 +318,14 @@ internal static class CarbonMenu
             Console.Error.WriteLine("[Carbon] Native app menus are not supported on this platform.");
     }
 
+    /// <summary>The running app, recorded by UseMenu so a rebuilt menu can rebind its items.</summary>
+    internal static AppHandle? App;
+
     /// <summary>Invoke the ready callback without letting a user exception kill the UI thread.</summary>
     internal static void NotifyReady(Action<CarbonMenuHandle>? onReady)
     {
         if (onReady is null) return;
-        try { onReady(new CarbonMenuHandle()); }
+        try { onReady(new CarbonMenuHandle(App)); }
         catch (Exception ex) { Console.Error.WriteLine($"[Carbon] Menu onReady failed: {ex.Message}"); }
     }
 }

@@ -75,6 +75,13 @@ internal static class LinuxAppIndicator
         }
     }
 
+    /// <summary>Hand the panel a new menu to export (Task 2.11).</summary>
+    public static void SetMenu(IntPtr menu)
+    {
+        if (_indicator == IntPtr.Zero) return;
+        app_indicator_set_menu(_indicator, menu);
+    }
+
     public static void SetIcon(string path)
     {
         if (_indicator == IntPtr.Zero) return;

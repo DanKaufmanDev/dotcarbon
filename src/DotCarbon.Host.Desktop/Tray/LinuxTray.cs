@@ -142,6 +142,26 @@ internal static unsafe class LinuxTray
         }
     }
 
+    /// <summary>
+    /// Replace the tray's menu (Task 2.11). GtkStatusIcon pops the menu we hold, so swapping the
+    /// field is enough there; an appindicator exports its menu over D-Bus and has to be handed the
+    /// new one. The old menu is destroyed either way.
+    /// </summary>
+    public static void RebuildMenu(CarbonTrayBuilder builder) => Post(() =>
+    {
+        Handlers.Clear();
+        _nextTag = 0;
+
+        var menu = gtk_menu_new();
+        FillMenu(menu, builder.Items);
+        gtk_widget_show_all(menu);
+
+        var previous = _menu;
+        _menu = menu;
+        if (_useAppIndicator) LinuxAppIndicator.SetMenu(menu);
+        if (previous != IntPtr.Zero) gtk_widget_destroy(previous);
+    });
+
     // --- pointer events (Task 2.8) -----------------------------------------------------------
 
     // GdkEventType values we care about.
@@ -270,6 +290,7 @@ internal static unsafe class LinuxTray
     [DllImport(Gtk)] private static extern void gtk_status_icon_set_tooltip_text(IntPtr icon, [MarshalAs(UnmanagedType.LPUTF8Str)] string text);
     [DllImport(Gtk)] private static extern void gtk_status_icon_set_visible(IntPtr icon, [MarshalAs(UnmanagedType.I1)] bool visible);
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_new();
+    [DllImport(Gtk)] private static extern void gtk_widget_destroy(IntPtr widget);
     [DllImport(Gtk)] private static extern IntPtr gtk_menu_item_new_with_label([MarshalAs(UnmanagedType.LPUTF8Str)] string label);
     [DllImport(Gtk)] private static extern IntPtr gtk_separator_menu_item_new();
     [DllImport(Gtk)] private static extern void gtk_menu_item_set_submenu(IntPtr menuItem, IntPtr submenu);

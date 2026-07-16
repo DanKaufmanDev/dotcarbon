@@ -132,6 +132,29 @@ internal static unsafe class MacTray
         }
     }
 
+    /// <summary>
+    /// Replace the tray's menu (Task 2.11), leaving the icon and its click wiring alone. The takeover
+    /// path holds the menu itself and pops it by hand, so swapping the field is enough there; the
+    /// plain path has handed the menu to AppKit and has to hand it the new one. Old item tags belong
+    /// to the discarded NSMenu and go with it.
+    /// </summary>
+    public static void RebuildMenu(CarbonTrayBuilder builder) => Post(() =>
+    {
+        if (_statusItem == IntPtr.Zero) return;
+
+        Handlers.Clear();
+        _nextTag = 0;
+
+        var menu = Send(Send(Cls("NSMenu"), Sel("alloc")), Sel("init"));
+        FillMenu(menu, builder.Items);
+        Send(menu, Sel("retain"));
+
+        var previous = _menu;
+        _menu = menu;
+        if (Send(_statusItem, Sel("menu")) != IntPtr.Zero) SendPtr(_statusItem, Sel("setMenu:"), menu);
+        if (previous != IntPtr.Zero) Send(previous, Sel("release"));
+    });
+
     private static void CreateNow(CarbonTrayBuilder builder)
     {
         try

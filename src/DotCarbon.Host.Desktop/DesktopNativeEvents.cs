@@ -3,9 +3,12 @@ using DotCarbon.Core.Runtime;
 
 namespace DotCarbon.Host.Desktop;
 
+/// <param name="Id">The item's id, when it has one. Frontend-declared items are addressed by id,
+/// since the label is a display string.</param>
 public sealed record DesktopNativeItemEvent(
     string Label,
-    string Kind);
+    string Kind,
+    string? Id = null);
 
 // Tray pointer events serialize their enums as names ("Click", "Left") rather than integers, so the
 // frontend can switch on them the way Tauri's TrayIconEvent does.
@@ -21,6 +24,10 @@ public sealed record DesktopNativeItemEvent(
 [JsonSerializable(typeof(SetTrayTitleArgs))]
 [JsonSerializable(typeof(SetTrayTooltipArgs))]
 [JsonSerializable(typeof(SetTrayVisibleArgs))]
+[JsonSerializable(typeof(SetAppMenuArgs))]
+[JsonSerializable(typeof(SetTrayMenuArgs))]
+[JsonSerializable(typeof(CarbonMenuGroupSpec))]
+[JsonSerializable(typeof(CarbonMenuItemSpec))]
 [JsonSerializable(typeof(SetMenuEnabledArgs))]
 [JsonSerializable(typeof(SetMenuCheckedArgs))]
 [JsonSerializable(typeof(SetMenuLabelArgs))]
@@ -28,12 +35,12 @@ internal partial class DesktopNativeJsonContext : JsonSerializerContext;
 
 internal static class DesktopNativeEventEmitter
 {
-    public static Action Create(AppHandle app, string eventName, string label, string kind) =>
+    public static Action Create(AppHandle app, string eventName, string label, string kind, string? id = null) =>
         () =>
         {
             var task = app.EmitAsync(
                 new CarbonEventName<DesktopNativeItemEvent>(eventName),
-                new DesktopNativeItemEvent(label, kind),
+                new DesktopNativeItemEvent(label, kind, id),
                 DesktopNativeJsonContext.Default.DesktopNativeItemEvent);
 
             if (!task.IsCompletedSuccessfully)

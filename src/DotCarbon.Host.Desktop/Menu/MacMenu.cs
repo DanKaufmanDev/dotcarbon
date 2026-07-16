@@ -71,13 +71,28 @@ internal static unsafe class MacMenu
         }
     }
 
-    private static void CreateNow(CarbonMenuBuilder builder)
+    /// <summary>
+    /// Replace the whole menu (Task 2.11). AppKit has no way to swap parts of an installed menu, and
+    /// setMainMenu: takes a fresh NSMenu anyway, so building a new one and installing it is both the
+    /// simplest and the intended path — the old menu is released once nothing references it.
+    /// The id and tag tables belong to the menu being replaced and must go with it, or a stale id
+    /// would silently address a discarded NSMenuItem.
+    /// </summary>
+    public static void Rebuild(CarbonMenuBuilder builder) => Post(() =>
+    {
+        Handlers.Clear();
+        ItemsById.Clear();
+        _nextTag = 0;
+        CreateNow(builder, announce: false);
+    });
+
+    private static void CreateNow(CarbonMenuBuilder builder, bool announce = true)
     {
         try
         {
             var app = Send(Cls("NSApplication"), Sel("sharedApplication"));
             var mainMenu = Send(Send(Cls("NSMenu"), Sel("alloc")), Sel("init"));
-            _target = CreateActionTarget();
+            if (_target == IntPtr.Zero) _target = CreateActionTarget();
 
             foreach (var group in builder.Groups)
             {
@@ -95,7 +110,8 @@ internal static unsafe class MacMenu
             }
 
             SendPtr(app, Sel("setMainMenu:"), mainMenu);
-            Console.WriteLine($"[Carbon] Native menu ready ({builder.Groups.Count} top-level menu(s)).");
+            if (announce)
+                Console.WriteLine($"[Carbon] Native menu ready ({builder.Groups.Count} top-level menu(s)).");
         }
         catch (Exception ex)
         {
