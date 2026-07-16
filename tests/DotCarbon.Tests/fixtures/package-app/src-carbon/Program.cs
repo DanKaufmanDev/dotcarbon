@@ -74,37 +74,45 @@ CarbonApp.Create(config)
                 view.StartDragging();
                 Console.WriteLine("[[CARBON_DRAG]] start_dragging ok");
 
-                // Task 3.3: drive chrome toggles and read the NSWindow state back, so the smoke proves
-                // each actually changes the window rather than just returning.
-                if (view is PhotinoWebView pw)
+                // Task 3.3: the toggles are cross-platform safe (they branch internally); exercise
+                // them everywhere for crash-safety.
+                view.SetDecorations(false);
+                view.SetDecorations(true);
+                view.SetClosable(false);
+                view.SetContentProtected(true);
+                view.SetContentProtected(false);
+                view.SetIgnoreCursorEvents(true);
+                view.SetIgnoreCursorEvents(false);
+                view.SetMinimizable(false);
+                view.SetMaximizable(false);
+                view.SetAlwaysOnBottom(true);
+                view.SetAlwaysOnBottom(false);
+                view.SetSkipTaskbar(true);
+
+                // The state readbacks are macOS-only (they call libobjc, which does not exist
+                // elsewhere), so only re-drive with readback there; other OSes just prove no crash.
+                if (view is PhotinoWebView pw && OperatingSystem.IsMacOS())
                 {
                     view.SetDecorations(false);
                     var deco = pw.MacHasStyleBit("titled");
                     view.SetDecorations(true);
                     var decoBack = pw.MacHasStyleBit("titled");
-
                     view.SetClosable(false);
                     var closable = pw.MacHasStyleBit("closable");
-
                     view.SetContentProtected(true);
                     var protadd = pw.MacIsContentProtected();
                     view.SetContentProtected(false);
-
                     view.SetIgnoreCursorEvents(true);
                     var ignore = pw.MacIgnoresCursor();
                     view.SetIgnoreCursorEvents(false);
                     var ignoreBack = pw.MacIgnoresCursor();
-
-                    // Exercise the rest for crash-safety; their effect isn't a simple readback here.
-                    view.SetMinimizable(false);
-                    view.SetMaximizable(false);
-                    view.SetAlwaysOnBottom(true);
-                    view.SetAlwaysOnBottom(false);
-                    view.SetSkipTaskbar(true);
-
                     Console.WriteLine(
                         $"[[CARBON_CHROME]] deco_off={deco} deco_on={decoBack} closable_off={closable} " +
                         $"protected={protadd} ignore_on={ignore} ignore_off={ignoreBack}");
+                }
+                else
+                {
+                    Console.WriteLine("[[CARBON_CHROME]] toggles ran (no readback off macOS)");
                 }
                 Console.Out.Flush();
             });
