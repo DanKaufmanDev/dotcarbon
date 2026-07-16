@@ -228,6 +228,36 @@ public partial class WindowPlugin : IPlugin
 
     public Task StartDragging() => StartDragging(new TargetWindowArgs());
 
+    // --- cursor (Task 3.4) -------------------------------------------------------------------
+
+    [CarbonCommand("set_cursor_icon")]
+    public Task SetCursorIcon(SetCursorIconArgs args)
+    {
+        Resolve(args.Label).View.SetCursorIcon(args.Icon);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_cursor_visible")]
+    public Task SetCursorVisible(SetFlagArgs args)
+    {
+        Resolve(args.Label).View.SetCursorVisible(args.Value);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_cursor_grab")]
+    public Task SetCursorGrab(SetFlagArgs args)
+    {
+        Resolve(args.Label).View.SetCursorGrab(args.Value);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_cursor_position")]
+    public Task SetCursorPosition(SetPositionArgs args)
+    {
+        Resolve(args.Label).View.SetCursorPosition(args.X, args.Y);
+        return Task.CompletedTask;
+    }
+
     // --- chrome & behavior (Task 3.3) --------------------------------------------------------
 
     [CarbonCommand("set_decorations")]

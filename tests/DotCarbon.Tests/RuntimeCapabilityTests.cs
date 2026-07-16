@@ -117,6 +117,10 @@ public class RuntimeCapabilityTests
         public void SetContentProtected(bool protectedContent) { }
         public void SetIgnoreCursorEvents(bool ignore) { }
         public void SetIcon(string path) { }
+        public void SetCursorIcon(string icon) { }
+        public void SetCursorVisible(bool visible) { }
+        public void SetCursorGrab(bool grab) { }
+        public void SetCursorPosition(int x, int y) { }
         public void LoadUri(Uri uri) { }
         public void LoadString(string html) { }
         public Task SendMessageAsync(string message) => Task.CompletedTask;

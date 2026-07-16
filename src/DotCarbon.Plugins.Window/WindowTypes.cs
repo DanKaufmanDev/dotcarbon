@@ -6,6 +6,7 @@ public record SetSizeArgs(int Width, int Height, string? Label = null);
 public record SetPositionArgs(int X, int Y, string? Label = null);
 public record SetFlagArgs(bool Value, string? Label = null);
 public record SetIconArgs(string Path, string? Label = null);
+public record SetCursorIconArgs(string Icon, string? Label = null);
 public record SetMinSizeArgs(int Width, int Height, string? Label = null);
 public record SetMaxSizeArgs(int Width, int Height, string? Label = null);
 

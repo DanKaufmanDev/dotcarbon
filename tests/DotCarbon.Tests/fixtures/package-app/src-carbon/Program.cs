@@ -115,6 +115,29 @@ CarbonApp.Create(config)
                     Console.WriteLine("[[CARBON_CHROME]] toggles ran (no readback off macOS)");
                 }
 
+                // Task 3.4: cursor. Exercise the setters everywhere (crash-safety), leaving the cursor
+                // visible and ungrabbed. Verify position by warping and reading it back — macOS only,
+                // since the readback goes through CoreGraphics.
+                view.SetCursorIcon("pointer");
+                view.SetCursorIcon("default");
+                view.SetCursorVisible(false);
+                view.SetCursorVisible(true);
+                view.SetCursorGrab(true);
+                view.SetCursorGrab(false);
+                if (view is PhotinoWebView cpw && OperatingSystem.IsMacOS())
+                {
+                    var (cox, coy) = view.GetOuterPosition();
+                    view.SetCursorPosition(200, 150);
+                    var (cx, cy) = cpw.MacGlobalCursor();
+                    Console.WriteLine(
+                        $"[[CARBON_CURSOR]] target={cox + 200},{coy + 150} actual={cx},{cy} " +
+                        $"dx={Math.Abs(cx - (cox + 200))} dy={Math.Abs(cy - (coy + 150))}");
+                }
+                else
+                {
+                    Console.WriteLine("[[CARBON_CURSOR]] cursor setters ran (no readback off macOS)");
+                }
+
                 // Restore a normal, closable window. On macOS a window with the closable style bit
                 // removed cannot be closed programmatically (performClose: is a no-op), which would
                 // leave the smoke unable to exit — so the toggles must not leave it in that state.

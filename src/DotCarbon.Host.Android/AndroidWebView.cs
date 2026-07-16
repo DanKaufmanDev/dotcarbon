@@ -71,6 +71,10 @@ public sealed class AndroidWebView : ICarbonWebView
     public void SetContentProtected(bool protectedContent) { }
     public void SetIgnoreCursorEvents(bool ignore) { }
     public void SetIcon(string path) { }
+    public void SetCursorIcon(string icon) { }
+    public void SetCursorVisible(bool visible) { }
+    public void SetCursorGrab(bool grab) { }
+    public void SetCursorPosition(int x, int y) { }
 
     public void LoadUri(Uri uri) => Native.Post(() => Native.LoadUrl(uri.ToString()));
 

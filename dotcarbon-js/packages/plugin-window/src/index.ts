@@ -150,6 +150,16 @@ export class WebviewWindow {
         invoke('window:set_ignore_cursor_events', { value: ignore, label: this.label })
     setIcon = (path: string): Promise<void> =>
         invoke('window:set_icon', { path, label: this.label })
+
+    // Task 3.4 — cursor.
+    setCursorIcon = (icon: string): Promise<void> =>
+        invoke('window:set_cursor_icon', { icon, label: this.label })
+    setCursorVisible = (visible: boolean): Promise<void> =>
+        invoke('window:set_cursor_visible', { value: visible, label: this.label })
+    setCursorGrab = (grab: boolean): Promise<void> =>
+        invoke('window:set_cursor_grab', { value: grab, label: this.label })
+    setCursorPosition = (x: number, y: number): Promise<void> =>
+        invoke('window:set_cursor_position', { x, y, label: this.label })
 }
 
 export { WebviewWindow as CarbonWindow }
@@ -204,6 +214,10 @@ export const carbonWindow = {
     setContentProtected: (protectedContent: boolean): Promise<void> => invoke('window:set_content_protected', { value: protectedContent }),
     setIgnoreCursorEvents: (ignore: boolean): Promise<void> => invoke('window:set_ignore_cursor_events', { value: ignore }),
     setIcon: (path: string): Promise<void> => invoke('window:set_icon', { path }),
+    setCursorIcon: (icon: string): Promise<void> => invoke('window:set_cursor_icon', { icon }),
+    setCursorVisible: (visible: boolean): Promise<void> => invoke('window:set_cursor_visible', { value: visible }),
+    setCursorGrab: (grab: boolean): Promise<void> => invoke('window:set_cursor_grab', { value: grab }),
+    setCursorPosition: (x: number, y: number): Promise<void> => invoke('window:set_cursor_position', { x, y }),
 }
 
 declare module '@dotcarbon/api' {
@@ -242,6 +256,10 @@ declare module '@dotcarbon/api' {
         'window:set_content_protected': { args: { value: boolean; label?: string }; result: void }
         'window:set_ignore_cursor_events': { args: { value: boolean; label?: string }; result: void }
         'window:set_icon': { args: { path: string; label?: string }; result: void }
+        'window:set_cursor_icon': { args: { icon: string; label?: string }; result: void }
+        'window:set_cursor_visible': { args: { value: boolean; label?: string }; result: void }
+        'window:set_cursor_grab': { args: { value: boolean; label?: string }; result: void }
+        'window:set_cursor_position': { args: { x: number; y: number; label?: string }; result: void }
         'window:maximize': { args: { label?: string }; result: void }
         'window:unmaximize': { args: { label?: string }; result: void }
         'window:set_fullscreen': { args: { fullscreen: boolean; label?: string }; result: void }

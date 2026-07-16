@@ -101,6 +101,20 @@ public interface ICarbonWebView
     /// <summary>Replace the window/taskbar icon at runtime.</summary>
     void SetIcon(string path);
 
+    // --- cursor (Task 3.4) -------------------------------------------------------------------
+
+    /// <summary>Set the cursor shape by name ("default", "pointer", "text", "crosshair", ...).</summary>
+    void SetCursorIcon(string icon);
+
+    /// <summary>Show or hide the mouse cursor.</summary>
+    void SetCursorVisible(bool visible);
+
+    /// <summary>Confine the cursor to the window (grab) or release it.</summary>
+    void SetCursorGrab(bool grab);
+
+    /// <summary>Move the cursor to a point relative to the window's top-left content.</summary>
+    void SetCursorPosition(int x, int y);
+
     /// <summary>Navigate the webview to a URI (carbon://, http://localhost dev server, or an external URL).</summary>
     void LoadUri(Uri uri);
 

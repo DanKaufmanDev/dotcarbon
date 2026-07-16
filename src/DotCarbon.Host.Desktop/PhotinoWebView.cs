@@ -162,6 +162,15 @@ public sealed class PhotinoWebView : ICarbonWebView
         if (File.Exists(full)) Window.SetIconFile(full);
     }
 
+    // Task 3.4 — cursor.
+    public void SetCursorIcon(string icon) => NativeWindowControls.SetCursorIcon(this, icon);
+    public void SetCursorVisible(bool visible) => NativeWindowControls.SetCursorVisible(this, visible);
+    public void SetCursorGrab(bool grab) => NativeWindowControls.SetCursorGrab(this, grab);
+    public void SetCursorPosition(int x, int y) => NativeWindowControls.SetCursorPosition(this, x, y);
+
+    /// <summary>macOS: the cursor's current screen position (top-left origin), for verification.</summary>
+    public (int X, int Y) MacGlobalCursor() => NativeWindowControls.MacGlobalCursor();
+
     /// <summary>macOS: whether a style-mask bit ("titled"/"closable"/"miniaturizable") is set.</summary>
     public bool MacHasStyleBit(string which) => NativeWindowControls.MacHasStyleBit(this, which);
     /// <summary>macOS: whether the window is excluded from screen capture.</summary>

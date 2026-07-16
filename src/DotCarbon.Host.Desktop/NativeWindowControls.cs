@@ -206,6 +206,79 @@ internal static unsafe class NativeWindowControls
         else if (OperatingSystem.IsLinux()) LinuxSetClickThrough(GtkWindow(view), on);
     }
 
+    // --- cursor (Task 3.4) -------------------------------------------------------------------
+    // Position is relative to the window's top-left content, matching the JS API; the others act on
+    // the shared cursor. Only position has a clean readback, so it is the verified one.
+
+    public static void SetCursorPosition(PhotinoWebView view, int x, int y)
+    {
+        var (ox, oy) = OuterPosition(view);
+        if (OperatingSystem.IsWindows()) SetCursorPos(ox + x, oy + y);
+        else if (OperatingSystem.IsMacOS()) CGWarpMouseCursorPosition(new CGPoint { X = ox + x, Y = oy + y });
+        else if (OperatingSystem.IsLinux()) LinuxWarpCursor(ox + x, oy + y);
+    }
+
+    public static void SetCursorVisible(PhotinoWebView view, bool visible)
+    {
+        if (OperatingSystem.IsWindows()) ShowCursor(visible);
+        else if (OperatingSystem.IsMacOS()) Send(Cls("NSCursor"), Sel(visible ? "unhide" : "hide"));
+        else if (OperatingSystem.IsLinux()) LinuxSetCursorVisible(GtkWindow(view), visible);
+    }
+
+    public static void SetCursorGrab(PhotinoWebView view, bool grab)
+    {
+        // The closest cross-platform notion of "grab" is confining the cursor to the window.
+        if (OperatingSystem.IsWindows()) WinClipCursor(view, grab);
+        // macOS: decouple the cursor from mouse deltas (0 = locked/grabbed, 1 = normal).
+        else if (OperatingSystem.IsMacOS()) CGAssociateMouseAndMouseCursorPosition(grab ? 0 : 1);
+        // Linux grab is a deprecated per-seat operation; left out until there is a way to verify it.
+    }
+
+    public static void SetCursorIcon(PhotinoWebView view, string icon)
+    {
+        if (OperatingSystem.IsWindows()) WinSetCursor(icon);
+        else if (OperatingSystem.IsMacOS()) MacSetCursor(icon);
+        else if (OperatingSystem.IsLinux()) LinuxSetCursor(GtkWindow(view), icon);
+    }
+
+    /// <summary>macOS: the cursor's current screen position (top-left origin), for verification.</summary>
+    public static (int, int) MacGlobalCursor()
+    {
+        var mouseEvent = CGEventCreate(IntPtr.Zero);
+        var point = CGEventGetLocation(mouseEvent);
+        if (mouseEvent != IntPtr.Zero) CFRelease(mouseEvent);
+        return ((int)point.X, (int)point.Y);
+    }
+
+    private static void MacSetCursor(string icon)
+    {
+        var selector = icon.ToLowerInvariant() switch
+        {
+            "pointer" or "hand" => "pointingHandCursor",
+            "text" => "IBeamCursor",
+            "crosshair" => "crosshairCursor",
+            "grab" => "openHandCursor",
+            "grabbing" or "move" => "closedHandCursor",
+            "notallowed" or "not-allowed" => "operationNotAllowedCursor",
+            "ew-resize" or "col-resize" => "resizeLeftRightCursor",
+            "ns-resize" or "row-resize" => "resizeUpDownCursor",
+            _ => "arrowCursor",
+        };
+        var cursor = Send(Cls("NSCursor"), Sel(selector));
+        if (cursor != IntPtr.Zero) Send(cursor, Sel("set"));
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CGPoint { public double X, Y; }
+
+    private const string CoreGraphics = "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics";
+    private const string CoreFoundation = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
+    [DllImport(CoreGraphics)] private static extern int CGWarpMouseCursorPosition(CGPoint point);
+    [DllImport(CoreGraphics)] private static extern int CGAssociateMouseAndMouseCursorPosition(int connected);
+    [DllImport(CoreGraphics)] private static extern IntPtr CGEventCreate(IntPtr source);
+    [DllImport(CoreGraphics)] private static extern CGPoint CGEventGetLocation(IntPtr mouseEvent);
+    [DllImport(CoreFoundation)] private static extern void CFRelease(IntPtr cf);
+
     // --- macOS chrome readbacks (verification) -----------------------------------------------
 
     /// <summary>Whether a style-mask bit is set — lets the smoke confirm a toggle actually took.</summary>
@@ -329,6 +402,33 @@ internal static unsafe class NativeWindowControls
         if (on) SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
     }
 
+    private static void WinClipCursor(PhotinoWebView view, bool grab)
+    {
+        if (!grab) { ClipCursor(IntPtr.Zero); return; }
+        var hwnd = Hwnd(view);
+        if (hwnd != IntPtr.Zero && GetWindowRect(hwnd, out var rect)) ClipCursor(ref rect);
+    }
+
+    private static void WinSetCursor(string icon)
+    {
+        // IDC_* standard cursors.
+        var id = icon.ToLowerInvariant() switch
+        {
+            "pointer" or "hand" => 32649,       // IDC_HAND
+            "text" => 32513,                     // IDC_IBEAM
+            "crosshair" => 32515,                // IDC_CROSS
+            "wait" => 32514,                     // IDC_WAIT
+            "help" => 32651,                     // IDC_HELP
+            "move" => 32646,                     // IDC_SIZEALL
+            "notallowed" or "not-allowed" => 32648, // IDC_NO
+            "ew-resize" or "col-resize" => 32644,   // IDC_SIZEWE
+            "ns-resize" or "row-resize" => 32645,   // IDC_SIZENS
+            _ => 32512,                          // IDC_ARROW
+        };
+        var cursor = LoadCursorW(IntPtr.Zero, id);
+        if (cursor != IntPtr.Zero) SetCursor(cursor);
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct FLASHWINFO
     {
@@ -359,6 +459,12 @@ internal static unsafe class NativeWindowControls
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern IntPtr SetWindowLongPtrW(IntPtr hwnd, int index, IntPtr value);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] private static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint affinity);
+    [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] private static extern int ShowCursor([MarshalAs(UnmanagedType.Bool)] bool show);
+    [DllImport("user32.dll")] private static extern bool ClipCursor(ref RECT rect);
+    [DllImport("user32.dll")] private static extern bool ClipCursor(IntPtr rect);
+    [DllImport("user32.dll")] private static extern IntPtr LoadCursorW(IntPtr hInstance, int cursorId);
+    [DllImport("user32.dll")] private static extern IntPtr SetCursor(IntPtr cursor);
 
     // --- macOS -------------------------------------------------------------------------------
 
@@ -531,6 +637,48 @@ internal static unsafe class NativeWindowControls
         }
     }
 
+    private static void LinuxWarpCursor(int x, int y)
+    {
+        var display = gdk_display_get_default();
+        if (display == IntPtr.Zero) return;
+        var pointer = gdk_seat_get_pointer(gdk_display_get_default_seat(display));
+        var screen = gdk_display_get_default_screen(display);
+        gdk_device_warp(pointer, screen, x, y);
+    }
+
+    private static void LinuxSetCursorVisible(IntPtr window, bool visible)
+    {
+        var gdkWindow = window == IntPtr.Zero ? IntPtr.Zero : gtk_widget_get_window(window);
+        if (gdkWindow == IntPtr.Zero) return;
+        var display = gdk_display_get_default();
+        const int GdkBlankCursor = 25;
+        var cursor = visible ? IntPtr.Zero : gdk_cursor_new_for_display(display, GdkBlankCursor);
+        gdk_window_set_cursor(gdkWindow, cursor);
+    }
+
+    private static void LinuxSetCursor(IntPtr window, string icon)
+    {
+        var gdkWindow = window == IntPtr.Zero ? IntPtr.Zero : gtk_widget_get_window(window);
+        if (gdkWindow == IntPtr.Zero) return;
+        var name = icon.ToLowerInvariant() switch
+        {
+            "pointer" or "hand" => "pointer",
+            "text" => "text",
+            "crosshair" => "crosshair",
+            "wait" => "wait",
+            "help" => "help",
+            "move" => "move",
+            "notallowed" or "not-allowed" => "not-allowed",
+            "grab" => "grab",
+            "grabbing" => "grabbing",
+            "ew-resize" or "col-resize" => "ew-resize",
+            "ns-resize" or "row-resize" => "ns-resize",
+            _ => "default",
+        };
+        var cursor = gdk_cursor_new_from_name(gdk_display_get_default(), name);
+        gdk_window_set_cursor(gdkWindow, cursor);
+    }
+
     private static void LinuxStartDrag(IntPtr window)
     {
         if (window == IntPtr.Zero) return;
@@ -570,7 +718,12 @@ internal static unsafe class NativeWindowControls
     [DllImport("libcairo.so.2")] private static extern void cairo_region_destroy(IntPtr region);
     [DllImport(Gdk)] private static extern IntPtr gdk_display_get_default();
     [DllImport(Gdk)] private static extern IntPtr gdk_display_get_default_seat(IntPtr display);
+    [DllImport(Gdk)] private static extern IntPtr gdk_display_get_default_screen(IntPtr display);
     [DllImport(Gdk)] private static extern IntPtr gdk_seat_get_pointer(IntPtr seat);
     [DllImport(Gdk)] private static extern void gdk_device_get_position(IntPtr device, out IntPtr screen, out int x, out int y);
+    [DllImport(Gdk)] private static extern void gdk_device_warp(IntPtr device, IntPtr screen, int x, int y);
+    [DllImport(Gdk)] private static extern void gdk_window_set_cursor(IntPtr window, IntPtr cursor);
+    [DllImport(Gdk)] private static extern IntPtr gdk_cursor_new_for_display(IntPtr display, int cursorType);
+    [DllImport(Gdk)] private static extern IntPtr gdk_cursor_new_from_name(IntPtr display, [MarshalAs(UnmanagedType.LPUTF8Str)] string name);
     [DllImport(GLib)] private static extern void g_list_free(IntPtr list);
 }

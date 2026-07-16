@@ -359,6 +359,21 @@ jobs:
           elif [ "${{ runner.os }}" = "macOS" ]; then
             echo "window chrome (Task 3.3) never reported on macOS"; exit 1
           fi
+          # Task 3.4: cursor. Position is warped then read back off CoreGraphics on macOS — a few pixels
+          # of tolerance covers HiDPI rounding. The other cursor setters run everywhere for crash-safety.
+          cursor=$(grep -a "\[\[CARBON_CURSOR\]\]" smoke.log | tail -1 || true)
+          if [ -n "$cursor" ]; then
+            echo "::notice::${{ runner.os }} $cursor"
+            if [ "${{ runner.os }}" = "macOS" ]; then
+              dx=$(echo "$cursor" | sed -n 's/.* dx=\([0-9]*\) .*/\1/p')
+              dy=$(echo "$cursor" | sed -n 's/.* dy=\([0-9]*\)$/\1/p')
+              if [ -z "$dx" ] || [ -z "$dy" ] || [ "$dx" -gt 2 ] || [ "$dy" -gt 2 ]; then
+                echo "set_cursor_position did not land on target"; echo "$cursor"; exit 1
+              fi
+            fi
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            echo "cursor (Task 3.4) never reported on macOS"; exit 1
+          fi
       - name: Assert tray + menu (macOS — verified path)
         if: runner.os == 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app
