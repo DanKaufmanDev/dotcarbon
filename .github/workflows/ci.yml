@@ -390,6 +390,20 @@ jobs:
           elif [ "${{ runner.os }}" = "macOS" ]; then
             echo "monitors (Task 3.5) never reported on macOS"; exit 1
           fi
+          # Task 3.6: theme. On macOS the window's effectiveAppearance reflects a setTheme override, so
+          # dark→dark and light→light is deterministic regardless of the OS theme. Windows reads the OS
+          # theme (its override is a title-bar-only DWM flag) so it isn't asserted; Linux via GtkSettings
+          # is reported. Hard on macOS.
+          theme=$(grep -a "\[\[CARBON_THEME\]\]" smoke.log | tail -1 || true)
+          if [ -n "$theme" ]; then
+            echo "::notice::${{ runner.os }} $theme"
+            if [ "${{ runner.os }}" = "macOS" ]; then
+              echo "$theme" | grep -q "after_dark=dark after_light=light" || {
+                echo "setTheme override did not change the effective theme"; echo "$theme"; exit 1; }
+            fi
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            echo "theme (Task 3.6) never reported on macOS"; exit 1
+          fi
       - name: Assert tray + menu (macOS — verified path)
         if: runner.os == 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app

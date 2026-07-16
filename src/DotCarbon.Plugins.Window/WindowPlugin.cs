@@ -228,6 +228,21 @@ public partial class WindowPlugin : IPlugin
 
     public Task StartDragging() => StartDragging(new TargetWindowArgs());
 
+    // --- theme (Task 3.6) --------------------------------------------------------------------
+
+    [CarbonCommand("get_theme")]
+    public Task<string> GetTheme(TargetWindowArgs args) =>
+        Task.FromResult(Resolve(args.Label).View.GetTheme());
+
+    public Task<string> GetTheme() => GetTheme(new TargetWindowArgs());
+
+    [CarbonCommand("set_theme")]
+    public Task SetTheme(SetThemeArgs args)
+    {
+        Resolve(args.Label).View.SetTheme(args.Theme);
+        return Task.CompletedTask;
+    }
+
     // --- monitors (Task 3.5) -----------------------------------------------------------------
 
     [CarbonCommand("available_monitors")]

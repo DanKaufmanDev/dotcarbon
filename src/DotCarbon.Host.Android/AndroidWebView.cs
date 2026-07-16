@@ -80,6 +80,8 @@ public sealed class AndroidWebView : ICarbonWebView
     public CarbonMonitorInfo? GetPrimaryMonitor() => new(null, 0, 0, Width, Height, 0, 0, Width, Height, 1.0);
     public CarbonMonitorInfo? GetCurrentMonitor() => GetPrimaryMonitor();
     public double GetScaleFactor() => 1.0;
+    public string GetTheme() => "light";
+    public void SetTheme(string theme) { }
 
     public void LoadUri(Uri uri) => Native.Post(() => Native.LoadUrl(uri.ToString()));
 

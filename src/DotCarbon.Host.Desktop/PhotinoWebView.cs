@@ -162,6 +162,10 @@ public sealed class PhotinoWebView : ICarbonWebView
         if (File.Exists(full)) Window.SetIconFile(full);
     }
 
+    // Task 3.6 — theme.
+    public string GetTheme() => NativeWindowControls.GetTheme(this);
+    public void SetTheme(string theme) => NativeWindowControls.SetTheme(this, theme);
+
     // Task 3.5 — monitors (all from Photino's Monitor data; no native code needed).
     public IReadOnlyList<CarbonMonitorInfo> GetMonitors() =>
         Window.Monitors.Select(ToMonitorInfo).ToList();

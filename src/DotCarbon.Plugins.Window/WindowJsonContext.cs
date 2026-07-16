@@ -14,6 +14,7 @@ namespace DotCarbon.Plugins.Window;
 [JsonSerializable(typeof(SetFlagArgs))]
 [JsonSerializable(typeof(SetIconArgs))]
 [JsonSerializable(typeof(SetCursorIconArgs))]
+[JsonSerializable(typeof(SetThemeArgs))]
 [JsonSerializable(typeof(SetMinSizeArgs))]
 [JsonSerializable(typeof(SetMaxSizeArgs))]
 [JsonSerializable(typeof(WindowSize))]

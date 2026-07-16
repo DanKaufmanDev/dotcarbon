@@ -140,6 +140,14 @@ public interface ICarbonWebView
     /// <summary>The DPI scale of the window's current display (2.0 on Retina).</summary>
     double GetScaleFactor();
 
+    // --- theme (Task 3.6) --------------------------------------------------------------------
+
+    /// <summary>The window's effective theme, "light" or "dark".</summary>
+    string GetTheme();
+
+    /// <summary>Override the window theme: "light", "dark", or "auto" (follow the OS).</summary>
+    void SetTheme(string theme);
+
     /// <summary>Navigate the webview to a URI (carbon://, http://localhost dev server, or an external URL).</summary>
     void LoadUri(Uri uri);
 

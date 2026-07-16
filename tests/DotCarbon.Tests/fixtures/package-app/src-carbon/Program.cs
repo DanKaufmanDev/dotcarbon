@@ -148,6 +148,18 @@ CarbonApp.Create(config)
                     $"primary={(primary is null ? "null" : $"{primary.Width}x{primary.Height}@{primary.ScaleFactor}")} " +
                     $"current={(current is null ? "null" : $"{current.Width}x{current.Height}")} scale={scale}");
 
+                // Task 3.6: theme. Set an override and read the effective theme back. On macOS the
+                // window's effectiveAppearance reflects the override; the readback runs everywhere
+                // (it branches internally), so this is exercised on all OSes.
+                var initialTheme = view.GetTheme();
+                view.SetTheme("dark");
+                var afterDark = view.GetTheme();
+                view.SetTheme("light");
+                var afterLight = view.GetTheme();
+                view.SetTheme("auto"); // leave it following the system
+                Console.WriteLine(
+                    $"[[CARBON_THEME]] initial={initialTheme} after_dark={afterDark} after_light={afterLight}");
+
                 // Restore a normal, closable window. On macOS a window with the closable style bit
                 // removed cannot be closed programmatically (performClose: is a no-op), which would
                 // leave the smoke unable to exit — so the toggles must not leave it in that state.

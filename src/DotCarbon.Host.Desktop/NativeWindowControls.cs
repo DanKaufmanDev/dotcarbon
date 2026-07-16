@@ -206,6 +206,51 @@ internal static unsafe class NativeWindowControls
         else if (OperatingSystem.IsLinux()) LinuxSetClickThrough(GtkWindow(view), on);
     }
 
+    // --- theme (Task 3.6) --------------------------------------------------------------------
+
+    public static string GetTheme(PhotinoWebView view)
+    {
+        if (OperatingSystem.IsWindows()) return WinAppsUseLightTheme() ? "light" : "dark";
+        if (OperatingSystem.IsMacOS()) return MacGetTheme(MacWindow(view));
+        if (OperatingSystem.IsLinux()) return LinuxPrefersDark() ? "dark" : "light";
+        return "light";
+    }
+
+    /// <summary>Override the window's theme: "light", "dark", or "auto" (follow the OS).</summary>
+    public static void SetTheme(PhotinoWebView view, string theme)
+    {
+        if (OperatingSystem.IsWindows()) WinSetDarkTitleBar(Hwnd(view), theme);
+        else if (OperatingSystem.IsMacOS()) MacSetTheme(MacWindow(view), theme);
+        else if (OperatingSystem.IsLinux()) LinuxSetPreferDark(theme);
+    }
+
+    private static string MacGetTheme(IntPtr window)
+    {
+        var appearance = window == IntPtr.Zero
+            ? Send(Send(Cls("NSApplication"), Sel("sharedApplication")), Sel("effectiveAppearance"))
+            : Send(window, Sel("effectiveAppearance"));
+        if (appearance == IntPtr.Zero) return "light";
+        var name = Marshal.PtrToStringUTF8(Send(Send(appearance, Sel("name")), Sel("UTF8String"))) ?? "";
+        return name.Contains("Dark", StringComparison.Ordinal) ? "dark" : "light";
+    }
+
+    private static void MacSetTheme(IntPtr window, string theme)
+    {
+        if (window == IntPtr.Zero) return;
+        if (string.Equals(theme, "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            SendPtr(window, Sel("setAppearance:"), IntPtr.Zero); // nil = follow the system
+            return;
+        }
+        var named = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase)
+            ? "NSAppearanceNameDarkAqua" : "NSAppearanceNameAqua";
+        var appearance = SendPtr(Cls("NSAppearance"), Sel("appearanceNamed:"), NSString(named));
+        SendPtr(window, Sel("setAppearance:"), appearance);
+    }
+
+    private static IntPtr NSString(string value) =>
+        SendStr(Cls("NSString"), Sel("stringWithUTF8String:"), value);
+
     // --- cursor (Task 3.4) -------------------------------------------------------------------
     // Position is relative to the window's top-left content, matching the JS API; the others act on
     // the shared cursor. Only position has a clean readback, so it is the verified one.
@@ -409,6 +454,30 @@ internal static unsafe class NativeWindowControls
         if (hwnd != IntPtr.Zero && GetWindowRect(hwnd, out var rect)) ClipCursor(ref rect);
     }
 
+    // Theme (Task 3.6).
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+    private static bool WinAppsUseLightTheme()
+    {
+        // HKCU\...\Themes\Personalize\AppsUseLightTheme (1 = light, 0 = dark). Default light if absent.
+        var data = 1;
+        var size = sizeof(int);
+        const int RRF_RT_REG_DWORD = 0x00000010;
+        var result = RegGetValueW(HKEY_CURRENT_USER,
+            @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            "AppsUseLightTheme", RRF_RT_REG_DWORD, out _, ref data, ref size);
+        return result != 0 || data != 0; // missing key → treat as light
+    }
+
+    private static void WinSetDarkTitleBar(IntPtr hwnd, string theme)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        var dark = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase)
+            || (string.Equals(theme, "auto", StringComparison.OrdinalIgnoreCase) && !WinAppsUseLightTheme());
+        var flag = dark ? 1 : 0;
+        DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref flag, sizeof(int));
+    }
+
     private static void WinSetCursor(string icon)
     {
         // IDC_* standard cursors.
@@ -465,6 +534,9 @@ internal static unsafe class NativeWindowControls
     [DllImport("user32.dll")] private static extern bool ClipCursor(IntPtr rect);
     [DllImport("user32.dll")] private static extern IntPtr LoadCursorW(IntPtr hInstance, int cursorId);
     [DllImport("user32.dll")] private static extern IntPtr SetCursor(IntPtr cursor);
+    [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+    private static readonly IntPtr HKEY_CURRENT_USER = unchecked((IntPtr)(int)0x80000001);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] private static extern int RegGetValueW(IntPtr hkey, string subKey, string value, int flags, out int type, ref int data, ref int dataSize);
 
     // --- macOS -------------------------------------------------------------------------------
 
@@ -567,6 +639,7 @@ internal static unsafe class NativeWindowControls
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr Send(IntPtr receiver, IntPtr sel);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendPtr(IntPtr receiver, IntPtr sel, IntPtr arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendIdx(IntPtr receiver, IntPtr sel, long arg);
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendStr(IntPtr receiver, IntPtr sel, [MarshalAs(UnmanagedType.LPUTF8Str)] string arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendLongArg(IntPtr receiver, IntPtr sel, long arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern nint SendLong(IntPtr receiver, IntPtr sel);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern void SendBool(IntPtr receiver, IntPtr sel, [MarshalAs(UnmanagedType.I1)] bool arg);
@@ -581,6 +654,7 @@ internal static unsafe class NativeWindowControls
     private const string Gtk = "libgtk-3.so.0";
     private const string GLib = "libglib-2.0.so.0";
     private const string Gdk = "libgdk-3.so.0";
+    private const string GObject = "libgobject-2.0.so.0";
 
     /// <summary>The GtkWindow whose title matches, cached on the view (same approach as LinuxMenu).</summary>
     private static IntPtr GtkWindow(PhotinoWebView view)
@@ -635,6 +709,25 @@ internal static unsafe class NativeWindowControls
         {
             gdk_window_input_shape_combine_region(gdkWindow, IntPtr.Zero, 0, 0);
         }
+    }
+
+    // Theme (Task 3.6): GtkSettings' gtk-application-prefer-dark-theme.
+    private static bool LinuxPrefersDark()
+    {
+        var settings = gtk_settings_get_default();
+        if (settings == IntPtr.Zero) return false;
+        g_object_get_bool(settings, "gtk-application-prefer-dark-theme", out var dark, IntPtr.Zero);
+        return dark;
+    }
+
+    private static void LinuxSetPreferDark(string theme)
+    {
+        var settings = gtk_settings_get_default();
+        if (settings == IntPtr.Zero) return;
+        // "auto" leaves the setting to the desktop; only an explicit choice overrides it.
+        if (string.Equals(theme, "auto", StringComparison.OrdinalIgnoreCase)) return;
+        var dark = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase);
+        g_object_set_bool(settings, "gtk-application-prefer-dark-theme", dark, IntPtr.Zero);
     }
 
     private static void LinuxWarpCursor(int x, int y)
@@ -713,6 +806,9 @@ internal static unsafe class NativeWindowControls
     [DllImport(Gtk)] private static extern void gtk_window_set_keep_below(IntPtr window, [MarshalAs(UnmanagedType.I1)] bool setting);
     [DllImport(Gtk)] private static extern void gtk_window_set_skip_taskbar_hint(IntPtr window, [MarshalAs(UnmanagedType.I1)] bool setting);
     [DllImport(Gtk)] private static extern IntPtr gtk_widget_get_window(IntPtr widget);
+    [DllImport(Gtk)] private static extern IntPtr gtk_settings_get_default();
+    [DllImport(GObject, EntryPoint = "g_object_get")] private static extern void g_object_get_bool(IntPtr obj, [MarshalAs(UnmanagedType.LPUTF8Str)] string prop, [MarshalAs(UnmanagedType.I1)] out bool value, IntPtr terminator);
+    [DllImport(GObject, EntryPoint = "g_object_set")] private static extern void g_object_set_bool(IntPtr obj, [MarshalAs(UnmanagedType.LPUTF8Str)] string prop, [MarshalAs(UnmanagedType.I1)] bool value, IntPtr terminator);
     [DllImport(Gdk)] private static extern void gdk_window_input_shape_combine_region(IntPtr window, IntPtr shape, int offsetX, int offsetY);
     [DllImport("libcairo.so.2")] private static extern IntPtr cairo_region_create();
     [DllImport("libcairo.so.2")] private static extern void cairo_region_destroy(IntPtr region);

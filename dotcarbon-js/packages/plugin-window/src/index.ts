@@ -21,6 +21,20 @@ export interface PhysicalPosition { x: number; y: number }
 export interface LogicalSize { width: number; height: number }
 export interface LogicalPosition { x: number; y: number }
 
+export type Theme = 'light' | 'dark'
+
+/**
+ * Subscribe to theme changes via the webview's prefers-color-scheme, which follows both the OS theme
+ * and a window setTheme override. Returns an unsubscribe function. Task 3.6.
+ */
+export function onThemeChanged(handler: (theme: Theme) => void): () => void {
+    if (typeof window === 'undefined' || !window.matchMedia) return () => undefined
+    const query = window.matchMedia('(prefers-color-scheme: dark)')
+    const listener = (e: MediaQueryListEvent) => handler(e.matches ? 'dark' : 'light')
+    query.addEventListener('change', listener)
+    return () => query.removeEventListener('change', listener)
+}
+
 /** A connected display (Task 3.5). Sizes and positions are in physical pixels. */
 export interface Monitor {
     name: string | null
@@ -187,6 +201,16 @@ export class WebviewWindow {
     currentMonitor = (): Promise<Monitor | null> =>
         invoke('window:current_monitor', { label: this.label })
     scaleFactor = (): Promise<number> => invoke('window:scale_factor', { label: this.label })
+
+    // Task 3.6 — theme.
+    theme = (): Promise<Theme> => invoke('window:get_theme', { label: this.label })
+    setTheme = (theme: Theme | 'auto'): Promise<void> =>
+        invoke('window:set_theme', { theme, label: this.label })
+    /**
+     * Fire when the effective theme changes. Backed by the webview's prefers-color-scheme, so it
+     * reflects both OS changes and a setTheme override. Returns an unsubscribe function.
+     */
+    onThemeChanged = (handler: (theme: Theme) => void): (() => void) => onThemeChanged(handler)
 }
 
 export { WebviewWindow as CarbonWindow }
@@ -249,6 +273,9 @@ export const carbonWindow = {
     primaryMonitor: (): Promise<Monitor | null> => invoke('window:primary_monitor', {}),
     currentMonitor: (): Promise<Monitor | null> => invoke('window:current_monitor', {}),
     scaleFactor: (): Promise<number> => invoke('window:scale_factor', {}),
+    theme: (): Promise<Theme> => invoke('window:get_theme', {}),
+    setTheme: (theme: Theme | 'auto'): Promise<void> => invoke('window:set_theme', { theme }),
+    onThemeChanged: (handler: (theme: Theme) => void): (() => void) => onThemeChanged(handler),
 }
 
 declare module '@dotcarbon/api' {
@@ -295,6 +322,8 @@ declare module '@dotcarbon/api' {
         'window:primary_monitor': { args: { label?: string }; result: Monitor | null }
         'window:current_monitor': { args: { label?: string }; result: Monitor | null }
         'window:scale_factor': { args: { label?: string }; result: number }
+        'window:get_theme': { args: { label?: string }; result: Theme }
+        'window:set_theme': { args: { theme: Theme | 'auto'; label?: string }; result: void }
         'window:maximize': { args: { label?: string }; result: void }
         'window:unmaximize': { args: { label?: string }; result: void }
         'window:set_fullscreen': { args: { fullscreen: boolean; label?: string }; result: void }
