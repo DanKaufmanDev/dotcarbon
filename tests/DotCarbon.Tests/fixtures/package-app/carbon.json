@@ -4,18 +4,44 @@
     "version": "0.1.0",
     "identifier": "dev.dotcarbon.packagefixture"
   },
+  "window": {
+    "capabilities": [
+      "main"
+    ]
+  },
+  "security": {
+    "enabled": true,
+    "capabilities": {
+      "main": {
+        "windows": [
+          "main"
+        ],
+        "commands": [
+          "tray:*",
+          "menu:*",
+          "core:event_emit"
+        ]
+      }
+    }
+  },
   "build": {
     "backendProject": "src-carbon/PackageApp.csproj",
     "frontendDist": "ui/dist",
     "buildCommand": "dotnet --info"
   },
   "bundle": {
-    "targets": ["desktop"],
+    "targets": [
+      "desktop"
+    ],
     "windows": {
       "webView2InstallMode": "skip"
     },
     "linux": {
-      "formats": ["appimage", "deb", "rpm"]
+      "formats": [
+        "appimage",
+        "deb",
+        "rpm"
+      ]
     }
   }
 }

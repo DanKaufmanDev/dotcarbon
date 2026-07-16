@@ -256,6 +256,9 @@ public static class DesktopTrayExtensions
         var builder = new CarbonTrayBuilder();
         configure(builder);
         app.Setup(handle => CarbonTray.Create(builder.Bind(handle), onReady));
+        // Task 2.10: the frontend's tray:* commands only mean anything once a tray exists, so they
+        // come with the tray rather than being a separate opt-in.
+        app.UsePlugin<TrayPlugin>();
         return app;
     }
 }

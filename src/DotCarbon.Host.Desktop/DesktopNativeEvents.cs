@@ -13,6 +13,17 @@ public sealed record DesktopNativeItemEvent(
     UseStringEnumConverter = true)]
 [JsonSerializable(typeof(DesktopNativeItemEvent))]
 [JsonSerializable(typeof(CarbonTrayEvent))]
+// Task 2.10 command arguments. These live here rather than beside their plugins because the command
+// generator binds every command in an assembly to a single JsonSerializerContext — the first one it
+// finds — so a second context in this assembly would be silently ignored at build time and then fail
+// at runtime with a missing-metadata error.
+[JsonSerializable(typeof(SetTrayIconArgs))]
+[JsonSerializable(typeof(SetTrayTitleArgs))]
+[JsonSerializable(typeof(SetTrayTooltipArgs))]
+[JsonSerializable(typeof(SetTrayVisibleArgs))]
+[JsonSerializable(typeof(SetMenuEnabledArgs))]
+[JsonSerializable(typeof(SetMenuCheckedArgs))]
+[JsonSerializable(typeof(SetMenuLabelArgs))]
 internal partial class DesktopNativeJsonContext : JsonSerializerContext;
 
 internal static class DesktopNativeEventEmitter

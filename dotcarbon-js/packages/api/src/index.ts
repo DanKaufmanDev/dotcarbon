@@ -193,3 +193,76 @@ export function isCarbonApp(): boolean {
     return typeof window !== 'undefined' &&
         typeof (window.external as { sendMessage?: unknown } | undefined)?.sendMessage === 'function';
 }
+
+// --- tray + native menu (desktop only) ---------------------------------------------------------
+// These control the tray and menu the app declared in C# with UseTray/UseMenu; the commands only
+// exist when it did. Building a tray or menu from here is not supported yet — that needs the native
+// backends to add and remove items at runtime.
+
+/** What the pointer did to the tray icon. Platform support varies — see `TrayIcon.onEvent`. */
+export type TrayEventKind = 'Click' | 'DoubleClick' | 'Enter' | 'Move' | 'Leave'
+export type TrayMouseButton = 'Left' | 'Right' | 'Middle'
+export type TrayButtonState = 'Up' | 'Down'
+
+export interface TrayEvent {
+    kind: TrayEventKind
+    button: TrayMouseButton
+    buttonState: TrayButtonState
+    position: { x: number; y: number }
+    rect: { x: number; y: number; width: number; height: number }
+}
+
+/** An item in the tray or app menu was chosen. */
+export interface NativeItemEvent {
+    label: string
+    /** `tray` or `menu`. */
+    kind: string
+}
+
+export const tray = {
+    /**
+     * Swap the icon. PNG works on macOS and Linux; Windows prefers `.ico` but decodes others.
+     * `isTemplate` is macOS-only and makes the icon follow light/dark menu bars.
+     */
+    setIcon: (path: string, isTemplate = false): Promise<void> =>
+        invoke('tray:set_icon', { path, isTemplate }),
+    /** macOS only: Windows and Linux trays are icon-only. */
+    setTitle: (title: string): Promise<void> => invoke('tray:set_title', { title }),
+    /** Ignored on Linux when the tray is a StatusNotifierItem — the panel owns the icon. */
+    setTooltip: (tooltip: string): Promise<void> => invoke('tray:set_tooltip', { tooltip }),
+    setVisible: (visible: boolean): Promise<void> => invoke('tray:set_visible', { visible }),
+    remove: (): Promise<void> => invoke('tray:remove'),
+    /**
+     * Pointer events on the icon, if the C# side forwarded them with `OnEvent(eventName)`.
+     * macOS reports all five kinds; Windows omits Enter and Leave; Linux reports none when the tray
+     * is a StatusNotifierItem, which is the default there.
+     */
+    onEvent: (eventName: string, handler: (event: TrayEvent) => void): Promise<UnlistenFn> =>
+        listen(eventName, (e) => handler(e.payload as TrayEvent)),
+}
+
+export const menu = {
+    /** Grey an item out. Items are addressed by the `id` given when the menu was built in C#. */
+    setEnabled: (id: string, enabled: boolean): Promise<void> =>
+        invoke('menu:set_enabled', { id, enabled }),
+    /** Tick or untick an item added with `AddCheckItem`. */
+    setChecked: (id: string, checked: boolean): Promise<void> =>
+        invoke('menu:set_checked', { id, checked }),
+    setLabel: (id: string, label: string): Promise<void> => invoke('menu:set_label', { id, label }),
+    /** Clicks on items the C# side declared with `AddEventItem`. */
+    onItem: (eventName: string, handler: (event: NativeItemEvent) => void): Promise<UnlistenFn> =>
+        listen(eventName, (e) => handler(e.payload as NativeItemEvent)),
+}
+
+// Declared here rather than through `declare module '@dotcarbon/api'` — that form is for other
+// packages augmenting this one; within the module itself the interface merges directly.
+export interface CarbonCommands {
+    'tray:set_icon': { args: { path: string; isTemplate?: boolean }; result: void }
+    'tray:set_title': { args: { title: string }; result: void }
+    'tray:set_tooltip': { args: { tooltip: string }; result: void }
+    'tray:set_visible': { args: { visible: boolean }; result: void }
+    'tray:remove': { args: void; result: void }
+    'menu:set_enabled': { args: { id: string; enabled: boolean }; result: void }
+    'menu:set_checked': { args: { id: string; checked: boolean }; result: void }
+    'menu:set_label': { args: { id: string; label: string }; result: void }
+}

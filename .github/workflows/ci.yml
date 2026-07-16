@@ -240,6 +240,16 @@ jobs:
         run: |
           grep -q "\[\[CARBON_SMOKE\]\] boot" smoke.log || { echo "app did not boot"; exit 1; }
           grep -q "\[\[CARBON_SMOKE\]\] exit ok" smoke.log || { echo "app did not exit cleanly"; exit 1; }
+          # Task 2.10: ui/dist/app.js drives the tray:*/menu:* commands over the bridge. Those invokes
+          # only resolve if the whole JS -> bridge -> capability check -> plugin -> native path ran, so
+          # this is asserted on every OS. It is the check that catches an argument type missing from
+          # the assembly's serializer context, which builds fine and only fails when invoked.
+          if grep -q "\[\[CARBON_JS_UI_ERR\]\]" smoke.log; then
+            echo "the frontend could not drive the tray/menu commands"
+            grep -a "\[\[CARBON_JS_UI_ERR\]\]" smoke.log; exit 1
+          fi
+          grep -q "\[\[CARBON_JS_UI_OK\]\]" smoke.log || {
+            echo "the frontend never reported driving the tray/menu commands"; exit 1; }
       - name: Assert tray + menu (macOS — verified path)
         if: runner.os == 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app

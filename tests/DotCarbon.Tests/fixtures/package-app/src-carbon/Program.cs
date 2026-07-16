@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using DotCarbon.Core.Config;
 using DotCarbon.Core.Runtime;
 using DotCarbon.Host.Desktop;
@@ -6,6 +7,26 @@ var config = ConfigLoader.Load();
 
 CarbonApp.Create(config)
     .UseDesktop()
+    // Task 2.10: ui/dist/app.js drives the tray:*/menu:* commands over the bridge and reports back.
+    // Those invokes only resolve if the native side accepted them, so this marker means the whole
+    // JS -> bridge -> plugin -> native path ran.
+    .Setup(handle =>
+    {
+        handle.Events.Listen(
+            new CarbonEventName<string>("smoke:ui_ok"), SmokeJsonContext.Default.String,
+            e =>
+            {
+                Console.WriteLine($"[[CARBON_JS_UI_OK]] {e.Payload}");
+                Console.Out.Flush();
+            });
+        handle.Events.Listen(
+            new CarbonEventName<string>("smoke:ui_err"), SmokeJsonContext.Default.String,
+            e =>
+            {
+                Console.Error.WriteLine($"[[CARBON_JS_UI_ERR]] {e.Payload}");
+                Console.Error.Flush();
+            });
+    })
     .UseTray(
         tray => tray
             .SetTitle("●")
@@ -76,3 +97,7 @@ CarbonApp.Create(config)
             Console.Out.Flush();
         })
     .Run();
+
+// AOT-safe payload typing for the JS -> C# smoke events above.
+[JsonSerializable(typeof(string))]
+internal partial class SmokeJsonContext : JsonSerializerContext;

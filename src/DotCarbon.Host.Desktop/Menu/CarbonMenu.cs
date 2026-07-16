@@ -185,6 +185,10 @@ public static class DesktopMenuExtensions
         var builder = new CarbonMenuBuilder();
         configure(builder);
 
+        // Task 2.10: the frontend's menu:* commands address items in this menu, so they come with it
+        // rather than being a separate opt-in.
+        app.UsePlugin<MenuPlugin>();
+
         // macOS's menu belongs to the application, not a window — build it as soon as setup runs.
         if (OperatingSystem.IsMacOS())
         {
