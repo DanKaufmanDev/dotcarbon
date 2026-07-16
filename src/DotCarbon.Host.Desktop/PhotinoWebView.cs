@@ -162,6 +162,34 @@ public sealed class PhotinoWebView : ICarbonWebView
         if (File.Exists(full)) Window.SetIconFile(full);
     }
 
+    // Task 3.5 — monitors (all from Photino's Monitor data; no native code needed).
+    public IReadOnlyList<CarbonMonitorInfo> GetMonitors() =>
+        Window.Monitors.Select(ToMonitorInfo).ToList();
+
+    public CarbonMonitorInfo? GetPrimaryMonitor() => ToMonitorInfo(Window.MainMonitor);
+
+    public CarbonMonitorInfo? GetCurrentMonitor()
+    {
+        // The display whose bounds contain the window's centre point.
+        var cx = X + Width / 2;
+        var cy = Y + Height / 2;
+        foreach (var monitor in Window.Monitors)
+        {
+            var area = monitor.MonitorArea;
+            if (cx >= area.X && cx < area.X + area.Width && cy >= area.Y && cy < area.Y + area.Height)
+                return ToMonitorInfo(monitor);
+        }
+        return ToMonitorInfo(Window.MainMonitor);
+    }
+
+    public double GetScaleFactor() => GetCurrentMonitor()?.ScaleFactor ?? Window.MainMonitor.Scale;
+
+    private static CarbonMonitorInfo ToMonitorInfo(Photino.NET.Monitor monitor) => new(
+        Name: null,
+        monitor.MonitorArea.X, monitor.MonitorArea.Y, monitor.MonitorArea.Width, monitor.MonitorArea.Height,
+        monitor.WorkArea.X, monitor.WorkArea.Y, monitor.WorkArea.Width, monitor.WorkArea.Height,
+        monitor.Scale);
+
     // Task 3.4 — cursor.
     public void SetCursorIcon(string icon) => NativeWindowControls.SetCursorIcon(this, icon);
     public void SetCursorVisible(bool visible) => NativeWindowControls.SetCursorVisible(this, visible);

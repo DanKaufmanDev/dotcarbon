@@ -1,6 +1,17 @@
 namespace DotCarbon.Core.Host;
 
 /// <summary>
+/// A display, in physical pixels (Task 3.5). Position/size are the full monitor bounds; the work
+/// area excludes OS chrome (taskbar, dock, menu bar). <see cref="ScaleFactor"/> is the DPI scale
+/// (2.0 on a Retina display).
+/// </summary>
+public sealed record CarbonMonitorInfo(
+    string? Name,
+    int X, int Y, int Width, int Height,
+    int WorkX, int WorkY, int WorkWidth, int WorkHeight,
+    double ScaleFactor);
+
+/// <summary>
 /// Platform-neutral webview operations used by the runtime. Each host adapts these operations to
 /// its native webview without leaking platform types into Core.
 /// </summary>
@@ -114,6 +125,20 @@ public interface ICarbonWebView
 
     /// <summary>Move the cursor to a point relative to the window's top-left content.</summary>
     void SetCursorPosition(int x, int y);
+
+    // --- monitors (Task 3.5) -----------------------------------------------------------------
+
+    /// <summary>All connected displays.</summary>
+    IReadOnlyList<CarbonMonitorInfo> GetMonitors();
+
+    /// <summary>The primary display, if one is reported.</summary>
+    CarbonMonitorInfo? GetPrimaryMonitor();
+
+    /// <summary>The display the window is currently on, if determinable.</summary>
+    CarbonMonitorInfo? GetCurrentMonitor();
+
+    /// <summary>The DPI scale of the window's current display (2.0 on Retina).</summary>
+    double GetScaleFactor();
 
     /// <summary>Navigate the webview to a URI (carbon://, http://localhost dev server, or an external URL).</summary>
     void LoadUri(Uri uri);

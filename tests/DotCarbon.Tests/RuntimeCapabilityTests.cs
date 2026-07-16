@@ -121,6 +121,10 @@ public class RuntimeCapabilityTests
         public void SetCursorVisible(bool visible) { }
         public void SetCursorGrab(bool grab) { }
         public void SetCursorPosition(int x, int y) { }
+        public IReadOnlyList<CarbonMonitorInfo> GetMonitors() => [GetPrimaryMonitor()!];
+        public CarbonMonitorInfo? GetPrimaryMonitor() => new(null, 0, 0, Width, Height, 0, 0, Width, Height, 1.0);
+        public CarbonMonitorInfo? GetCurrentMonitor() => GetPrimaryMonitor();
+        public double GetScaleFactor() => 1.0;
         public void LoadUri(Uri uri) { }
         public void LoadString(string html) { }
         public Task SendMessageAsync(string message) => Task.CompletedTask;

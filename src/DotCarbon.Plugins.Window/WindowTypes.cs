@@ -15,6 +15,15 @@ public record WindowSize(int Width, int Height);
 
 /// <summary>A window coordinate in physical screen pixels (Task 3.2).</summary>
 public record WindowPosition(int X, int Y);
+
+/// <summary>A display, with nested size/position/work area and DPI scale (Task 3.5).</summary>
+public record MonitorInfo(
+    string? Name,
+    WindowPosition Position,
+    WindowSize Size,
+    WindowPosition WorkPosition,
+    WindowSize WorkSize,
+    double ScaleFactor);
 public record SetAlwaysOnTopArgs(bool AlwaysOnTop, string? Label = null);
 public record SetFullscreenArgs(bool Fullscreen, string? Label = null);
 public record SetResizableArgs(bool Resizable, string? Label = null);

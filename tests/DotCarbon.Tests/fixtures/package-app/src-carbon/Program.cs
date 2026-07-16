@@ -138,6 +138,16 @@ CarbonApp.Create(config)
                     Console.WriteLine("[[CARBON_CURSOR]] cursor setters ran (no readback off macOS)");
                 }
 
+                // Task 3.5: monitors. Pure readback from Photino, so this runs on every OS.
+                var monitors = view.GetMonitors();
+                var primary = view.GetPrimaryMonitor();
+                var current = view.GetCurrentMonitor();
+                var scale = view.GetScaleFactor();
+                Console.WriteLine(
+                    $"[[CARBON_MON]] count={monitors.Count} " +
+                    $"primary={(primary is null ? "null" : $"{primary.Width}x{primary.Height}@{primary.ScaleFactor}")} " +
+                    $"current={(current is null ? "null" : $"{current.Width}x{current.Height}")} scale={scale}");
+
                 // Restore a normal, closable window. On macOS a window with the closable style bit
                 // removed cannot be closed programmatically (performClose: is a no-op), which would
                 // leave the smoke unable to exit — so the toggles must not leave it in that state.

@@ -374,6 +374,22 @@ jobs:
           elif [ "${{ runner.os }}" = "macOS" ]; then
             echo "cursor (Task 3.4) never reported on macOS"; exit 1
           fi
+          # Task 3.5: monitors. Pure Photino readback (no webview, no libobjc), so it runs on every OS;
+          # exact resolution/scale vary per runner, so only the invariants are asserted — at least one
+          # display, a primary, and a positive scale factor. Hard on macOS, reported elsewhere.
+          mon=$(grep -a "\[\[CARBON_MON\]\]" smoke.log | tail -1 || true)
+          if [ -n "$mon" ]; then
+            echo "::notice::${{ runner.os }} $mon"
+            if [ "${{ runner.os }}" = "macOS" ]; then
+              count=$(echo "$mon" | sed -n 's/.*count=\([0-9]*\) .*/\1/p')
+              scale=$(echo "$mon" | sed -n 's/.* scale=\([0-9.]*\).*/\1/p')
+              echo "$mon" | grep -q "primary=null" && { echo "no primary monitor reported"; exit 1; }
+              [ -n "$count" ] && [ "$count" -ge 1 ] || { echo "no monitors reported"; echo "$mon"; exit 1; }
+              awk "BEGIN{exit !($scale > 0)}" || { echo "non-positive scale factor: $scale"; exit 1; }
+            fi
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            echo "monitors (Task 3.5) never reported on macOS"; exit 1
+          fi
       - name: Assert tray + menu (macOS — verified path)
         if: runner.os == 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app

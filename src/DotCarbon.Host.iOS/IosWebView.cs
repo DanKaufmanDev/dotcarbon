@@ -75,6 +75,11 @@ public sealed class IosWebView : ICarbonWebView
     public void SetCursorVisible(bool visible) { }
     public void SetCursorGrab(bool grab) { }
     public void SetCursorPosition(int x, int y) { }
+    // Task 3.5: a mobile device is a single screen.
+    public IReadOnlyList<CarbonMonitorInfo> GetMonitors() => [GetPrimaryMonitor()!];
+    public CarbonMonitorInfo? GetPrimaryMonitor() => new(null, 0, 0, Width, Height, 0, 0, Width, Height, 1.0);
+    public CarbonMonitorInfo? GetCurrentMonitor() => GetPrimaryMonitor();
+    public double GetScaleFactor() => 1.0;
 
     public void LoadUri(Uri uri) =>
         Native.InvokeOnMainThread(() => Native.LoadRequest(new NSUrlRequest(new NSUrl(uri.ToString()))));

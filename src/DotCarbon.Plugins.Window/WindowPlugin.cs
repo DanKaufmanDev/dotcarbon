@@ -228,6 +228,42 @@ public partial class WindowPlugin : IPlugin
 
     public Task StartDragging() => StartDragging(new TargetWindowArgs());
 
+    // --- monitors (Task 3.5) -----------------------------------------------------------------
+
+    [CarbonCommand("available_monitors")]
+    public Task<List<MonitorInfo>> AvailableMonitors(TargetWindowArgs args) =>
+        Task.FromResult(Resolve(args.Label).View.GetMonitors().Select(ToMonitor).ToList());
+
+    public Task<List<MonitorInfo>> AvailableMonitors() => AvailableMonitors(new TargetWindowArgs());
+
+    [CarbonCommand("primary_monitor")]
+    public Task<MonitorInfo?> PrimaryMonitor(TargetWindowArgs args) =>
+        Task.FromResult(Map(Resolve(args.Label).View.GetPrimaryMonitor()));
+
+    public Task<MonitorInfo?> PrimaryMonitor() => PrimaryMonitor(new TargetWindowArgs());
+
+    [CarbonCommand("current_monitor")]
+    public Task<MonitorInfo?> CurrentMonitor(TargetWindowArgs args) =>
+        Task.FromResult(Map(Resolve(args.Label).View.GetCurrentMonitor()));
+
+    public Task<MonitorInfo?> CurrentMonitor() => CurrentMonitor(new TargetWindowArgs());
+
+    [CarbonCommand("scale_factor")]
+    public Task<double> ScaleFactor(TargetWindowArgs args) =>
+        Task.FromResult(Resolve(args.Label).View.GetScaleFactor());
+
+    public Task<double> ScaleFactor() => ScaleFactor(new TargetWindowArgs());
+
+    private static MonitorInfo? Map(DotCarbon.Core.Host.CarbonMonitorInfo? m) => m is null ? null : ToMonitor(m);
+
+    private static MonitorInfo ToMonitor(DotCarbon.Core.Host.CarbonMonitorInfo m) => new(
+        m.Name,
+        new WindowPosition(m.X, m.Y),
+        new WindowSize(m.Width, m.Height),
+        new WindowPosition(m.WorkX, m.WorkY),
+        new WindowSize(m.WorkWidth, m.WorkHeight),
+        m.ScaleFactor);
+
     // --- cursor (Task 3.4) -------------------------------------------------------------------
 
     [CarbonCommand("set_cursor_icon")]

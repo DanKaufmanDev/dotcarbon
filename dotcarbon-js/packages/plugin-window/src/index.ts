@@ -18,6 +18,24 @@ export interface WindowState {
 
 export interface PhysicalSize { width: number; height: number }
 export interface PhysicalPosition { x: number; y: number }
+export interface LogicalSize { width: number; height: number }
+export interface LogicalPosition { x: number; y: number }
+
+/** A connected display (Task 3.5). Sizes and positions are in physical pixels. */
+export interface Monitor {
+    name: string | null
+    position: PhysicalPosition
+    size: PhysicalSize
+    workPosition: PhysicalPosition
+    workSize: PhysicalSize
+    scaleFactor: number
+}
+
+/** Convert a physical measurement to logical (CSS) pixels by dividing out the scale factor. */
+export const toLogicalSize = (size: PhysicalSize, scaleFactor: number): LogicalSize =>
+    ({ width: size.width / scaleFactor, height: size.height / scaleFactor })
+export const toLogicalPosition = (pos: PhysicalPosition, scaleFactor: number): LogicalPosition =>
+    ({ x: pos.x / scaleFactor, y: pos.y / scaleFactor })
 
 export interface CreateWindowOptions {
     label: string
@@ -160,6 +178,15 @@ export class WebviewWindow {
         invoke('window:set_cursor_grab', { value: grab, label: this.label })
     setCursorPosition = (x: number, y: number): Promise<void> =>
         invoke('window:set_cursor_position', { x, y, label: this.label })
+
+    // Task 3.5 — monitors.
+    availableMonitors = (): Promise<Monitor[]> =>
+        invoke('window:available_monitors', { label: this.label })
+    primaryMonitor = (): Promise<Monitor | null> =>
+        invoke('window:primary_monitor', { label: this.label })
+    currentMonitor = (): Promise<Monitor | null> =>
+        invoke('window:current_monitor', { label: this.label })
+    scaleFactor = (): Promise<number> => invoke('window:scale_factor', { label: this.label })
 }
 
 export { WebviewWindow as CarbonWindow }
@@ -218,6 +245,10 @@ export const carbonWindow = {
     setCursorVisible: (visible: boolean): Promise<void> => invoke('window:set_cursor_visible', { value: visible }),
     setCursorGrab: (grab: boolean): Promise<void> => invoke('window:set_cursor_grab', { value: grab }),
     setCursorPosition: (x: number, y: number): Promise<void> => invoke('window:set_cursor_position', { x, y }),
+    availableMonitors: (): Promise<Monitor[]> => invoke('window:available_monitors', {}),
+    primaryMonitor: (): Promise<Monitor | null> => invoke('window:primary_monitor', {}),
+    currentMonitor: (): Promise<Monitor | null> => invoke('window:current_monitor', {}),
+    scaleFactor: (): Promise<number> => invoke('window:scale_factor', {}),
 }
 
 declare module '@dotcarbon/api' {
@@ -260,6 +291,10 @@ declare module '@dotcarbon/api' {
         'window:set_cursor_visible': { args: { value: boolean; label?: string }; result: void }
         'window:set_cursor_grab': { args: { value: boolean; label?: string }; result: void }
         'window:set_cursor_position': { args: { x: number; y: number; label?: string }; result: void }
+        'window:available_monitors': { args: { label?: string }; result: Monitor[] }
+        'window:primary_monitor': { args: { label?: string }; result: Monitor | null }
+        'window:current_monitor': { args: { label?: string }; result: Monitor | null }
+        'window:scale_factor': { args: { label?: string }; result: number }
         'window:maximize': { args: { label?: string }; result: void }
         'window:unmaximize': { args: { label?: string }; result: void }
         'window:set_fullscreen': { args: { fullscreen: boolean; label?: string }; result: void }
