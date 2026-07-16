@@ -97,6 +97,12 @@ public class RuntimeCapabilityTests
         public void SetFullscreen(bool fullscreen) => IsFullscreen = fullscreen;
         public void SetAlwaysOnTop(bool alwaysOnTop) => IsAlwaysOnTop = alwaysOnTop;
         public void SetResizable(bool resizable) => IsResizable = resizable;
+        public void SetMinSize(int width, int height) { }
+        public void SetMaxSize(int width, int height) { }
+        public (int, int) GetInnerSize() => (Width, Height);
+        public (int, int) GetOuterSize() => (Width, Height);
+        public (int, int) GetInnerPosition() => (X, Y);
+        public (int, int) GetOuterPosition() => (X, Y);
         public void Show() => (IsVisible, IsFocused) = (true, true);
         public void Hide() => (IsVisible, IsFocused) = (false, false);
         public void SetFocus() => IsFocused = true;

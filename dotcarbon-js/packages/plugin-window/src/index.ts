@@ -16,6 +16,9 @@ export interface WindowState {
     focused: boolean
 }
 
+export interface PhysicalSize { width: number; height: number }
+export interface PhysicalPosition { x: number; y: number }
+
 export interface CreateWindowOptions {
     label: string
     url?: string
@@ -109,6 +112,21 @@ export class WebviewWindow {
     isFocused = (): Promise<boolean> => invoke('window:is_focused', { label: this.label })
     requestUserAttention = (): Promise<void> =>
         invoke('window:request_user_attention', { label: this.label })
+
+    // Task 3.2 — geometry depth.
+    setMinSize = (width: number, height: number): Promise<void> =>
+        invoke('window:set_min_size', { width, height, label: this.label })
+    setMaxSize = (width: number, height: number): Promise<void> =>
+        invoke('window:set_max_size', { width, height, label: this.label })
+    innerSize = (): Promise<PhysicalSize> => invoke('window:inner_size', { label: this.label })
+    outerSize = (): Promise<PhysicalSize> => invoke('window:outer_size', { label: this.label })
+    innerPosition = (): Promise<PhysicalPosition> =>
+        invoke('window:inner_position', { label: this.label })
+    outerPosition = (): Promise<PhysicalPosition> =>
+        invoke('window:outer_position', { label: this.label })
+    isMaximized = (): Promise<boolean> => invoke('window:is_maximized', { label: this.label })
+    isMinimized = (): Promise<boolean> => invoke('window:is_minimized', { label: this.label })
+    isFullscreen = (): Promise<boolean> => invoke('window:is_fullscreen', { label: this.label })
 }
 
 export { WebviewWindow as CarbonWindow }
@@ -142,6 +160,17 @@ export const carbonWindow = {
     isVisible: (): Promise<boolean> => invoke('window:is_visible', {}),
     isFocused: (): Promise<boolean> => invoke('window:is_focused', {}),
     requestUserAttention: (): Promise<void> => invoke('window:request_user_attention', {}),
+    setMinSize: (width: number, height: number): Promise<void> =>
+        invoke('window:set_min_size', { width, height }),
+    setMaxSize: (width: number, height: number): Promise<void> =>
+        invoke('window:set_max_size', { width, height }),
+    innerSize: (): Promise<PhysicalSize> => invoke('window:inner_size', {}),
+    outerSize: (): Promise<PhysicalSize> => invoke('window:outer_size', {}),
+    innerPosition: (): Promise<PhysicalPosition> => invoke('window:inner_position', {}),
+    outerPosition: (): Promise<PhysicalPosition> => invoke('window:outer_position', {}),
+    isMaximized: (): Promise<boolean> => invoke('window:is_maximized', {}),
+    isMinimized: (): Promise<boolean> => invoke('window:is_minimized', {}),
+    isFullscreen: (): Promise<boolean> => invoke('window:is_fullscreen', {}),
 }
 
 declare module '@dotcarbon/api' {
@@ -161,6 +190,15 @@ declare module '@dotcarbon/api' {
         'window:is_visible': { args: { label?: string }; result: boolean }
         'window:is_focused': { args: { label?: string }; result: boolean }
         'window:request_user_attention': { args: { label?: string }; result: void }
+        'window:set_min_size': { args: { width: number; height: number; label?: string }; result: void }
+        'window:set_max_size': { args: { width: number; height: number; label?: string }; result: void }
+        'window:inner_size': { args: { label?: string }; result: PhysicalSize }
+        'window:outer_size': { args: { label?: string }; result: PhysicalSize }
+        'window:inner_position': { args: { label?: string }; result: PhysicalPosition }
+        'window:outer_position': { args: { label?: string }; result: PhysicalPosition }
+        'window:is_maximized': { args: { label?: string }; result: boolean }
+        'window:is_minimized': { args: { label?: string }; result: boolean }
+        'window:is_fullscreen': { args: { label?: string }; result: boolean }
         'window:maximize': { args: { label?: string }; result: void }
         'window:unmaximize': { args: { label?: string }; result: void }
         'window:set_fullscreen': { args: { fullscreen: boolean; label?: string }; result: void }

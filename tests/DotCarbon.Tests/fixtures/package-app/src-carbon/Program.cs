@@ -49,6 +49,19 @@ CarbonApp.Create(config)
                 view.SetFocus();
                 Console.WriteLine(
                     $"[[CARBON_WIN]] visible_initial={shown} hidden={hidden} reshown={reshown} focused={view.IsFocused}");
+
+                // Task 3.2: geometry. inner (content) should be shorter than outer (frame) by the
+                // title bar; positions land at sane screen coordinates.
+                var (iw, ih) = view.GetInnerSize();
+                var (ow, oh) = view.GetOuterSize();
+                var (ix, iy) = view.GetInnerPosition();
+                var (ox, oy) = view.GetOuterPosition();
+                view.SetMinSize(640, 480);
+                view.SetMaxSize(1280, 960);
+                var photino = window.Photino();
+                Console.WriteLine(
+                    $"[[CARBON_GEO]] inner={iw}x{ih}@{ix},{iy} outer={ow}x{oh}@{ox},{oy} photino={view.Width}x{view.Height} " +
+                    $"min={photino.MinWidth}x{photino.MinHeight} max={photino.MaxWidth}x{photino.MaxHeight}");
                 Console.Out.Flush();
             });
         });

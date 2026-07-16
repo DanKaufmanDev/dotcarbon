@@ -27,6 +27,24 @@ public interface ICarbonWebView
     void SetSize(int width, int height);
     void SetPosition(int x, int y);
     void Center();
+
+    /// <summary>Constrain (or release, with 0) the smallest the window may be resized to. Task 3.2.</summary>
+    void SetMinSize(int width, int height);
+
+    /// <summary>Constrain (or release, with 0) the largest the window may be resized to. Task 3.2.</summary>
+    void SetMaxSize(int width, int height);
+
+    /// <summary>The content (webview) area size, excluding decorations. Task 3.2.</summary>
+    (int Width, int Height) GetInnerSize();
+
+    /// <summary>The full window size, including title bar and borders. Task 3.2.</summary>
+    (int Width, int Height) GetOuterSize();
+
+    /// <summary>The content area's top-left in screen coordinates. Task 3.2.</summary>
+    (int X, int Y) GetInnerPosition();
+
+    /// <summary>The window's top-left in screen coordinates (frame origin). Task 3.2.</summary>
+    (int X, int Y) GetOuterPosition();
     void SetMinimized(bool minimized);
     void SetMaximized(bool maximized);
     void SetFullscreen(bool fullscreen);

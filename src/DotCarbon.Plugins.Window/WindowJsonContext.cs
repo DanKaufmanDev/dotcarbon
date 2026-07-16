@@ -11,6 +11,10 @@ namespace DotCarbon.Plugins.Window;
 [JsonSerializable(typeof(SetResizableArgs))]
 [JsonSerializable(typeof(TargetWindowArgs))]
 [JsonSerializable(typeof(CreateWindowArgs))]
+[JsonSerializable(typeof(SetMinSizeArgs))]
+[JsonSerializable(typeof(SetMaxSizeArgs))]
+[JsonSerializable(typeof(WindowSize))]
+[JsonSerializable(typeof(WindowPosition))]
 [JsonSerializable(typeof(WindowState))]
 [JsonSerializable(typeof(List<WindowState>))]
 internal partial class WindowJsonContext : JsonSerializerContext;

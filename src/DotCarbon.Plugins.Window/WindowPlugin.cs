@@ -215,6 +215,76 @@ public partial class WindowPlugin : IPlugin
 
     public Task RequestUserAttention() => RequestUserAttention(new TargetWindowArgs());
 
+    // --- geometry depth (Task 3.2) -----------------------------------------------------------
+
+    [CarbonCommand("set_min_size")]
+    public Task SetMinSize(SetMinSizeArgs args)
+    {
+        Resolve(args.Label).View.SetMinSize(args.Width, args.Height);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("set_max_size")]
+    public Task SetMaxSize(SetMaxSizeArgs args)
+    {
+        Resolve(args.Label).View.SetMaxSize(args.Width, args.Height);
+        return Task.CompletedTask;
+    }
+
+    [CarbonCommand("inner_size")]
+    public Task<WindowSize> InnerSize(TargetWindowArgs args)
+    {
+        var (w, h) = Resolve(args.Label).View.GetInnerSize();
+        return Task.FromResult(new WindowSize(w, h));
+    }
+
+    public Task<WindowSize> InnerSize() => InnerSize(new TargetWindowArgs());
+
+    [CarbonCommand("outer_size")]
+    public Task<WindowSize> OuterSize(TargetWindowArgs args)
+    {
+        var (w, h) = Resolve(args.Label).View.GetOuterSize();
+        return Task.FromResult(new WindowSize(w, h));
+    }
+
+    public Task<WindowSize> OuterSize() => OuterSize(new TargetWindowArgs());
+
+    [CarbonCommand("inner_position")]
+    public Task<WindowPosition> InnerPosition(TargetWindowArgs args)
+    {
+        var (x, y) = Resolve(args.Label).View.GetInnerPosition();
+        return Task.FromResult(new WindowPosition(x, y));
+    }
+
+    public Task<WindowPosition> InnerPosition() => InnerPosition(new TargetWindowArgs());
+
+    [CarbonCommand("outer_position")]
+    public Task<WindowPosition> OuterPosition(TargetWindowArgs args)
+    {
+        var (x, y) = Resolve(args.Label).View.GetOuterPosition();
+        return Task.FromResult(new WindowPosition(x, y));
+    }
+
+    public Task<WindowPosition> OuterPosition() => OuterPosition(new TargetWindowArgs());
+
+    [CarbonCommand("is_maximized")]
+    public Task<bool> IsMaximized(TargetWindowArgs args) =>
+        Task.FromResult(Resolve(args.Label).View.IsMaximized);
+
+    public Task<bool> IsMaximized() => IsMaximized(new TargetWindowArgs());
+
+    [CarbonCommand("is_minimized")]
+    public Task<bool> IsMinimized(TargetWindowArgs args) =>
+        Task.FromResult(Resolve(args.Label).View.IsMinimized);
+
+    public Task<bool> IsMinimized() => IsMinimized(new TargetWindowArgs());
+
+    [CarbonCommand("is_fullscreen")]
+    public Task<bool> IsFullscreen(TargetWindowArgs args) =>
+        Task.FromResult(Resolve(args.Label).View.IsFullscreen);
+
+    public Task<bool> IsFullscreen() => IsFullscreen(new TargetWindowArgs());
+
     private (string Label, ICarbonWebView View) Resolve(string? label)
     {
         var window = string.IsNullOrWhiteSpace(label)

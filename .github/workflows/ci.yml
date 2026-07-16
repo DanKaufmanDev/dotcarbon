@@ -282,6 +282,28 @@ jobs:
           else
             echo "::warning::Windows window controls did not report (unverified backend)"
           fi
+          # Task 3.2: geometry. The min/max setters must land (Photino's own SetMinSize is a no-op, so
+          # this guards the per-dimension workaround), and inner content must be no larger than the
+          # outer frame. On macOS the title bar makes inner strictly shorter; Linux under a
+          # decorationless xvfb legitimately has inner == outer, so the check is inner <= outer.
+          geo=$(grep -a "\[\[CARBON_GEO\]\]" smoke.log | tail -1 || true)
+          if [ -n "$geo" ]; then
+            echo "::notice::${{ runner.os }} $geo"
+            echo "$geo" | grep -q "min=640x480 max=1280x960" || {
+              echo "set_min_size / set_max_size did not apply"; echo "$geo"; exit 1; }
+            inner_h=$(echo "$geo" | sed -n 's/.*inner=[0-9]*x\([0-9]*\)@.*/\1/p')
+            outer_h=$(echo "$geo" | sed -n 's/.*outer=[0-9]*x\([0-9]*\)@.*/\1/p')
+            if [ -n "$inner_h" ] && [ -n "$outer_h" ] && [ "$inner_h" -gt "$outer_h" ]; then
+              echo "inner content ($inner_h) taller than outer frame ($outer_h)"; exit 1
+            fi
+            if [ "${{ runner.os }}" = "macOS" ] && [ "$inner_h" -ge "$outer_h" ]; then
+              echo "macOS inner content should be shorter than the frame by the title bar"; exit 1
+            fi
+          elif [ "${{ runner.os }}" != "Windows" ]; then
+            echo "window geometry (Task 3.2) never reported on ${{ runner.os }}"; exit 1
+          else
+            echo "::warning::Windows window geometry did not report (unverified backend)"
+          fi
       - name: Assert tray + menu (macOS — verified path)
         if: runner.os == 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app

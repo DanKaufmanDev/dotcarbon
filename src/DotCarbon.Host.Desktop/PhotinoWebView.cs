@@ -84,6 +84,23 @@ public sealed class PhotinoWebView : ICarbonWebView
     public void SetSize(int width, int height) => Window.SetSize(width, height);
     public void SetPosition(int x, int y) => Window.SetLocation(new Point(x, y));
     public void Center() => Window.Center();
+    // Photino's SetMinSize/SetMaxSize convenience methods are no-ops (they never update the window's
+    // MinWidth/MinHeight), so the per-dimension setters, which do work, are used instead.
+    public void SetMinSize(int width, int height)
+    {
+        Window.SetMinWidth(width);
+        Window.SetMinHeight(height);
+    }
+
+    public void SetMaxSize(int width, int height)
+    {
+        Window.SetMaxWidth(width);
+        Window.SetMaxHeight(height);
+    }
+    public (int, int) GetInnerSize() => NativeWindowControls.InnerSize(this);
+    public (int, int) GetOuterSize() => NativeWindowControls.OuterSize(this);
+    public (int, int) GetInnerPosition() => NativeWindowControls.InnerPosition(this);
+    public (int, int) GetOuterPosition() => NativeWindowControls.OuterPosition(this);
     public void SetMinimized(bool minimized) => Window.SetMinimized(minimized);
     public void SetMaximized(bool maximized) => Window.SetMaximized(maximized);
     public void SetFullscreen(bool fullscreen) => Window.SetFullScreen(fullscreen);

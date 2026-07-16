@@ -61,6 +61,46 @@ internal static unsafe class NativeWindowControls
         else if (OperatingSystem.IsLinux()) gtk_window_set_urgency_hint(GtkWindow(view), true);
     }
 
+    // --- geometry: inner (content) vs outer (frame) (Task 3.2) -------------------------------
+    // Photino exposes one size/position; the inner/outer split is native. Outer position comes from
+    // Photino (top-left screen coords on every OS), which sidesteps the macOS bottom-left flip.
+
+    public static (int, int) InnerSize(PhotinoWebView view)
+    {
+        if (OperatingSystem.IsWindows()) { GetClientRect(Hwnd(view), out var r); return (r.Right - r.Left, r.Bottom - r.Top); }
+        if (OperatingSystem.IsMacOS()) { var s = MacContentSize(MacWindow(view)); return ((int)s.Width, (int)s.Height); }
+        if (OperatingSystem.IsLinux()) { gtk_window_get_size(GtkWindow(view), out var w, out var h); return (w, h); }
+        return (view.Width, view.Height);
+    }
+
+    public static (int, int) OuterSize(PhotinoWebView view)
+    {
+        if (OperatingSystem.IsWindows()) { GetWindowRect(Hwnd(view), out var r); return (r.Right - r.Left, r.Bottom - r.Top); }
+        if (OperatingSystem.IsMacOS()) { var s = MacFrameSize(MacWindow(view)); return ((int)s.Width, (int)s.Height); }
+        // GTK has no reliable cross-WM frame size; the content size is the honest answer (and exact
+        // under a decorationless WM). Windows/macOS report the true frame.
+        if (OperatingSystem.IsLinux()) { gtk_window_get_size(GtkWindow(view), out var w, out var h); return (w, h); }
+        return (view.Width, view.Height);
+    }
+
+    public static (int, int) OuterPosition(PhotinoWebView view) => (view.X, view.Y);
+
+    public static (int, int) InnerPosition(PhotinoWebView view)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var origin = new POINT { X = 0, Y = 0 };
+            ClientToScreen(Hwnd(view), ref origin);
+            return (origin.X, origin.Y);
+        }
+        // The content sits below the title bar; with no side borders on macOS/GTK the x is the frame x
+        // and the y is offset by the decoration height. Derived from the sizes so no coordinate flip
+        // (macOS frames are bottom-left origin) is needed.
+        var (_, innerH) = InnerSize(view);
+        var (_, outerH) = OuterSize(view);
+        return (view.X, view.Y + (outerH - innerH));
+    }
+
     // --- Windows -----------------------------------------------------------------------------
 
     private const int SW_HIDE = 0;
@@ -94,11 +134,20 @@ internal static unsafe class NativeWindowControls
         public uint dwTimeout;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X, Y; }
+
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hwnd, int cmd);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern bool FlashWindowEx(ref FLASHWINFO info);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")] private static extern bool ClientToScreen(IntPtr hwnd, ref POINT point);
 
     // --- macOS -------------------------------------------------------------------------------
 
@@ -151,6 +200,40 @@ internal static unsafe class NativeWindowControls
 
     private static bool MacBool(IntPtr window, string selector) =>
         window != IntPtr.Zero && SendReturnBool(window, Sel(selector));
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CGSize { public double Width, Height; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CGRect { public double X, Y, Width, Height; }
+
+    private static CGSize MacFrameSize(IntPtr window) =>
+        window == IntPtr.Zero ? default : MacRect(window, "frame").Size();
+
+    private static CGSize MacContentSize(IntPtr window)
+    {
+        if (window == IntPtr.Zero) return default;
+        var content = Send(window, Sel("contentView"));
+        return content == IntPtr.Zero ? default : MacRect(content, "frame").Size();
+    }
+
+    private static CGSize Size(this CGRect rect) => new() { Width = rect.Width, Height = rect.Height };
+
+    /// <summary>
+    /// Read an NSRect-returning selector. NSRect is 32 bytes: x86_64 classes it MEMORY and returns it
+    /// through a hidden pointer (objc_msgSend_stret), while arm64 returns it in registers and has no
+    /// _stret symbol. Calling the wrong entry point yields garbage rather than a crash — pick by arch.
+    /// </summary>
+    private static CGRect MacRect(IntPtr receiver, string selector)
+    {
+        var sel = Sel(selector);
+        if (RuntimeInformation.ProcessArchitecture != Architecture.X64) return SendRect(receiver, sel);
+        SendRectStret(out var rect, receiver, sel);
+        return rect;
+    }
+
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern CGRect SendRect(IntPtr receiver, IntPtr sel);
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend_stret")] private static extern void SendRectStret(out CGRect result, IntPtr receiver, IntPtr sel);
 
     [DllImport(LibObjC)] private static extern IntPtr objc_getClass([MarshalAs(UnmanagedType.LPUTF8Str)] string name);
     [DllImport(LibObjC)] private static extern IntPtr sel_registerName([MarshalAs(UnmanagedType.LPUTF8Str)] string name);
@@ -215,6 +298,7 @@ internal static unsafe class NativeWindowControls
     [DllImport(Gtk)] private static extern void gtk_widget_hide(IntPtr widget);
     [DllImport(Gtk)] [return: MarshalAs(UnmanagedType.I1)] private static extern bool gtk_widget_get_visible(IntPtr widget);
     [DllImport(Gtk)] private static extern void gtk_window_present(IntPtr window);
+    [DllImport(Gtk)] private static extern void gtk_window_get_size(IntPtr window, out int width, out int height);
     [DllImport(Gtk)] [return: MarshalAs(UnmanagedType.I1)] private static extern bool gtk_window_is_active(IntPtr window);
     [DllImport(Gtk)] private static extern void gtk_window_set_urgency_hint(IntPtr window, [MarshalAs(UnmanagedType.I1)] bool urgent);
     [DllImport(GLib)] private static extern void g_list_free(IntPtr list);

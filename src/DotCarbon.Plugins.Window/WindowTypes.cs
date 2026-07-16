@@ -4,6 +4,14 @@ public record TargetWindowArgs(string? Label = null);
 public record SetTitleArgs(string Title, string? Label = null);
 public record SetSizeArgs(int Width, int Height, string? Label = null);
 public record SetPositionArgs(int X, int Y, string? Label = null);
+public record SetMinSizeArgs(int Width, int Height, string? Label = null);
+public record SetMaxSizeArgs(int Width, int Height, string? Label = null);
+
+/// <summary>A window dimension in physical pixels (Task 3.2).</summary>
+public record WindowSize(int Width, int Height);
+
+/// <summary>A window coordinate in physical screen pixels (Task 3.2).</summary>
+public record WindowPosition(int X, int Y);
 public record SetAlwaysOnTopArgs(bool AlwaysOnTop, string? Label = null);
 public record SetFullscreenArgs(bool Fullscreen, string? Label = null);
 public record SetResizableArgs(bool Resizable, string? Label = null);

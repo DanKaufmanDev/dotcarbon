@@ -44,6 +44,13 @@ public sealed class IosWebView : ICarbonWebView
     public void SetTitle(string title) => _title = title; // no OS title bar on iOS
     public void SetSize(int width, int height) { }
     public void SetPosition(int x, int y) { }
+    // Task 3.2: a mobile webview fills the screen, so inner and outer are the same and origin is 0,0.
+    public void SetMinSize(int width, int height) { }
+    public void SetMaxSize(int width, int height) { }
+    public (int, int) GetInnerSize() => (Width, Height);
+    public (int, int) GetOuterSize() => (Width, Height);
+    public (int, int) GetInnerPosition() => (0, 0);
+    public (int, int) GetOuterPosition() => (0, 0);
     public void Center() { }
     public void SetMinimized(bool minimized) { }
     public void SetMaximized(bool maximized) { }
