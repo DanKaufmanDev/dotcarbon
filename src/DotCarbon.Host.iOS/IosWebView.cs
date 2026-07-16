@@ -61,6 +61,7 @@ public sealed class IosWebView : ICarbonWebView
     public void Hide() { }
     public void SetFocus() { }
     public void RequestUserAttention() { }
+    public void StartDragging() { }
 
     public void LoadUri(Uri uri) =>
         Native.InvokeOnMainThread(() => Native.LoadRequest(new NSUrlRequest(new NSUrl(uri.ToString()))));

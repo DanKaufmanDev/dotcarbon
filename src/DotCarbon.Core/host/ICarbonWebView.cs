@@ -66,6 +66,12 @@ public interface ICarbonWebView
     /// </summary>
     void RequestUserAttention();
 
+    /// <summary>
+    /// Begin an OS window-move drag from the current pointer press. Called from a mousedown on a
+    /// drag region so a frameless or full-window app can still be moved. Task 3.8.
+    /// </summary>
+    void StartDragging();
+
     /// <summary>Navigate the webview to a URI (carbon://, http://localhost dev server, or an external URL).</summary>
     void LoadUri(Uri uri);
 

@@ -68,6 +68,11 @@ CarbonApp.Create(config)
                 if (view is PhotinoWebView pv) pv.SetTitleBarStyle("transparent");
                 var (tw, th) = view.GetInnerSize();
                 Console.WriteLine($"[[CARBON_TITLEBAR]] inner_after={tw}x{th} outer={ow}x{oh}");
+
+                // Task 3.8: the native drag call must be safe even with no active mouse press (it
+                // no-ops rather than throwing). The actual window move needs a real drag to verify.
+                view.StartDragging();
+                Console.WriteLine("[[CARBON_DRAG]] start_dragging ok");
                 Console.Out.Flush();
             });
         });

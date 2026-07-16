@@ -322,6 +322,15 @@ jobs:
           elif [ "${{ runner.os }}" != "Windows" ]; then
             echo "title-bar style (Task 3.2) never reported on ${{ runner.os }}"; exit 1
           fi
+          # Task 3.8: the native window-drag call must be safe with no active mouse press (it no-ops
+          # rather than throwing). The actual window move is interactive and can't be driven headless,
+          # so this only guards that the call path is wired and does not crash the app.
+          if grep -q "\[\[CARBON_DRAG\]\] start_dragging ok" smoke.log; then
+            echo "::notice::${{ runner.os }} window drag call is safe"
+          elif [ "${{ runner.os }}" != "Windows" ]; then
+            echo "start_dragging (Task 3.8) crashed or never reported on ${{ runner.os }}"
+            grep -a "CARBON_DRAG\|CARBON_TITLEBAR" smoke.log | tail -3; exit 1
+          fi
       - name: Assert tray + menu (macOS — verified path)
         if: runner.os == 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app

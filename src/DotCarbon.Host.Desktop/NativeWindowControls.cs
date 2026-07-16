@@ -61,6 +61,18 @@ internal static unsafe class NativeWindowControls
         else if (OperatingSystem.IsLinux()) gtk_window_set_urgency_hint(GtkWindow(view), true);
     }
 
+    /// <summary>
+    /// Begin an OS window-move drag (Task 3.8). Invoked from a mousedown on a drag region, so the
+    /// press that started it is still the current event — each platform hands that press to its own
+    /// move loop.
+    /// </summary>
+    public static void StartDragging(PhotinoWebView view)
+    {
+        if (OperatingSystem.IsWindows()) WinStartDrag(Hwnd(view));
+        else if (OperatingSystem.IsMacOS()) MacStartDrag(MacWindow(view));
+        else if (OperatingSystem.IsLinux()) LinuxStartDrag(GtkWindow(view));
+    }
+
     // --- geometry: inner (content) vs outer (frame) (Task 3.2) -------------------------------
     // Photino exposes one size/position; the inner/outer split is native. Outer position comes from
     // Photino (top-left screen coords on every OS), which sidesteps the macOS bottom-left flip.
@@ -134,8 +146,19 @@ internal static unsafe class NativeWindowControls
     private const int SW_SHOW = 5;
     private const uint FLASHW_ALL = 0x3;
     private const uint FLASHW_TIMERNOFG = 0xC; // flash until the window comes to the foreground
+    private const int WM_NCLBUTTONDOWN = 0xA1;
+    private const int HTCAPTION = 2; // "as if the title bar was grabbed"
 
     private static IntPtr Hwnd(PhotinoWebView view) => view.Window.WindowHandle;
+
+    private static void WinStartDrag(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        // Drop the webview's mouse capture, then tell the window it was grabbed by its title bar —
+        // Windows runs the move loop from there.
+        ReleaseCapture();
+        SendMessageW(hwnd, WM_NCLBUTTONDOWN, (IntPtr)HTCAPTION, IntPtr.Zero);
+    }
 
     private static void FlashTaskbar(IntPtr hwnd)
     {
@@ -175,6 +198,8 @@ internal static unsafe class NativeWindowControls
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] private static extern bool ClientToScreen(IntPtr hwnd, ref POINT point);
+    [DllImport("user32.dll")] private static extern bool ReleaseCapture();
+    [DllImport("user32.dll")] private static extern IntPtr SendMessageW(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
 
     // --- macOS -------------------------------------------------------------------------------
 
@@ -228,6 +253,16 @@ internal static unsafe class NativeWindowControls
     private static bool MacBool(IntPtr window, string selector) =>
         window != IntPtr.Zero && SendReturnBool(window, Sel(selector));
 
+    private static void MacStartDrag(IntPtr window)
+    {
+        if (window == IntPtr.Zero) return;
+        var app = Send(Cls("NSApplication"), Sel("sharedApplication"));
+        var mouseEvent = Send(app, Sel("currentEvent"));
+        // The current event is the mousedown that triggered the drag-region handler; AppKit runs the
+        // move loop from it. Nil (e.g. no active mouse press) means there is nothing to drag from.
+        if (mouseEvent != IntPtr.Zero) SendPtr(window, Sel("performWindowDragWithEvent:"), mouseEvent);
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct CGSize { public double Width, Height; }
 
@@ -280,6 +315,7 @@ internal static unsafe class NativeWindowControls
 
     private const string Gtk = "libgtk-3.so.0";
     private const string GLib = "libglib-2.0.so.0";
+    private const string Gdk = "libgdk-3.so.0";
 
     /// <summary>The GtkWindow whose title matches, cached on the view (same approach as LinuxMenu).</summary>
     private static IntPtr GtkWindow(PhotinoWebView view)
@@ -315,6 +351,20 @@ internal static unsafe class NativeWindowControls
         gtk_window_present(window);
     }
 
+    private static void LinuxStartDrag(IntPtr window)
+    {
+        if (window == IntPtr.Zero) return;
+        // begin_move_drag wants the pointer press that started it. We are called from the bridge, not
+        // a GTK signal, so read the pointer's current root position from the default seat.
+        var display = gdk_display_get_default();
+        if (display == IntPtr.Zero) return;
+        var seat = gdk_display_get_default_seat(display);
+        var pointer = gdk_seat_get_pointer(seat);
+        gdk_device_get_position(pointer, out _, out var x, out var y);
+        const int GdkCurrentTime = 0;
+        gtk_window_begin_move_drag(window, button: 1, x, y, GdkCurrentTime);
+    }
+
     private static void GtkWidgetHide(IntPtr window)
     {
         if (window != IntPtr.Zero) gtk_widget_hide(window);
@@ -329,5 +379,10 @@ internal static unsafe class NativeWindowControls
     [DllImport(Gtk)] private static extern void gtk_window_get_size(IntPtr window, out int width, out int height);
     [DllImport(Gtk)] [return: MarshalAs(UnmanagedType.I1)] private static extern bool gtk_window_is_active(IntPtr window);
     [DllImport(Gtk)] private static extern void gtk_window_set_urgency_hint(IntPtr window, [MarshalAs(UnmanagedType.I1)] bool urgent);
+    [DllImport(Gtk)] private static extern void gtk_window_begin_move_drag(IntPtr window, int button, int rootX, int rootY, int timestamp);
+    [DllImport(Gdk)] private static extern IntPtr gdk_display_get_default();
+    [DllImport(Gdk)] private static extern IntPtr gdk_display_get_default_seat(IntPtr display);
+    [DllImport(Gdk)] private static extern IntPtr gdk_seat_get_pointer(IntPtr seat);
+    [DllImport(Gdk)] private static extern void gdk_device_get_position(IntPtr device, out IntPtr screen, out int x, out int y);
     [DllImport(GLib)] private static extern void g_list_free(IntPtr list);
 }

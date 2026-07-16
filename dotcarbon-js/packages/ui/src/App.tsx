@@ -36,7 +36,7 @@ function Titlebar() {
             WebkitAppRegion: 'drag',
         } as React.CSSProperties}>
             <span style={{ fontSize: 13, color: '#888' }}>My Carbon App</span>
-            <div style={{ display: 'flex', gap: 8, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <div style={{ display: 'flex', gap: 8, WebkitAppRegion: 'drag' } as React.CSSProperties}>
                 <button onClick={() => carbonWindow.minimize()}>−</button>
                 <button onClick={() => carbonWindow.maximize()}>□</button>
                 <button onClick={() => carbonWindow.close()}>✕</button>

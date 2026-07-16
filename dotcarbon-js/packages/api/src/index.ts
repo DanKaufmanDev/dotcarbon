@@ -194,6 +194,37 @@ export function isCarbonApp(): boolean {
         typeof (window.external as { sendMessage?: unknown } | undefined)?.sendMessage === 'function';
 }
 
+// --- drag regions (Task 3.8) -------------------------------------------------------------------
+// A window with a transparent title bar or no decorations has no OS-draggable strip, so mark an
+// element with `data-carbon-drag-region` and a primary-button mousedown on it moves the window. This
+// is installed automatically (matching Tauri's data-tauri-drag-region) so apps get it for free.
+
+let dragRegionsInstalled = false;
+
+export function installDragRegions(): void {
+    if (dragRegionsInstalled || typeof document === 'undefined') return;
+    dragRegionsInstalled = true;
+
+    document.addEventListener('mousedown', (event) => {
+        if (event.button !== 0) return; // primary button only
+        let el = event.target as Element | null;
+        while (el) {
+            if (el.hasAttribute?.('data-carbon-drag-region')) {
+                // The command begins a native move loop from this very press.
+                invoke('window:start_dragging').catch(() => {}); // no window plugin → ignore
+                return;
+            }
+            el = el.parentElement;
+        }
+    });
+}
+
+if (typeof document !== 'undefined') {
+    // The listener is cheap and only acts on drag-region elements, so installing it eagerly is safe
+    // even for apps that never use one.
+    installDragRegions();
+}
+
 // --- tray + native menu (desktop only) ---------------------------------------------------------
 // These drive the tray and menu the app set up in C# with UseTray/UseMenu; the commands only exist
 // when it did. `Menu.new` and `tray.setMenu` replace a menu wholesale, which is also how items are

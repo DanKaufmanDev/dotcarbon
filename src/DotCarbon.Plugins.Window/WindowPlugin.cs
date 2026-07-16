@@ -215,6 +215,19 @@ public partial class WindowPlugin : IPlugin
 
     public Task RequestUserAttention() => RequestUserAttention(new TargetWindowArgs());
 
+    /// <summary>
+    /// Begin dragging the window (Task 3.8). Meant to be called from a mousedown on a custom title
+    /// bar / drag region, so a frameless or full-window app can still be moved.
+    /// </summary>
+    [CarbonCommand("start_dragging")]
+    public Task StartDragging(TargetWindowArgs args)
+    {
+        Resolve(args.Label).View.StartDragging();
+        return Task.CompletedTask;
+    }
+
+    public Task StartDragging() => StartDragging(new TargetWindowArgs());
+
     // --- geometry depth (Task 3.2) -----------------------------------------------------------
 
     [CarbonCommand("set_min_size")]

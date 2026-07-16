@@ -127,6 +127,9 @@ export class WebviewWindow {
     isMaximized = (): Promise<boolean> => invoke('window:is_maximized', { label: this.label })
     isMinimized = (): Promise<boolean> => invoke('window:is_minimized', { label: this.label })
     isFullscreen = (): Promise<boolean> => invoke('window:is_fullscreen', { label: this.label })
+
+    // Task 3.8 — begin an OS window-move drag (for custom title bars).
+    startDragging = (): Promise<void> => invoke('window:start_dragging', { label: this.label })
 }
 
 export { WebviewWindow as CarbonWindow }
@@ -171,6 +174,7 @@ export const carbonWindow = {
     isMaximized: (): Promise<boolean> => invoke('window:is_maximized', {}),
     isMinimized: (): Promise<boolean> => invoke('window:is_minimized', {}),
     isFullscreen: (): Promise<boolean> => invoke('window:is_fullscreen', {}),
+    startDragging: (): Promise<void> => invoke('window:start_dragging', {}),
 }
 
 declare module '@dotcarbon/api' {
@@ -199,6 +203,7 @@ declare module '@dotcarbon/api' {
         'window:is_maximized': { args: { label?: string }; result: boolean }
         'window:is_minimized': { args: { label?: string }; result: boolean }
         'window:is_fullscreen': { args: { label?: string }; result: boolean }
+        'window:start_dragging': { args: { label?: string }; result: void }
         'window:maximize': { args: { label?: string }; result: void }
         'window:unmaximize': { args: { label?: string }; result: void }
         'window:set_fullscreen': { args: { fullscreen: boolean; label?: string }; result: void }

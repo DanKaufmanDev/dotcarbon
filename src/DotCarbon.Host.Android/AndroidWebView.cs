@@ -61,6 +61,7 @@ public sealed class AndroidWebView : ICarbonWebView
     public void Hide() { }
     public void SetFocus() { }
     public void RequestUserAttention() { }
+    public void StartDragging() { }
 
     public void LoadUri(Uri uri) => Native.Post(() => Native.LoadUrl(uri.ToString()));
 

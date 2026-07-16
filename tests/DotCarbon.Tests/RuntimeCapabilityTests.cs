@@ -107,6 +107,7 @@ public class RuntimeCapabilityTests
         public void Hide() => (IsVisible, IsFocused) = (false, false);
         public void SetFocus() => IsFocused = true;
         public void RequestUserAttention() { }
+        public void StartDragging() { }
         public void LoadUri(Uri uri) { }
         public void LoadString(string html) { }
         public Task SendMessageAsync(string message) => Task.CompletedTask;

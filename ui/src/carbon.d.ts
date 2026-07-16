@@ -100,6 +100,7 @@ declare module '@dotcarbon/api' {
         'app:greet': { args: { name: string }; result: string };
         'app:greet': { args: { name: string }; result: string };
         'app:greet': { args: { name: string }; result: string };
+        'app:greet': { args: { name: string }; result: string };
         'clipboard:clear': { args: void; result: void };
         'clipboard:read_text': { args: void; result: string };
         'clipboard:write_text': { args: { text: string }; result: void };
@@ -122,10 +123,21 @@ declare module '@dotcarbon/api' {
         'global-shortcut:register': { args: { id: string; accelerator: string; suppress: boolean }; result: { id: string; accelerator: string; suppress: boolean } };
         'global-shortcut:unregister': { args: { id: string }; result: boolean };
         'global-shortcut:unregister_all': { args: void; result: boolean };
+        'http:fetch': { args: { url: string; method: string | null; headers: unknown | null; body: string | null }; result: { status: number; statusText: string; headers: unknown; body: string } };
+        'menu:set_app_menu': { args: { menus: unknown }; result: void };
+        'menu:set_checked': { args: { id: string; checked: boolean }; result: void };
+        'menu:set_enabled': { args: { id: string; enabled: boolean }; result: void };
+        'menu:set_label': { args: { id: string; label: string }; result: void };
         'notification:send': { args: { title: string; body: string; subtitle: string | null }; result: void };
         'opener:open_path': { args: { path: string }; result: boolean };
         'opener:open_url': { args: { url: string }; result: boolean };
         'opener:reveal_path': { args: { path: string }; result: boolean };
+        'os:arch': { args: void; result: string };
+        'os:family': { args: void; result: string };
+        'os:hostname': { args: void; result: string };
+        'os:info': { args: void; result: { platform: string; arch: string; version: string; family: string; hostname: string; exeExtension: string; eol: string } };
+        'os:platform': { args: void; result: string };
+        'os:version': { args: void; result: string };
         'shell:execute': { args: { program: string; args: string[] | null; cwd: string | null; env: unknown | null }; result: { exitCode: number; stdout: string; stderr: string; success: boolean } };
         'shell:open': { args: { path: string }; result: void };
         'shell:open_url': { args: { path: string }; result: void };
@@ -137,22 +149,47 @@ declare module '@dotcarbon/api' {
         'store:get': { args: { key: string; store: string | null }; result: unknown | null };
         'store:keys': { args: { store: string | null }; result: string[] };
         'store:set': { args: { key: string; value: unknown; store: string | null }; result: { store: string; entries: { key: string; value: unknown }[] } };
+        'tray:remove': { args: void; result: void };
+        'tray:set_icon': { args: { path: string; isTemplate: boolean | null }; result: void };
+        'tray:set_menu': { args: { items: unknown }; result: void };
+        'tray:set_title': { args: { title: string }; result: void };
+        'tray:set_tooltip': { args: { tooltip: string }; result: void };
+        'tray:set_visible': { args: { visible: boolean }; result: void };
         'updater:check': { args: { endpoint: string | null }; result: { available: boolean; currentVersion: string; latestVersion: string | null; endpoint: string | null; manifest: unknown | null } };
+        'updater:download': { args: { endpoint: string | null; destinationDir: string | null }; result: { available: boolean; currentVersion: string; latestVersion: string; path: string; fileName: string; sha256: string; signatureVerified: boolean; manifest: { version: string; target: string; url: string; artifact: string | null; signature: string | null; publicKey: string | null; algorithm: string | null; sha256: string | null; size: number | null } } };
+        'updater:install': { args: { path: string | null; endpoint: string | null; restart: boolean }; result: { path: string; started: boolean; restartRequested: boolean; message: string } };
+        'updater:install_and_restart': { args: { path: string | null; endpoint: string | null; restart: boolean }; result: { path: string; started: boolean; restartRequested: boolean; message: string } };
         'updater:status': { args: void; result: { active: boolean; currentVersion: string; endpoints: string[]; hasPublicKey: boolean } };
         'window:center': { args: { label: string | null }; result: void };
         'window:close': { args: { label: string | null }; result: void };
-        'window:create': { args: { label: string; url: string | null; parentLabel: string | null; title: string | null; width: number | null; height: number | null; minWidth: number | null; minHeight: number | null; maxWidth: number | null; maxHeight: number | null; x: number | null; y: number | null; center: boolean | null; resizable: boolean | null; fullscreen: boolean | null; maximized: boolean | null; alwaysOnTop: boolean | null; decorations: boolean | null; transparent: boolean | null; devTools: boolean | null; contextMenu: boolean | null; icon: string | null; capabilities: unknown | null }; result: { label: string; title: string; width: number; height: number; x: number; y: number; fullscreen: boolean; maximized: boolean; minimized: boolean; alwaysOnTop: boolean; resizable: boolean } };
+        'window:create': { args: { label: string; url: string | null; parentLabel: string | null; title: string | null; width: number | null; height: number | null; minWidth: number | null; minHeight: number | null; maxWidth: number | null; maxHeight: number | null; x: number | null; y: number | null; center: boolean | null; resizable: boolean | null; fullscreen: boolean | null; maximized: boolean | null; alwaysOnTop: boolean | null; decorations: boolean | null; transparent: boolean | null; devTools: boolean | null; contextMenu: boolean | null; icon: string | null; capabilities: unknown | null }; result: { label: string; title: string; width: number; height: number; x: number; y: number; fullscreen: boolean; maximized: boolean; minimized: boolean; alwaysOnTop: boolean; resizable: boolean; visible: boolean; focused: boolean } };
         'window:get_all': { args: void; result: unknown };
-        'window:get_by_label': { args: { label: string | null }; result: { label: string; title: string; width: number; height: number; x: number; y: number; fullscreen: boolean; maximized: boolean; minimized: boolean; alwaysOnTop: boolean; resizable: boolean } | null };
-        'window:get_state': { args: { label: string | null }; result: { label: string; title: string; width: number; height: number; x: number; y: number; fullscreen: boolean; maximized: boolean; minimized: boolean; alwaysOnTop: boolean; resizable: boolean } };
+        'window:get_by_label': { args: { label: string | null }; result: { label: string; title: string; width: number; height: number; x: number; y: number; fullscreen: boolean; maximized: boolean; minimized: boolean; alwaysOnTop: boolean; resizable: boolean; visible: boolean; focused: boolean } | null };
+        'window:get_state': { args: { label: string | null }; result: { label: string; title: string; width: number; height: number; x: number; y: number; fullscreen: boolean; maximized: boolean; minimized: boolean; alwaysOnTop: boolean; resizable: boolean; visible: boolean; focused: boolean } };
+        'window:hide': { args: { label: string | null }; result: void };
+        'window:inner_position': { args: { label: string | null }; result: { x: number; y: number } };
+        'window:inner_size': { args: { label: string | null }; result: { width: number; height: number } };
+        'window:is_focused': { args: { label: string | null }; result: boolean };
+        'window:is_fullscreen': { args: { label: string | null }; result: boolean };
+        'window:is_maximized': { args: { label: string | null }; result: boolean };
+        'window:is_minimized': { args: { label: string | null }; result: boolean };
+        'window:is_visible': { args: { label: string | null }; result: boolean };
         'window:maximize': { args: { label: string | null }; result: void };
         'window:minimize': { args: { label: string | null }; result: void };
+        'window:outer_position': { args: { label: string | null }; result: { x: number; y: number } };
+        'window:outer_size': { args: { label: string | null }; result: { width: number; height: number } };
+        'window:request_user_attention': { args: { label: string | null }; result: void };
         'window:set_always_on_top': { args: { alwaysOnTop: boolean; label: string | null }; result: void };
+        'window:set_focus': { args: { label: string | null }; result: void };
         'window:set_fullscreen': { args: { fullscreen: boolean; label: string | null }; result: void };
+        'window:set_max_size': { args: { width: number; height: number; label: string | null }; result: void };
+        'window:set_min_size': { args: { width: number; height: number; label: string | null }; result: void };
         'window:set_position': { args: { x: number; y: number; label: string | null }; result: void };
         'window:set_resizable': { args: { resizable: boolean; label: string | null }; result: void };
         'window:set_size': { args: { width: number; height: number; label: string | null }; result: void };
         'window:set_title': { args: { title: string; label: string | null }; result: void };
+        'window:show': { args: { label: string | null }; result: void };
+        'window:start_dragging': { args: { label: string | null }; result: void };
         'window:unmaximize': { args: { label: string | null }; result: void };
     }
 }
@@ -166,6 +203,12 @@ export type CarbonGeneratedPluginMetadata = readonly [
         readonly version: null;
         readonly description: null;
         readonly commands: readonly [
+            {
+                readonly name: 'greet';
+                readonly fullName: 'app:greet';
+                readonly arguments: 'GreetRequest';
+                readonly result: 'string';
+            },
             {
                 readonly name: 'greet';
                 readonly fullName: 'app:greet';
@@ -929,6 +972,56 @@ export type CarbonGeneratedPluginMetadata = readonly [
         readonly events: readonly [];
     },
     {
+        readonly namespace: 'http';
+        readonly name: 'HttpPlugin';
+        readonly version: null;
+        readonly description: null;
+        readonly commands: readonly [
+            {
+                readonly name: 'fetch';
+                readonly fullName: 'http:fetch';
+                readonly arguments: 'FetchArgs';
+                readonly result: 'Task<FetchResponse>';
+            },
+        ];
+        readonly permissions: readonly [];
+        readonly events: readonly [];
+    },
+    {
+        readonly namespace: 'menu';
+        readonly name: 'MenuPlugin';
+        readonly version: null;
+        readonly description: null;
+        readonly commands: readonly [
+            {
+                readonly name: 'set_app_menu';
+                readonly fullName: 'menu:set_app_menu';
+                readonly arguments: 'SetAppMenuArgs';
+                readonly result: 'void';
+            },
+            {
+                readonly name: 'set_checked';
+                readonly fullName: 'menu:set_checked';
+                readonly arguments: 'SetMenuCheckedArgs';
+                readonly result: 'void';
+            },
+            {
+                readonly name: 'set_enabled';
+                readonly fullName: 'menu:set_enabled';
+                readonly arguments: 'SetMenuEnabledArgs';
+                readonly result: 'void';
+            },
+            {
+                readonly name: 'set_label';
+                readonly fullName: 'menu:set_label';
+                readonly arguments: 'SetMenuLabelArgs';
+                readonly result: 'void';
+            },
+        ];
+        readonly permissions: readonly [];
+        readonly events: readonly [];
+    },
+    {
         readonly namespace: 'notification';
         readonly name: 'NotificationPlugin';
         readonly version: null;
@@ -967,6 +1060,52 @@ export type CarbonGeneratedPluginMetadata = readonly [
                 readonly fullName: 'opener:reveal_path';
                 readonly arguments: 'OpenPathArgs';
                 readonly result: 'bool';
+            },
+        ];
+        readonly permissions: readonly [];
+        readonly events: readonly [];
+    },
+    {
+        readonly namespace: 'os';
+        readonly name: 'OsPlugin';
+        readonly version: null;
+        readonly description: null;
+        readonly commands: readonly [
+            {
+                readonly name: 'arch';
+                readonly fullName: 'os:arch';
+                readonly arguments: null;
+                readonly result: 'string';
+            },
+            {
+                readonly name: 'family';
+                readonly fullName: 'os:family';
+                readonly arguments: null;
+                readonly result: 'string';
+            },
+            {
+                readonly name: 'hostname';
+                readonly fullName: 'os:hostname';
+                readonly arguments: null;
+                readonly result: 'string';
+            },
+            {
+                readonly name: 'info';
+                readonly fullName: 'os:info';
+                readonly arguments: null;
+                readonly result: 'OsInfo';
+            },
+            {
+                readonly name: 'platform';
+                readonly fullName: 'os:platform';
+                readonly arguments: null;
+                readonly result: 'string';
+            },
+            {
+                readonly name: 'version';
+                readonly fullName: 'os:version';
+                readonly arguments: null;
+                readonly result: 'string';
             },
         ];
         readonly permissions: readonly [];
@@ -1069,6 +1208,52 @@ export type CarbonGeneratedPluginMetadata = readonly [
         readonly events: readonly [];
     },
     {
+        readonly namespace: 'tray';
+        readonly name: 'TrayPlugin';
+        readonly version: null;
+        readonly description: null;
+        readonly commands: readonly [
+            {
+                readonly name: 'remove';
+                readonly fullName: 'tray:remove';
+                readonly arguments: null;
+                readonly result: 'void';
+            },
+            {
+                readonly name: 'set_icon';
+                readonly fullName: 'tray:set_icon';
+                readonly arguments: 'SetTrayIconArgs';
+                readonly result: 'void';
+            },
+            {
+                readonly name: 'set_menu';
+                readonly fullName: 'tray:set_menu';
+                readonly arguments: 'SetTrayMenuArgs';
+                readonly result: 'void';
+            },
+            {
+                readonly name: 'set_title';
+                readonly fullName: 'tray:set_title';
+                readonly arguments: 'SetTrayTitleArgs';
+                readonly result: 'void';
+            },
+            {
+                readonly name: 'set_tooltip';
+                readonly fullName: 'tray:set_tooltip';
+                readonly arguments: 'SetTrayTooltipArgs';
+                readonly result: 'void';
+            },
+            {
+                readonly name: 'set_visible';
+                readonly fullName: 'tray:set_visible';
+                readonly arguments: 'SetTrayVisibleArgs';
+                readonly result: 'void';
+            },
+        ];
+        readonly permissions: readonly [];
+        readonly events: readonly [];
+    },
+    {
         readonly namespace: 'updater';
         readonly name: 'UpdaterPlugin';
         readonly version: null;
@@ -1079,6 +1264,24 @@ export type CarbonGeneratedPluginMetadata = readonly [
                 readonly fullName: 'updater:check';
                 readonly arguments: 'CheckUpdateArgs';
                 readonly result: 'Task<UpdateCheckResult>';
+            },
+            {
+                readonly name: 'download';
+                readonly fullName: 'updater:download';
+                readonly arguments: 'DownloadUpdateArgs';
+                readonly result: 'Task<UpdateDownloadResult>';
+            },
+            {
+                readonly name: 'install';
+                readonly fullName: 'updater:install';
+                readonly arguments: 'InstallUpdateArgs';
+                readonly result: 'Task<UpdateInstallResult>';
+            },
+            {
+                readonly name: 'install_and_restart';
+                readonly fullName: 'updater:install_and_restart';
+                readonly arguments: 'InstallUpdateArgs';
+                readonly result: 'Task<UpdateInstallResult>';
             },
             {
                 readonly name: 'status';
@@ -1133,6 +1336,54 @@ export type CarbonGeneratedPluginMetadata = readonly [
                 readonly result: 'Task<WindowState>';
             },
             {
+                readonly name: 'hide';
+                readonly fullName: 'window:hide';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task';
+            },
+            {
+                readonly name: 'inner_position';
+                readonly fullName: 'window:inner_position';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task<WindowPosition>';
+            },
+            {
+                readonly name: 'inner_size';
+                readonly fullName: 'window:inner_size';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task<WindowSize>';
+            },
+            {
+                readonly name: 'is_focused';
+                readonly fullName: 'window:is_focused';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task<bool>';
+            },
+            {
+                readonly name: 'is_fullscreen';
+                readonly fullName: 'window:is_fullscreen';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task<bool>';
+            },
+            {
+                readonly name: 'is_maximized';
+                readonly fullName: 'window:is_maximized';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task<bool>';
+            },
+            {
+                readonly name: 'is_minimized';
+                readonly fullName: 'window:is_minimized';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task<bool>';
+            },
+            {
+                readonly name: 'is_visible';
+                readonly fullName: 'window:is_visible';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task<bool>';
+            },
+            {
                 readonly name: 'maximize';
                 readonly fullName: 'window:maximize';
                 readonly arguments: 'TargetWindowArgs';
@@ -1145,15 +1396,51 @@ export type CarbonGeneratedPluginMetadata = readonly [
                 readonly result: 'Task';
             },
             {
+                readonly name: 'outer_position';
+                readonly fullName: 'window:outer_position';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task<WindowPosition>';
+            },
+            {
+                readonly name: 'outer_size';
+                readonly fullName: 'window:outer_size';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task<WindowSize>';
+            },
+            {
+                readonly name: 'request_user_attention';
+                readonly fullName: 'window:request_user_attention';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task';
+            },
+            {
                 readonly name: 'set_always_on_top';
                 readonly fullName: 'window:set_always_on_top';
                 readonly arguments: 'SetAlwaysOnTopArgs';
                 readonly result: 'Task';
             },
             {
+                readonly name: 'set_focus';
+                readonly fullName: 'window:set_focus';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task';
+            },
+            {
                 readonly name: 'set_fullscreen';
                 readonly fullName: 'window:set_fullscreen';
                 readonly arguments: 'SetFullscreenArgs';
+                readonly result: 'Task';
+            },
+            {
+                readonly name: 'set_max_size';
+                readonly fullName: 'window:set_max_size';
+                readonly arguments: 'SetMaxSizeArgs';
+                readonly result: 'Task';
+            },
+            {
+                readonly name: 'set_min_size';
+                readonly fullName: 'window:set_min_size';
+                readonly arguments: 'SetMinSizeArgs';
                 readonly result: 'Task';
             },
             {
@@ -1178,6 +1465,18 @@ export type CarbonGeneratedPluginMetadata = readonly [
                 readonly name: 'set_title';
                 readonly fullName: 'window:set_title';
                 readonly arguments: 'SetTitleArgs';
+                readonly result: 'Task';
+            },
+            {
+                readonly name: 'show';
+                readonly fullName: 'window:show';
+                readonly arguments: 'TargetWindowArgs';
+                readonly result: 'Task';
+            },
+            {
+                readonly name: 'start_dragging';
+                readonly fullName: 'window:start_dragging';
+                readonly arguments: 'TargetWindowArgs';
                 readonly result: 'Task';
             },
             {

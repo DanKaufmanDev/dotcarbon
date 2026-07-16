@@ -143,6 +143,7 @@ public sealed class PhotinoWebView : ICarbonWebView
     public void Hide() => NativeWindowControls.Hide(this);
     public void SetFocus() => NativeWindowControls.SetFocus(this);
     public void RequestUserAttention() => NativeWindowControls.RequestUserAttention(this);
+    public void StartDragging() => NativeWindowControls.StartDragging(this);
 
     public void LoadUri(Uri uri) => Window.Load(uri);
     public void LoadString(string html) => Window.LoadRawString(html);
