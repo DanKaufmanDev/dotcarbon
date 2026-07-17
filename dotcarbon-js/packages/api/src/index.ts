@@ -23,6 +23,12 @@ type BridgeEvent = {
     source?: string | null;
 };
 
+type BridgeChannel = {
+    type: 'channel';
+    id: number;
+    message: unknown;
+};
+
 export interface CarbonCommands {}
 export interface CarbonEvents {}
 
@@ -91,6 +97,32 @@ const pending = new Map<string, (result: BridgeResult<unknown>) => void>();
 const listeners = new Map<string, Map<number, EventHandler<unknown>>>();
 let nextListenerId = 0;
 
+const channelHandlers = new Map<number, (message: unknown) => void>();
+let nextChannelId = 0;
+
+/**
+ * A one-way stream from a command (Task 4.1). Create one, set `onmessage`, and pass it in a command's
+ * arguments; the command sends messages that arrive here in order. Serializes to a channel marker the
+ * backend recognizes.
+ */
+export class Channel<T> {
+    readonly id = ++nextChannelId;
+    onmessage: (message: T) => void = () => undefined;
+
+    constructor() {
+        channelHandlers.set(this.id, (message) => this.onmessage(message as T));
+    }
+
+    /** Stop receiving messages and release the handler. */
+    close(): void {
+        channelHandlers.delete(this.id);
+    }
+
+    toJSON(): { __carbon_channel__: number } {
+        return { __carbon_channel__: this.id };
+    }
+}
+
 let initialized = false;
 
 function ensureInitialized() {
@@ -98,7 +130,7 @@ function ensureInitialized() {
     initialized = true;
 
     (window.external as unknown as CarbonExternal).receiveMessage((message: string) => {
-        const incoming: BridgeResult<unknown> | BridgeEvent = JSON.parse(message);
+        const incoming: BridgeResult<unknown> | BridgeEvent | BridgeChannel = JSON.parse(message);
         if (incoming.type === 'event') {
             const event: CarbonEvent<unknown> = {
                 id: incoming.id,
@@ -109,6 +141,15 @@ function ensureInitialized() {
             for (const handler of [...(listeners.get(incoming.event)?.values() ?? [])]) {
                 try { handler(event); }
                 catch (error) { console.error(`[Carbon] Event listener '${incoming.event}' failed`, error); }
+            }
+            return;
+        }
+
+        if (incoming.type === 'channel') {
+            const onmessage = channelHandlers.get(incoming.id);
+            if (onmessage) {
+                try { onmessage(incoming.message); }
+                catch (error) { console.error(`[Carbon] Channel ${incoming.id} handler failed`, error); }
             }
             return;
         }

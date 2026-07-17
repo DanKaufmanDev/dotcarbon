@@ -138,6 +138,9 @@ public sealed class AppHandle
     {
         var previous = _currentInvocation.Value;
         _currentInvocation.Value = context;
+        // Mirror onto the static scope so a CarbonChannel deserialized from arguments can reach the
+        // window (the converter has no AppHandle to consult). Task 4.1.
+        Bridge.CarbonInvocationScope.Current = context;
         return new InvocationScope(_currentInvocation, previous);
     }
 
@@ -172,6 +175,7 @@ public sealed class AppHandle
         {
             if (_disposed) return;
             _slot.Value = _previous;
+            Bridge.CarbonInvocationScope.Current = _previous;
             _disposed = true;
         }
     }

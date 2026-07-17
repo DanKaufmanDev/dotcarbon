@@ -19,11 +19,18 @@ internal sealed record BridgeEventMessage(
     JsonNode? Payload,
     string? Source);
 
+/// <summary>A streamed message on a channel (Task 4.1). <see cref="Id"/> is the frontend channel id.</summary>
+internal sealed record BridgeChannelMessage(
+    string Type,
+    long Id,
+    JsonNode? Message);
+
 [JsonSourceGenerationOptions(
     PropertyNameCaseInsensitive = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(BridgeMessage))]
 [JsonSerializable(typeof(BridgeResponse))]
 [JsonSerializable(typeof(BridgeEventMessage))]
+[JsonSerializable(typeof(BridgeChannelMessage))]
 [JsonSerializable(typeof(JsonNode))]
 internal partial class CarbonCoreJsonContext : JsonSerializerContext;

@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization.Metadata;
 using DotCarbon.Core.Host;
@@ -114,6 +115,15 @@ public sealed class CarbonWindow
         JsonTypeInfo<T> typeInfo) =>
         App.Events.EmitAsync(
             name, payload, typeInfo, Label, CarbonEventTarget.Window(Label));
+
+    /// <summary>Push a channel message to this window's webview (Task 4.1).</summary>
+    internal Task SendChannelMessageAsync(long channelId, JsonNode? message)
+    {
+        var payload = JsonSerializer.Serialize(
+            new BridgeChannelMessage(Type: "channel", Id: channelId, Message: message),
+            CarbonCoreJsonContext.Default.BridgeChannelMessage);
+        return Native.SendMessageAsync(payload);
+    }
 
     internal Task SendEventAsync(CarbonEventEnvelope envelope)
     {
