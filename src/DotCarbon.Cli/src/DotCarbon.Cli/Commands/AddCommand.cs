@@ -83,6 +83,14 @@ public static class AddCommand
                 "OsPlugin",
                 "os",
                 ["os:*"]),
+            ["path"] = new(
+                ["path", "paths", "dirs", "DotCarbon.Plugins.Path"],
+                "DotCarbon.Plugins.Path",
+                "@dotcarbon/plugin-path",
+                "DotCarbon.Plugins.Path",
+                "PathPlugin",
+                "path",
+                ["path:*"]),
             ["opener"] = new(
                 ["opener", "open", "launcher", "DotCarbon.Plugins.Opener"],
                 "DotCarbon.Plugins.Opener",

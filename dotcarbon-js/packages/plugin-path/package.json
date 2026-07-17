@@ -1,0 +1,50 @@
+{
+    "name": "@dotcarbon/plugin-path",
+    "version": "0.6.0",
+    "description": "OS-standard app directories and path manipulation for DotCarbon",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "prepublishOnly": "npm run build"
+    },
+    "dependencies": {
+        "@dotcarbon/api": "workspace:^"
+    },
+    "devDependencies": {
+        "typescript": "^5.0.0"
+    },
+    "author": "DanKaufmanDev",
+    "license": "MIT",
+    "homepage": "https://github.com/DanKaufmanDev/dotcarbon#readme",
+    "bugs": {
+        "url": "https://github.com/DanKaufmanDev/dotcarbon/issues"
+    },
+    "keywords": [
+        "dotcarbon",
+        "desktop",
+        "plugin",
+        "path",
+        "fs",
+        "directories"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/DanKaufmanDev/dotcarbon.git",
+        "directory": "dotcarbon-js/packages/plugin-path"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "files": [
+        "dist"
+    ]
+}
