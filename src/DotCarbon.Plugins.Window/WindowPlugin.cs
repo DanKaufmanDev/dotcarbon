@@ -307,6 +307,23 @@ public partial class WindowPlugin : IPlugin
 
     public Task StartDragging() => StartDragging(new TargetWindowArgs());
 
+    // --- taskbar progress + badge (Task 3.9) -------------------------------------------------
+
+    [CarbonCommand("set_progress_bar")]
+    public Task SetProgressBar(SetProgressArgs args)
+    {
+        Resolve(args.Label).View.SetProgressBar(args.Status ?? "normal", args.Progress);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Set the app badge to <c>Value</c> (null clears it). macOS dock only.</summary>
+    [CarbonCommand("set_badge")]
+    public Task SetBadge(SetBadgeArgs args)
+    {
+        Resolve(args.Label).View.SetBadge(args.Value);
+        return Task.CompletedTask;
+    }
+
     // --- close interception (Task 3.7) -------------------------------------------------------
 
     /// <summary>

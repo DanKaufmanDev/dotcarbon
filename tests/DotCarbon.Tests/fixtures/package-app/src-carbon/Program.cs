@@ -160,6 +160,25 @@ CarbonApp.Create(config)
                 Console.WriteLine(
                     $"[[CARBON_THEME]] initial={initialTheme} after_dark={afterDark} after_light={afterLight}");
 
+                // Task 3.9: dock badge (macOS) — set and read back. Progress-bar is Windows-only, so
+                // it just runs for crash-safety. Guarded because the readback goes through libobjc.
+                view.SetProgressBar("normal", 42);
+                view.SetProgressBar("none", 0);
+                if (view is PhotinoWebView bpw && OperatingSystem.IsMacOS())
+                {
+                    view.SetBadge("7");
+                    var badge = bpw.MacGetBadge();
+                    view.SetBadge(null);
+                    var cleared = bpw.MacGetBadge();
+                    Console.WriteLine($"[[CARBON_BADGE]] set={badge ?? "null"} cleared={cleared ?? "null"}");
+                }
+                else
+                {
+                    view.SetBadge("7");
+                    view.SetBadge(null);
+                    Console.WriteLine("[[CARBON_BADGE]] badge/progress ran (no readback off macOS)");
+                }
+
                 // Restore a normal, closable window. On macOS a window with the closable style bit
                 // removed cannot be closed programmatically (performClose: is a no-op), which would
                 // leave the smoke unable to exit — so the toggles must not leave it in that state.

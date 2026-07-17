@@ -148,6 +148,14 @@ public interface ICarbonWebView
     /// <summary>Override the window theme: "light", "dark", or "auto" (follow the OS).</summary>
     void SetTheme(string theme);
 
+    // --- taskbar progress + dock badge (Task 3.9) --------------------------------------------
+
+    /// <summary>Set the taskbar progress bar (Windows). <paramref name="progress"/> is 0–100.</summary>
+    void SetProgressBar(string status, int progress);
+
+    /// <summary>Set (or clear, with null) the app badge (macOS dock).</summary>
+    void SetBadge(string? label);
+
     /// <summary>Navigate the webview to a URI (carbon://, http://localhost dev server, or an external URL).</summary>
     void LoadUri(Uri uri);
 

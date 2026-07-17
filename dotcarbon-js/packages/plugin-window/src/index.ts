@@ -248,7 +248,18 @@ export class WebviewWindow {
     onMaximized = (handler: () => void): Promise<UnlistenFn> => this.onWindowEvent('window:maximized', handler)
     onRestored = (handler: () => void): Promise<UnlistenFn> => this.onWindowEvent('window:restored', handler)
     onCloseChanged = (handler: () => void): Promise<UnlistenFn> => this.onWindowEvent('window:closed', handler)
+
+    // Task 3.9 — taskbar progress + dock badge.
+    /** Set the taskbar progress bar (Windows). progress is 0–100. */
+    setProgressBar = (progress: number, status: ProgressBarStatus = 'normal'): Promise<void> =>
+        invoke('window:set_progress_bar', { progress, status, label: this.label })
+    /** Set the app badge (macOS dock); null clears it. */
+    setBadge = (value: string | null): Promise<void> =>
+        invoke('window:set_badge', { value, label: this.label })
 }
+
+export type ProgressBarStatus = 'none' | 'normal' | 'indeterminate' | 'paused' | 'error'
+
 
 export { WebviewWindow as CarbonWindow }
 
@@ -313,6 +324,9 @@ export const carbonWindow = {
     theme: (): Promise<Theme> => invoke('window:get_theme', {}),
     setTheme: (theme: Theme | 'auto'): Promise<void> => invoke('window:set_theme', { theme }),
     onThemeChanged: (handler: (theme: Theme) => void): (() => void) => onThemeChanged(handler),
+    setProgressBar: (progress: number, status: ProgressBarStatus = 'normal'): Promise<void> =>
+        invoke('window:set_progress_bar', { progress, status }),
+    setBadge: (value: string | null): Promise<void> => invoke('window:set_badge', { value }),
 }
 
 declare module '@dotcarbon/api' {
@@ -363,6 +377,8 @@ declare module '@dotcarbon/api' {
         'window:set_theme': { args: { theme: Theme | 'auto'; label?: string }; result: void }
         'window:set_close_interception': { args: { value: boolean; label?: string }; result: void }
         'window:destroy': { args: { label?: string }; result: void }
+        'window:set_progress_bar': { args: { progress: number; status?: ProgressBarStatus; label?: string }; result: void }
+        'window:set_badge': { args: { value: string | null; label?: string }; result: void }
         'window:maximize': { args: { label?: string }; result: void }
         'window:unmaximize': { args: { label?: string }; result: void }
         'window:set_fullscreen': { args: { fullscreen: boolean; label?: string }; result: void }

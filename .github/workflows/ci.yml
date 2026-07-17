@@ -404,6 +404,18 @@ jobs:
           elif [ "${{ runner.os }}" = "macOS" ]; then
             echo "theme (Task 3.6) never reported on macOS"; exit 1
           fi
+          # Task 3.9: dock badge. macOS reads it back off the dock tile — set "7" then clear. Taskbar
+          # progress is Windows-only and unverifiable here; it just runs for crash-safety.
+          badge=$(grep -a "\[\[CARBON_BADGE\]\]" smoke.log | tail -1 || true)
+          if [ -n "$badge" ]; then
+            echo "::notice::${{ runner.os }} $badge"
+            if [ "${{ runner.os }}" = "macOS" ]; then
+              echo "$badge" | grep -q "set=7 cleared=null" || {
+                echo "dock badge did not set/clear as expected"; echo "$badge"; exit 1; }
+            fi
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            echo "badge (Task 3.9) never reported on macOS"; exit 1
+          fi
       - name: Assert tray + menu (macOS — verified path)
         if: runner.os == 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app

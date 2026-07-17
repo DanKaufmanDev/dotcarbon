@@ -206,6 +206,42 @@ internal static unsafe class NativeWindowControls
         else if (OperatingSystem.IsLinux()) LinuxSetClickThrough(GtkWindow(view), on);
     }
 
+    // --- taskbar progress + dock badge (Task 3.9) --------------------------------------------
+
+    /// <summary>
+    /// Set the taskbar progress bar. <paramref name="progress"/> is 0–100. Windows only (via
+    /// ITaskbarList3); macOS has no taskbar progress, and Linux's is a desktop-specific D-Bus protocol
+    /// — both are no-ops here.
+    /// </summary>
+    public static void SetProgressBar(PhotinoWebView view, string status, int progress)
+    {
+        if (OperatingSystem.IsWindows()) WinSetProgress(Hwnd(view), status, progress);
+    }
+
+    /// <summary>
+    /// Set (or clear, with null) the app's badge. macOS shows it on the dock icon. Windows would need
+    /// a generated overlay icon and Linux a Unity count — both deferred, so no-ops there.
+    /// </summary>
+    public static void SetBadge(string? label)
+    {
+        if (OperatingSystem.IsMacOS()) MacSetBadge(label);
+    }
+
+    /// <summary>macOS: read the dock badge back, for verification.</summary>
+    public static string? MacGetBadge()
+    {
+        var tile = Send(Send(Cls("NSApplication"), Sel("sharedApplication")), Sel("dockTile"));
+        var label = Send(tile, Sel("badgeLabel"));
+        return label == IntPtr.Zero ? null
+            : Marshal.PtrToStringUTF8(Send(label, Sel("UTF8String")));
+    }
+
+    private static void MacSetBadge(string? label)
+    {
+        var tile = Send(Send(Cls("NSApplication"), Sel("sharedApplication")), Sel("dockTile"));
+        SendPtr(tile, Sel("setBadgeLabel:"), label is null ? IntPtr.Zero : NSString(label));
+    }
+
     // --- theme (Task 3.6) --------------------------------------------------------------------
 
     public static string GetTheme(PhotinoWebView view)
@@ -478,6 +514,61 @@ internal static unsafe class NativeWindowControls
         DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref flag, sizeof(int));
     }
 
+    // ITaskbarList3 progress (Task 3.9), called through the raw vtable to stay AOT/trim-clean (no
+    // ComImport). Resolved once and cached.
+    private static IntPtr _taskbarList;
+    private static bool _taskbarTried;
+
+    // TBPFLAG
+    private const int TBPF_NOPROGRESS = 0;
+    private const int TBPF_INDETERMINATE = 1;
+    private const int TBPF_NORMAL = 2;
+    private const int TBPF_ERROR = 4;
+    private const int TBPF_PAUSED = 8;
+
+    private static IntPtr TaskbarList()
+    {
+        if (_taskbarTried) return _taskbarList;
+        _taskbarTried = true;
+        var clsid = new Guid("56FDF344-FD6D-11d0-958A-006097C9A090"); // CLSID_TaskbarList
+        var iid = new Guid("ea1afb91-9e28-4b86-90e9-9e9f8a5eefaf");   // IID_ITaskbarList3
+        if (CoCreateInstance(ref clsid, IntPtr.Zero, 1 /*CLSCTX_INPROC_SERVER*/, ref iid, out var tb) != 0
+            || tb == IntPtr.Zero)
+            return IntPtr.Zero;
+
+        var vtbl = *(IntPtr**)tb;
+        var hrInit = (delegate* unmanaged<IntPtr, int>)vtbl[3]; // ITaskbarList::HrInit
+        hrInit(tb);
+        _taskbarList = tb;
+        return tb;
+    }
+
+    private static void WinSetProgress(IntPtr hwnd, string status, int progress)
+    {
+        var tb = TaskbarList();
+        if (tb == IntPtr.Zero || hwnd == IntPtr.Zero) return;
+
+        var flag = status.ToLowerInvariant() switch
+        {
+            "none" => TBPF_NOPROGRESS,
+            "indeterminate" => TBPF_INDETERMINATE,
+            "paused" => TBPF_PAUSED,
+            "error" => TBPF_ERROR,
+            _ => TBPF_NORMAL,
+        };
+
+        var vtbl = *(IntPtr**)tb;
+        // Vtable order: 9 = SetProgressValue(hwnd, completed, total), 10 = SetProgressState(hwnd, flags).
+        var setState = (delegate* unmanaged<IntPtr, IntPtr, int, int>)vtbl[10];
+        setState(tb, hwnd, flag);
+        if (flag is TBPF_NORMAL or TBPF_PAUSED or TBPF_ERROR)
+        {
+            var value = (ulong)Math.Clamp(progress, 0, 100);
+            var setValue = (delegate* unmanaged<IntPtr, IntPtr, ulong, ulong, int>)vtbl[9];
+            setValue(tb, hwnd, value, 100);
+        }
+    }
+
     private static void WinSetCursor(string icon)
     {
         // IDC_* standard cursors.
@@ -535,6 +626,7 @@ internal static unsafe class NativeWindowControls
     [DllImport("user32.dll")] private static extern IntPtr LoadCursorW(IntPtr hInstance, int cursorId);
     [DllImport("user32.dll")] private static extern IntPtr SetCursor(IntPtr cursor);
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+    [DllImport("ole32.dll")] private static extern int CoCreateInstance(ref Guid clsid, IntPtr outer, int context, ref Guid iid, out IntPtr instance);
     private static readonly IntPtr HKEY_CURRENT_USER = unchecked((IntPtr)(int)0x80000001);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] private static extern int RegGetValueW(IntPtr hkey, string subKey, string value, int flags, out int type, ref int data, ref int dataSize);
 

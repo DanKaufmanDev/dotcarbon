@@ -162,6 +162,12 @@ public sealed class PhotinoWebView : ICarbonWebView
         if (File.Exists(full)) Window.SetIconFile(full);
     }
 
+    // Task 3.9 — taskbar progress + dock badge.
+    public void SetProgressBar(string status, int progress) => NativeWindowControls.SetProgressBar(this, status, progress);
+    public void SetBadge(string? label) => NativeWindowControls.SetBadge(label);
+    /// <summary>macOS: read the dock badge back, for verification.</summary>
+    public string? MacGetBadge() => NativeWindowControls.MacGetBadge();
+
     // Task 3.6 — theme.
     public string GetTheme() => NativeWindowControls.GetTheme(this);
     public void SetTheme(string theme) => NativeWindowControls.SetTheme(this, theme);
