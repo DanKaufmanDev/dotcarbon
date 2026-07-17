@@ -235,6 +235,17 @@ export function isCarbonApp(): boolean {
         typeof (window.external as { sendMessage?: unknown } | undefined)?.sendMessage === 'function';
 }
 
+/**
+ * Read a binary command result (Task 4.2). A command that returns a CarbonBinary resolves to a
+ * `carbon://` URL; fetch it to get the raw bytes with no base64 overhead. Pass the invoke result
+ * straight through.
+ */
+export async function readBinary(url: string): Promise<ArrayBuffer> {
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`Failed to read binary (${response.status})`)
+    return response.arrayBuffer()
+}
+
 // --- drag regions (Task 3.8) -------------------------------------------------------------------
 // A window with a transparent title bar or no decorations has no OS-draggable strip, so mark an
 // element with `data-carbon-drag-region` and a primary-button mousedown on it moves the window. This

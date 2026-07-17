@@ -12,6 +12,10 @@ public static class CarbonAssets
 {
     public static CarbonAssetResponse Serve(string url)
     {
+        // Task 4.2: binary command results are served from the store rather than the embedded assets.
+        if (EmbeddedAssetStore.TryGetPath(url, out var path) && CarbonBinaryStore.IsBinaryPath(path))
+            return CarbonBinaryStore.Serve(path);
+
         var content = EmbeddedAssetStore.Open(url, out var contentType);
         return new CarbonAssetResponse(content, contentType);
     }

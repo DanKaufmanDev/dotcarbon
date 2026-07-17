@@ -111,6 +111,13 @@ internal static class EmbeddedAssetStore
         return File.OpenRead(target);
     }
 
+    /// <summary>Parse a <c>carbon://</c> URL to its cleaned path; false if the URL is invalid.</summary>
+    public static bool TryGetPath(string url, out string path)
+    {
+        path = GetPath(url);
+        return path != "__invalid__";
+    }
+
     private static string GetPath(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
