@@ -1,4 +1,4 @@
-import { invoke, listen, type UnlistenFn } from '@dotcarbon/api'
+import { invoke, listen, once, emit, type UnlistenFn, type CarbonEvent } from '@dotcarbon/api'
 
 export interface WindowState {
     label: string
@@ -99,6 +99,26 @@ export class WebviewWindow {
         const states = await invoke('window:get_all')
         return states.map(state => new WebviewWindow(state.label))
     }
+
+    /** The window that currently has focus, or null if none does. */
+    static async getFocused(): Promise<WebviewWindow | null> {
+        for (const window of await WebviewWindow.getAll()) {
+            if (await window.isFocused()) return window
+        }
+        return null
+    }
+
+    /** Emit an event targeted at this window (Task 3.11 — per-window event scoping). */
+    emit = <T>(event: string, payload: T): Promise<void> =>
+        emit(event, payload, { target: { kind: 'window', label: this.label } })
+
+    /** Listen for an event. Returns an unlisten function. */
+    listen = <T = unknown>(event: string, handler: (event: CarbonEvent<T>) => void): Promise<UnlistenFn> =>
+        listen(event, handler as never)
+
+    /** Listen for the next occurrence of an event, then stop. */
+    once = <T = unknown>(event: string, handler: (event: CarbonEvent<T>) => void): Promise<UnlistenFn> =>
+        once(event, handler as never)
 
     getState = (): Promise<WindowState> =>
         invoke('window:get_state', { label: this.label })
@@ -256,7 +276,18 @@ export class WebviewWindow {
     /** Set the app badge (macOS dock); null clears it. */
     setBadge = (value: string | null): Promise<void> =>
         invoke('window:set_badge', { value, label: this.label })
+
+    /**
+     * Task 3.10 — background effect. "vibrancy"/a material name (macOS), "mica"/"acrylic" (Windows),
+     * or "none". The window must be transparent for it to show through the page.
+     */
+    setEffect = (effect: WindowEffect): Promise<void> =>
+        invoke('window:set_effect', { effect, label: this.label })
 }
+
+export type WindowEffect =
+    | 'none' | 'vibrancy' | 'sidebar' | 'menu' | 'popover' | 'hud' | 'fullscreen' | 'under-window'
+    | 'mica' | 'acrylic' | 'tabbed' 
 
 export type ProgressBarStatus = 'none' | 'normal' | 'indeterminate' | 'paused' | 'error'
 
@@ -327,6 +358,7 @@ export const carbonWindow = {
     setProgressBar: (progress: number, status: ProgressBarStatus = 'normal'): Promise<void> =>
         invoke('window:set_progress_bar', { progress, status }),
     setBadge: (value: string | null): Promise<void> => invoke('window:set_badge', { value }),
+    setEffect: (effect: WindowEffect): Promise<void> => invoke('window:set_effect', { effect }),
 }
 
 declare module '@dotcarbon/api' {
@@ -379,6 +411,7 @@ declare module '@dotcarbon/api' {
         'window:destroy': { args: { label?: string }; result: void }
         'window:set_progress_bar': { args: { progress: number; status?: ProgressBarStatus; label?: string }; result: void }
         'window:set_badge': { args: { value: string | null; label?: string }; result: void }
+        'window:set_effect': { args: { effect: WindowEffect; label?: string }; result: void }
         'window:maximize': { args: { label?: string }; result: void }
         'window:unmaximize': { args: { label?: string }; result: void }
         'window:set_fullscreen': { args: { fullscreen: boolean; label?: string }; result: void }

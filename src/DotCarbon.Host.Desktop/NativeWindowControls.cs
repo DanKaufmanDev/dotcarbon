@@ -206,6 +206,80 @@ internal static unsafe class NativeWindowControls
         else if (OperatingSystem.IsLinux()) LinuxSetClickThrough(GtkWindow(view), on);
     }
 
+    // --- window effects: vibrancy / mica / acrylic (Task 3.10) -------------------------------
+
+    /// <summary>
+    /// Apply a background material to the window. macOS gets an NSVisualEffectView (vibrancy); Windows
+    /// gets a DWM system backdrop (mica/acrylic on Windows 11). The window must be transparent for the
+    /// effect to show through the webview. "none" removes it. Linux has no portable blur (no-op).
+    /// </summary>
+    public static void SetEffect(PhotinoWebView view, string effect)
+    {
+        if (OperatingSystem.IsWindows()) WinSetBackdrop(Hwnd(view), effect);
+        else if (OperatingSystem.IsMacOS()) MacSetEffect(MacWindow(view), effect);
+    }
+
+    /// <summary>macOS: the material of the window's effect view, or -1 if none. For verification.</summary>
+    public static int MacGetEffectMaterial(PhotinoWebView view)
+    {
+        var effectView = MacFindEffectView(MacWindow(view));
+        return effectView == IntPtr.Zero ? -1 : (int)SendLong(effectView, Sel("material"));
+    }
+
+    private static int MacMaterial(string effect) => effect.ToLowerInvariant() switch
+    {
+        "menu" => 5,
+        "popover" => 6,
+        "sidebar" or "vibrancy" => 7,
+        "hud" or "hudwindow" => 13,
+        "fullscreen" => 15,
+        "under-window" or "mica" => 21,
+        _ => 12, // windowBackground
+    };
+
+    private static IntPtr MacFindEffectView(IntPtr window)
+    {
+        if (window == IntPtr.Zero) return IntPtr.Zero;
+        var content = Send(window, Sel("contentView"));
+        if (content == IntPtr.Zero) return IntPtr.Zero;
+        var subviews = Send(content, Sel("subviews"));
+        var count = (long)SendLong(subviews, Sel("count"));
+        var effectClass = Cls("NSVisualEffectView");
+        for (var i = 0L; i < count; i++)
+        {
+            var subview = SendIdx(subviews, Sel("objectAtIndex:"), i);
+            if (SendIsKind(subview, Sel("isKindOfClass:"), effectClass)) return subview;
+        }
+        return IntPtr.Zero;
+    }
+
+    private static void MacSetEffect(IntPtr window, string effect)
+    {
+        if (window == IntPtr.Zero) return;
+        var content = Send(window, Sel("contentView"));
+        if (content == IntPtr.Zero) return;
+
+        if (string.Equals(effect, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            var existing = MacFindEffectView(window);
+            if (existing != IntPtr.Zero) Send(existing, Sel("removeFromSuperview"));
+            return;
+        }
+
+        var view = MacFindEffectView(window);
+        if (view == IntPtr.Zero)
+        {
+            view = Send(Send(Cls("NSVisualEffectView"), Sel("alloc")), Sel("init"));
+            SendSetLong(view, Sel("setState:"), 1);          // NSVisualEffectStateActive
+            SendSetLong(view, Sel("setBlendingMode:"), 0);   // BehindWindow
+            SendSetLong(view, Sel("setAutoresizingMask:"), 18); // width | height sizable
+            SendRectArg(view, Sel("setFrame:"), MacRect(content, "bounds"));
+            // Below the webview so it shows through where the page is transparent (NSWindowBelow = -1).
+            SendInsert(content, Sel("addSubview:positioned:relativeTo:"), view, -1, IntPtr.Zero);
+        }
+        SendSetLong(view, Sel("setMaterial:"), (nint)MacMaterial(effect));
+    }
+
     // --- taskbar progress + dock badge (Task 3.9) --------------------------------------------
 
     /// <summary>
@@ -543,6 +617,23 @@ internal static unsafe class NativeWindowControls
         return tb;
     }
 
+    // DWM system backdrop (Task 3.10), Windows 11.
+    private const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+
+    private static void WinSetBackdrop(IntPtr hwnd, string effect)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        // DWMSBT: 1 = none, 2 = mica, 3 = acrylic (transient), 4 = tabbed.
+        var type = effect.ToLowerInvariant() switch
+        {
+            "none" => 1,
+            "acrylic" => 3,
+            "tabbed" => 4,
+            _ => 2, // mica
+        };
+        DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref type, sizeof(int));
+    }
+
     private static void WinSetProgress(IntPtr hwnd, string status, int progress)
     {
         var tb = TaskbarList();
@@ -732,6 +823,9 @@ internal static unsafe class NativeWindowControls
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendPtr(IntPtr receiver, IntPtr sel, IntPtr arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendIdx(IntPtr receiver, IntPtr sel, long arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendStr(IntPtr receiver, IntPtr sel, [MarshalAs(UnmanagedType.LPUTF8Str)] string arg);
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")] [return: MarshalAs(UnmanagedType.I1)] private static extern bool SendIsKind(IntPtr receiver, IntPtr sel, IntPtr cls);
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern void SendRectArg(IntPtr receiver, IntPtr sel, CGRect rect);
+    [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern void SendInsert(IntPtr receiver, IntPtr sel, IntPtr subview, nint positioned, IntPtr relativeTo);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern IntPtr SendLongArg(IntPtr receiver, IntPtr sel, long arg);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern nint SendLong(IntPtr receiver, IntPtr sel);
     [DllImport(LibObjC, EntryPoint = "objc_msgSend")] private static extern void SendBool(IntPtr receiver, IntPtr sel, [MarshalAs(UnmanagedType.I1)] bool arg);

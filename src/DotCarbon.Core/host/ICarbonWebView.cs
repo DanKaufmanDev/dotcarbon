@@ -156,6 +156,12 @@ public interface ICarbonWebView
     /// <summary>Set (or clear, with null) the app badge (macOS dock).</summary>
     void SetBadge(string? label);
 
+    /// <summary>
+    /// Apply a background effect: "vibrancy"/material (macOS), "mica"/"acrylic" (Windows), or "none".
+    /// Task 3.10. The window must be transparent for it to show through the webview.
+    /// </summary>
+    void SetEffect(string effect);
+
     /// <summary>Navigate the webview to a URI (carbon://, http://localhost dev server, or an external URL).</summary>
     void LoadUri(Uri uri);
 

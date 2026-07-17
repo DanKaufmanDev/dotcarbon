@@ -324,6 +324,14 @@ public partial class WindowPlugin : IPlugin
         return Task.CompletedTask;
     }
 
+    /// <summary>Apply a background effect (Task 3.10). See <see cref="ICarbonWebView.SetEffect"/>.</summary>
+    [CarbonCommand("set_effect")]
+    public Task SetEffect(SetEffectArgs args)
+    {
+        Resolve(args.Label).View.SetEffect(args.Effect);
+        return Task.CompletedTask;
+    }
+
     // --- close interception (Task 3.7) -------------------------------------------------------
 
     /// <summary>

@@ -103,6 +103,7 @@ public class WindowCloseVetoTests
         public double GetScaleFactor() => 1.0;
         public string GetTheme() => "light"; public void SetTheme(string t) { }
         public void SetProgressBar(string status, int progress) { } public void SetBadge(string? label) { }
+        public void SetEffect(string effect) { }
         public void LoadUri(System.Uri uri) { } public void LoadString(string html) { }
         public System.Threading.Tasks.Task SendMessageAsync(string message) => System.Threading.Tasks.Task.CompletedTask;
         public void Close() { }

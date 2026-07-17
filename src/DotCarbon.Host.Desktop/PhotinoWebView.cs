@@ -168,6 +168,11 @@ public sealed class PhotinoWebView : ICarbonWebView
     /// <summary>macOS: read the dock badge back, for verification.</summary>
     public string? MacGetBadge() => NativeWindowControls.MacGetBadge();
 
+    // Task 3.10 — window effects.
+    public void SetEffect(string effect) => NativeWindowControls.SetEffect(this, effect);
+    /// <summary>macOS: the effect view's material (or -1 if none), for verification.</summary>
+    public int MacGetEffectMaterial() => NativeWindowControls.MacGetEffectMaterial(this);
+
     // Task 3.6 — theme.
     public string GetTheme() => NativeWindowControls.GetTheme(this);
     public void SetTheme(string theme) => NativeWindowControls.SetTheme(this, theme);

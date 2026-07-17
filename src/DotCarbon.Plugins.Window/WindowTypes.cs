@@ -10,6 +10,7 @@ public record SetCursorIconArgs(string Icon, string? Label = null);
 public record SetThemeArgs(string Theme, string? Label = null);
 public record SetProgressArgs(int Progress, string? Status = null, string? Label = null);
 public record SetBadgeArgs(string? Value = null, string? Label = null);
+public record SetEffectArgs(string Effect, string? Label = null);
 
 // Task 3.7 window event payloads (all carry the window label).
 public record WindowEventPayload(string Label);

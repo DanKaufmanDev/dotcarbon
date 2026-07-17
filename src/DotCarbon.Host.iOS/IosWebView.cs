@@ -84,6 +84,7 @@ public sealed class IosWebView : ICarbonWebView
     public void SetTheme(string theme) { }
     public void SetProgressBar(string status, int progress) { }
     public void SetBadge(string? label) { }
+    public void SetEffect(string effect) { }
 
     public void LoadUri(Uri uri) =>
         Native.InvokeOnMainThread(() => Native.LoadRequest(new NSUrlRequest(new NSUrl(uri.ToString()))));

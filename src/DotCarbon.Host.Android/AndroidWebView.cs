@@ -84,6 +84,7 @@ public sealed class AndroidWebView : ICarbonWebView
     public void SetTheme(string theme) { }
     public void SetProgressBar(string status, int progress) { }
     public void SetBadge(string? label) { }
+    public void SetEffect(string effect) { }
 
     public void LoadUri(Uri uri) => Native.Post(() => Native.LoadUrl(uri.ToString()));
 

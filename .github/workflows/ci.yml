@@ -416,6 +416,18 @@ jobs:
           elif [ "${{ runner.os }}" = "macOS" ]; then
             echo "badge (Task 3.9) never reported on macOS"; exit 1
           fi
+          # Task 3.10: window effect. macOS inserts an NSVisualEffectView and the material reads back
+          # (sidebar = 7); "none" removes it (-1). Windows applies a DWM backdrop (unverifiable here).
+          effect=$(grep -a "\[\[CARBON_EFFECT\]\]" smoke.log | tail -1 || true)
+          if [ -n "$effect" ]; then
+            echo "::notice::${{ runner.os }} $effect"
+            if [ "${{ runner.os }}" = "macOS" ]; then
+              echo "$effect" | grep -q "sidebar_material=7 after_none=-1" || {
+                echo "window effect view was not inserted/removed as expected"; echo "$effect"; exit 1; }
+            fi
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            echo "window effect (Task 3.10) never reported on macOS"; exit 1
+          fi
       - name: Assert tray + menu (macOS — verified path)
         if: runner.os == 'macOS'
         working-directory: tests/DotCarbon.Tests/fixtures/package-app

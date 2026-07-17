@@ -179,6 +179,23 @@ CarbonApp.Create(config)
                     Console.WriteLine("[[CARBON_BADGE]] badge/progress ran (no readback off macOS)");
                 }
 
+                // Task 3.10: window effect. macOS inserts an NSVisualEffectView; read its material
+                // back, then remove it. Windows applies a DWM backdrop (crash-safe only).
+                view.SetEffect("mica"); // DWM backdrop on Windows; a material on macOS
+                if (view is PhotinoWebView epw && OperatingSystem.IsMacOS())
+                {
+                    view.SetEffect("sidebar");
+                    var material = epw.MacGetEffectMaterial();
+                    view.SetEffect("none");
+                    var removed = epw.MacGetEffectMaterial();
+                    Console.WriteLine($"[[CARBON_EFFECT]] sidebar_material={material} after_none={removed}");
+                }
+                else
+                {
+                    view.SetEffect("none");
+                    Console.WriteLine("[[CARBON_EFFECT]] effect ran (no readback off macOS)");
+                }
+
                 // Restore a normal, closable window. On macOS a window with the closable style bit
                 // removed cannot be closed programmatically (performClose: is a no-op), which would
                 // leave the smoke unable to exit — so the toggles must not leave it in that state.
