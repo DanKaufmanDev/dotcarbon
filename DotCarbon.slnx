@@ -12,6 +12,7 @@
     <Project Path="src/DotCarbon.Plugins.Http/DotCarbon.Plugins.Http.csproj" />
     <Project Path="src/DotCarbon.Plugins.Notification/DotCarbon.Plugins.Notification.csproj" />
     <Project Path="src/DotCarbon.Plugins.Os/DotCarbon.Plugins.Os.csproj" />
+    <Project Path="src/DotCarbon.Plugins.Path/DotCarbon.Plugins.Path.csproj" />
     <Project Path="src/DotCarbon.Plugins.Opener/DotCarbon.Plugins.Opener.csproj" />
     <Project Path="src/DotCarbon.Plugins.Shell/DotCarbon.Plugins.Shell.csproj" />
     <Project Path="src/DotCarbon.Plugins.SingleInstance/DotCarbon.Plugins.SingleInstance.csproj" />
