@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Http\DotCarbon.Plugins.Http.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Os\DotCarbon.Plugins.Os.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Shell\DotCarbon.Plugins.Shell.csproj" />
+    <ProjectReference Include="..\..\src\DotCarbon.Plugins.Window\DotCarbon.Plugins.Window.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Updater\DotCarbon.Plugins.Updater.csproj" />
   </ItemGroup>
 

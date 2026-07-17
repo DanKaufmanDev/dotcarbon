@@ -8,6 +8,11 @@ public record SetFlagArgs(bool Value, string? Label = null);
 public record SetIconArgs(string Path, string? Label = null);
 public record SetCursorIconArgs(string Icon, string? Label = null);
 public record SetThemeArgs(string Theme, string? Label = null);
+
+// Task 3.7 window event payloads (all carry the window label).
+public record WindowEventPayload(string Label);
+public record WindowMovedPayload(string Label, int X, int Y);
+public record WindowResizedPayload(string Label, int Width, int Height);
 public record SetMinSizeArgs(int Width, int Height, string? Label = null);
 public record SetMaxSizeArgs(int Width, int Height, string? Label = null);
 

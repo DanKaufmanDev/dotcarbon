@@ -12,12 +12,91 @@ public partial class WindowPlugin : IPlugin
 {
     private readonly AppHandle _app;
 
+    // Task 3.7: which windows the frontend is intercepting close for, and which have had a close
+    // forced through (window:destroy). Both keyed by window label.
+    private readonly HashSet<string> _interceptClose = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _forceClose = new(StringComparer.Ordinal);
+
     public WindowPlugin(AppHandle app)
     {
         _app = app;
     }
 
     public string Namespace => "window";
+
+    // --- lifecycle events → frontend (Task 3.7) ----------------------------------------------
+
+    /// <summary>
+    /// Forward native window lifecycle events to the frontend as <c>window:*</c> events, and drive the
+    /// close-requested veto. This runs synchronously inside the native close callback, so the veto
+    /// decision (<see cref="CarbonLifecycleEvent.Cancel"/>) is set here-and-now; the notification to
+    /// JS is fire-and-forget.
+    /// </summary>
+    public ValueTask OnLifecycleAsync(CarbonLifecycleEvent lifecycleEvent)
+    {
+        if (lifecycleEvent.Window is not { } window) return ValueTask.CompletedTask;
+        var label = window.Label;
+
+        switch (lifecycleEvent.Kind)
+        {
+            case CarbonLifecycleEventKind.WindowCloseRequested when ShouldVetoClose(label):
+                // Keep the window open and let the frontend decide; it closes for real via
+                // window:destroy once it has finished (or never, to cancel the close).
+                lifecycleEvent.Cancel = true;
+                Emit("window:close-requested", new WindowEventPayload(label),
+                    WindowJsonContext.Default.WindowEventPayload);
+                break;
+            case CarbonLifecycleEventKind.WindowFocused:
+                Emit("window:focus", new WindowEventPayload(label), WindowJsonContext.Default.WindowEventPayload);
+                break;
+            case CarbonLifecycleEventKind.WindowBlurred:
+                Emit("window:blur", new WindowEventPayload(label), WindowJsonContext.Default.WindowEventPayload);
+                break;
+            case CarbonLifecycleEventKind.WindowMoved when lifecycleEvent.Data is CarbonWindowPosition p:
+                Emit("window:moved", new WindowMovedPayload(label, p.X, p.Y),
+                    WindowJsonContext.Default.WindowMovedPayload);
+                break;
+            case CarbonLifecycleEventKind.WindowResized when lifecycleEvent.Data is CarbonWindowSize s:
+                Emit("window:resized", new WindowResizedPayload(label, s.Width, s.Height),
+                    WindowJsonContext.Default.WindowResizedPayload);
+                break;
+            case CarbonLifecycleEventKind.WindowMinimized:
+                Emit("window:minimized", new WindowEventPayload(label), WindowJsonContext.Default.WindowEventPayload);
+                break;
+            case CarbonLifecycleEventKind.WindowMaximized:
+                Emit("window:maximized", new WindowEventPayload(label), WindowJsonContext.Default.WindowEventPayload);
+                break;
+            case CarbonLifecycleEventKind.WindowRestored:
+                Emit("window:restored", new WindowEventPayload(label), WindowJsonContext.Default.WindowEventPayload);
+                break;
+            case CarbonLifecycleEventKind.WindowClosed:
+                Emit("window:closed", new WindowEventPayload(label), WindowJsonContext.Default.WindowEventPayload);
+                break;
+        }
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// Whether a close should be vetoed. A forced close (window:destroy) is honoured once and clears
+    /// the flag; otherwise the window is vetoed while the frontend is intercepting it.
+    /// </summary>
+    public bool ShouldVetoClose(string label)
+    {
+        if (_forceClose.Remove(label)) return false;
+        return _interceptClose.Contains(label);
+    }
+
+    private void Emit<T>(string name, T payload, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info)
+    {
+        var task = _app.EmitAsync(new CarbonEventName<T>(name), payload, info);
+        if (!task.IsCompletedSuccessfully) _ = ObserveEmit(task, name);
+    }
+
+    private static async Task ObserveEmit(Task task, string name)
+    {
+        try { await task; }
+        catch (Exception ex) { Console.Error.WriteLine($"[Carbon] Window event '{name}' failed: {ex.Message}"); }
+    }
 
     [CarbonCommand("create")]
     public Task<WindowState> Create(CreateWindowArgs args)
@@ -227,6 +306,34 @@ public partial class WindowPlugin : IPlugin
     }
 
     public Task StartDragging() => StartDragging(new TargetWindowArgs());
+
+    // --- close interception (Task 3.7) -------------------------------------------------------
+
+    /// <summary>
+    /// Turn close interception on/off for a window. While on, the OS close is held and a
+    /// <c>window:close-requested</c> event is emitted instead; the frontend closes for real with
+    /// <c>window:destroy</c>. Set automatically by the JS <c>onCloseRequested</c> helper.
+    /// </summary>
+    [CarbonCommand("set_close_interception")]
+    public Task SetCloseInterception(SetFlagArgs args)
+    {
+        var label = Resolve(args.Label).Label;
+        if (args.Value) _interceptClose.Add(label);
+        else _interceptClose.Remove(label);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Close a window for real, bypassing any interception.</summary>
+    [CarbonCommand("destroy")]
+    public Task Destroy(TargetWindowArgs args)
+    {
+        var (label, view) = Resolve(args.Label);
+        _forceClose.Add(label);
+        view.Close();
+        return Task.CompletedTask;
+    }
+
+    public Task Destroy() => Destroy(new TargetWindowArgs());
 
     // --- theme (Task 3.6) --------------------------------------------------------------------
 

@@ -1,4 +1,4 @@
-import { invoke } from '@dotcarbon/api'
+import { invoke, listen, type UnlistenFn } from '@dotcarbon/api'
 
 export interface WindowState {
     label: string
@@ -211,6 +211,43 @@ export class WebviewWindow {
      * reflects both OS changes and a setTheme override. Returns an unsubscribe function.
      */
     onThemeChanged = (handler: (theme: Theme) => void): (() => void) => onThemeChanged(handler)
+
+    // Task 3.7 — lifecycle events + close-requested veto.
+    /** Close the window for real, bypassing any close interception. */
+    destroy = (): Promise<void> => invoke('window:destroy', { label: this.label })
+
+    /**
+     * Intercept the window close. The handler runs before the window closes; call
+     * `event.preventDefault()` to keep it open, otherwise it closes. Returns an unlisten function.
+     */
+    async onCloseRequested(handler: (event: { preventDefault: () => void }) => void): Promise<UnlistenFn> {
+        await invoke('window:set_close_interception', { value: true, label: this.label })
+        return listen('window:close-requested', (e) => {
+            if ((e.payload as { label: string }).label !== this.label) return
+            let prevented = false
+            handler({ preventDefault: () => { prevented = true } })
+            if (!prevented) invoke('window:destroy', { label: this.label }).catch(() => {})
+        })
+    }
+
+    private onWindowEvent<T>(name: string, handler: (payload: T) => void): Promise<UnlistenFn> {
+        return listen(name, (e) => {
+            if ((e.payload as { label: string }).label === this.label) handler(e.payload as T)
+        })
+    }
+
+    onFocusChanged = (handler: (focused: boolean) => void): Promise<UnlistenFn[]> => Promise.all([
+        this.onWindowEvent('window:focus', () => handler(true)),
+        this.onWindowEvent('window:blur', () => handler(false)),
+    ])
+    onMoved = (handler: (position: PhysicalPosition) => void): Promise<UnlistenFn> =>
+        this.onWindowEvent<{ x: number; y: number }>('window:moved', p => handler({ x: p.x, y: p.y }))
+    onResized = (handler: (size: PhysicalSize) => void): Promise<UnlistenFn> =>
+        this.onWindowEvent<{ width: number; height: number }>('window:resized', p => handler({ width: p.width, height: p.height }))
+    onMinimized = (handler: () => void): Promise<UnlistenFn> => this.onWindowEvent('window:minimized', handler)
+    onMaximized = (handler: () => void): Promise<UnlistenFn> => this.onWindowEvent('window:maximized', handler)
+    onRestored = (handler: () => void): Promise<UnlistenFn> => this.onWindowEvent('window:restored', handler)
+    onCloseChanged = (handler: () => void): Promise<UnlistenFn> => this.onWindowEvent('window:closed', handler)
 }
 
 export { WebviewWindow as CarbonWindow }
@@ -324,6 +361,8 @@ declare module '@dotcarbon/api' {
         'window:scale_factor': { args: { label?: string }; result: number }
         'window:get_theme': { args: { label?: string }; result: Theme }
         'window:set_theme': { args: { theme: Theme | 'auto'; label?: string }; result: void }
+        'window:set_close_interception': { args: { value: boolean; label?: string }; result: void }
+        'window:destroy': { args: { label?: string }; result: void }
         'window:maximize': { args: { label?: string }; result: void }
         'window:unmaximize': { args: { label?: string }; result: void }
         'window:set_fullscreen': { args: { fullscreen: boolean; label?: string }; result: void }
