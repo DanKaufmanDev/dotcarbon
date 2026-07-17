@@ -1589,8 +1589,22 @@ public static class BuildCommand
 
     private static async Task<string> Sha256FileAsync(string path)
     {
-        await using var stream = File.OpenRead(path);
-        return Convert.ToHexString(await SHA256.HashDataAsync(stream)).ToLowerInvariant();
+        // A freshly created macOS .dmg can still be held by hdiutil (or the OS mounting/indexing it)
+        // for a moment after creation, so opening it to hash may transiently fail with a sharing
+        // violation. Retry with a short backoff rather than crashing the whole bundle.
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                await using var stream = new FileStream(
+                    path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                return Convert.ToHexString(await SHA256.HashDataAsync(stream)).ToLowerInvariant();
+            }
+            catch (IOException) when (attempt < 10)
+            {
+                await Task.Delay(250);
+            }
+        }
     }
 
     private static bool HasEmbeddedAssetRuntime(string hostProject, out string error)
