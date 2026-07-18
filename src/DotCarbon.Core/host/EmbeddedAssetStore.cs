@@ -138,6 +138,8 @@ internal static class EmbeddedAssetStore
     private static bool ShouldUseSpaFallback(string path) =>
         path != "__invalid__" && string.IsNullOrEmpty(Path.GetExtension(path));
 
+    internal static string ContentTypeFor(string extension) => GetContentType(extension);
+
     private static string GetContentType(string extension) => extension.ToLowerInvariant() switch
     {
         ".html" => "text/html; charset=utf-8",

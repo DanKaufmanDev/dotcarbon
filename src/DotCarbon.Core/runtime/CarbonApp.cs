@@ -225,6 +225,7 @@ public sealed class CarbonApp
         _capabilities.Configure(_contentMode == ContentMode.DevServer);
         _bridgePolicy.Configure(_contentMode == ContentMode.DevServer);
         EmbeddedAssetStore.Configure(_config.Security);
+        Host.CarbonAssetScope.Configure(_config.Security.AssetScope);
         EmbeddedAssetStore.ConfigureLocalAssets(_contentMode == ContentMode.Dist ? _distAssetRoot : null);
         RaiseLifecycle(CarbonLifecycleEventKind.Starting);
 

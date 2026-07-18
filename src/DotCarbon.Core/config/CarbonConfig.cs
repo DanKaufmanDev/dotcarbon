@@ -97,6 +97,13 @@ public class SecurityConfig
     public bool DevAllowAll { get; set; }
     public bool AllowExternalUrls { get; set; }
     public bool AllowSourceMaps { get; set; }
+
+    /// <summary>
+    /// Directory roots that <c>convertFileSrc</c> may serve local files from over <c>carbon://</c>
+    /// (Task 4.6). Accepts <c>$appdata</c>/<c>$documents</c>/<c>$downloads</c>/<c>$home</c>/<c>$temp</c>
+    /// shortcuts, <c>~</c> expansion, and absolute paths. Empty (the default) denies everything.
+    /// </summary>
+    public string[]? AssetScope { get; set; }
     public int MaxBridgeMessageBytes { get; set; } = 1024 * 1024;
     public int MaxEventPayloadBytes { get; set; } = 256 * 1024;
     public string? ContentSecurityPolicy { get; set; } =

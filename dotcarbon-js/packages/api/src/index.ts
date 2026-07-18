@@ -236,6 +236,14 @@ export function isCarbonApp(): boolean {
 }
 
 /**
+ * Turn a local file path into a `carbon://` URL the webview can load in `<img src>`, `<video>`, etc.
+ * (Task 4.6). The file is served only if it's inside the app's configured `security.assetScope`.
+ */
+export function convertFileSrc(filePath: string): string {
+    return `carbon://localhost/__asset__/${encodeURIComponent(filePath)}`
+}
+
+/**
  * Read a binary command result (Task 4.2). A command that returns a CarbonBinary resolves to a
  * `carbon://` URL; fetch it to get the raw bytes with no base64 overhead. Pass the invoke result
  * straight through.
