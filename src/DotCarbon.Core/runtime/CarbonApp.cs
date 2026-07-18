@@ -162,6 +162,46 @@ public sealed class CarbonApp
         return this;
     }
 
+    // --- ergonomic lifecycle hooks (Task 4.5) ------------------------------------------------
+    // Typed wrappers over OnLifecycle so apps don't switch on the event kind by hand.
+
+    /// <summary>Run once the app is ready (services up, windows created, content loading).</summary>
+    public CarbonApp OnReady(Action<AppHandle> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return OnLifecycle(e => { if (e.Kind == CarbonLifecycleEventKind.Ready) handler(e.App); });
+    }
+
+    /// <summary>
+    /// Run when the app is asked to quit (the main window closing, for example). Call
+    /// <see cref="CarbonExitRequest.Prevent"/> to keep it running.
+    /// </summary>
+    public CarbonApp OnExitRequested(Action<CarbonExitRequest> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return OnLifecycle(e =>
+        {
+            if (e.Kind != CarbonLifecycleEventKind.ExitRequested) return;
+            var request = new CarbonExitRequest();
+            handler(request);
+            if (request.Prevented) e.Cancel = true;
+        });
+    }
+
+    /// <summary>Run as the app is exiting, after any exit-requested prevention has passed.</summary>
+    public CarbonApp OnBeforeExit(Action handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return OnLifecycle(e => { if (e.Kind == CarbonLifecycleEventKind.Exiting) handler(); });
+    }
+
+    /// <summary>Run once the app's last window has closed.</summary>
+    public CarbonApp OnWindowAllClosed(Action handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return OnLifecycle(e => { if (e.Kind == CarbonLifecycleEventKind.WindowAllClosed) handler(); });
+    }
+
     /// <summary>
     /// Build services, register commands, create windows, initialize plugins and load content —
     /// then return without blocking. A host that drives its own loop (desktop's message pump, or an
@@ -297,13 +337,14 @@ public sealed class CarbonApp
         }
 
         var isMainWindow = ReferenceEquals(window, _mainWindow);
-        if (!isMainWindow) _handle?.RemoveWindow(window);
+        _handle?.RemoveWindow(window);
         RaiseLifecycle(CarbonLifecycleEventKind.WindowClosed, window);
-        if (isMainWindow)
-        {
-            RaiseExitLifecycle();
-            _handle?.RemoveWindow(window);
-        }
+
+        // Task 4.5: once nothing is left open, tell the app before the exit lifecycle runs.
+        if (_handle is { } handle && handle.Windows.Count == 0)
+            RaiseLifecycle(CarbonLifecycleEventKind.WindowAllClosed, window);
+
+        if (isMainWindow) RaiseExitLifecycle();
         return false;
     }
 

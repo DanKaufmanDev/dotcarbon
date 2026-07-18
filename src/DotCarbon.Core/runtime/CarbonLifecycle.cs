@@ -18,6 +18,9 @@ public enum CarbonLifecycleEventKind
     WindowMinimized,
     WindowMaximized,
     WindowRestored,
+
+    /// <summary>Raised once the app's last window has closed (Task 4.5).</summary>
+    WindowAllClosed,
 }
 
 public sealed class CarbonLifecycleEvent : EventArgs
@@ -43,3 +46,14 @@ public sealed class CarbonLifecycleEvent : EventArgs
 
 public readonly record struct CarbonWindowPosition(int X, int Y);
 public readonly record struct CarbonWindowSize(int Width, int Height);
+
+/// <summary>
+/// Handed to an <c>OnExitRequested</c> hook (Task 4.5). Call <see cref="Prevent"/> to keep the app
+/// running instead of quitting.
+/// </summary>
+public sealed class CarbonExitRequest
+{
+    public bool Prevented { get; private set; }
+
+    public void Prevent() => Prevented = true;
+}
