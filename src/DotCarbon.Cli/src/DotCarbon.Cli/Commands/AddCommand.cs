@@ -91,6 +91,15 @@ public static class AddCommand
                 "PathPlugin",
                 "path",
                 ["path:*"]),
+            ["process"] = new(
+                ["process", "proc", "exit", "relaunch", "DotCarbon.Plugins.Process"],
+                "DotCarbon.Plugins.Process",
+                "@dotcarbon/plugin-process",
+                "DotCarbon.Plugins.Process",
+                "ProcessPlugin",
+                "process",
+                ["process:*"],
+                Platforms: ["desktop"]),
             ["opener"] = new(
                 ["opener", "open", "launcher", "DotCarbon.Plugins.Opener"],
                 "DotCarbon.Plugins.Opener",
