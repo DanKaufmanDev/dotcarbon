@@ -7,6 +7,11 @@ export interface ExecuteOptions {
     env?: Record<string, string>
 }
 
+export interface SidecarOptions {
+    cwd?: string
+    env?: Record<string, string>
+}
+
 export interface ShellResult {
     exitCode: number
     stdout: string
@@ -35,6 +40,17 @@ export const shell = {
         return result.stdout
     },
 
+    // Runs a binary bundled next to the app (declared in bundle.externalBin). Equivalent to Tauri's
+    // Command.sidecar(). The name is the same path prefix used in config, e.g. 'binaries/my-tool'.
+    sidecar: (name: string, args: string[] = [], options: SidecarOptions = {}): Promise<ShellResult> =>
+        invoke('shell:execute', {
+            program: name,
+            args,
+            cwd: options.cwd ?? null,
+            env: options.env ?? null,
+            sidecar: true,
+        }),
+
     open: (path: string): Promise<void> =>
         invoke('shell:open', { path }),
 
@@ -44,7 +60,7 @@ export const shell = {
 
 declare module '@dotcarbon/api' {
     interface CarbonCommands {
-        'shell:execute': { args: { program: string; args: string[]; cwd: string | null; env: Record<string, string> | null }; result: ShellResult }
+        'shell:execute': { args: { program: string; args: string[]; cwd: string | null; env: Record<string, string> | null; sidecar?: boolean }; result: ShellResult }
         'shell:open': { args: { path: string }; result: void }
         'shell:open_url': { args: { path: string }; result: void }
     }

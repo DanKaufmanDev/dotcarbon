@@ -152,6 +152,14 @@ public class BundleConfig
     public string? Copyright { get; set; }
     public string Category { get; set; } = "Utility";
     public List<string> Resources { get; set; } = [];
+
+    /// <summary>
+    /// External executables ("sidecars") bundled next to the app binary. Each entry is a path prefix
+    /// (e.g. "binaries/my-tool"); the bundler picks the variant matching the build's target triple
+    /// ("binaries/my-tool-aarch64-apple-darwin") and copies it beside the executable, triple dropped.
+    /// Run them at runtime with the shell plugin's <c>sidecar()</c>.
+    /// </summary>
+    public List<string> ExternalBin { get; set; } = [];
     public List<FileAssociationConfig> FileAssociations { get; set; } = [];
     public List<ProtocolConfig> Protocols { get; set; } = [];
     public MacOsBundleConfig MacOS { get; set; } = new();

@@ -252,6 +252,23 @@ public static class BuildCommand
             }
         }
 
+        var triple = TargetTriple(target);
+        foreach (var bin in config.Bundle.ExternalBin)
+        {
+            if (triple is null)
+            {
+                error = $"Cannot bundle external binaries for target '{target}'.";
+                return false;
+            }
+            var suffixed = $"{bin}-{triple}" + (target.StartsWith("win", StringComparison.OrdinalIgnoreCase) ? ".exe" : "");
+            var path = Path.GetFullPath(Path.Combine(workingDir, suffixed));
+            if (!File.Exists(path))
+            {
+                error = $"Configured external binary does not exist for target {target}: {path}";
+                return false;
+            }
+        }
+
         var duplicateExtensions = config.Bundle.FileAssociations
             .SelectMany(association => association.Extensions)
             .Select(extension => extension.TrimStart('.').ToLowerInvariant())
@@ -480,6 +497,9 @@ public static class BuildCommand
             "chmod", $"+x \"{launcher}\" \"{Path.Combine(macos, armPayload)}\" \"{Path.Combine(macos, x64Payload)}\"",
             outputDir, "[pkg]", ConsoleColor.Blue);
 
+        if (!CopyExternalBinaries(config.Bundle.ExternalBin, workingDir, macos, "osx-universal"))
+            return null;
+
         await File.WriteAllTextAsync(
             Path.Combine(app, "Contents", "Info.plist"),
             InfoPlist(config, launcherName, appName, icons is not null));
@@ -521,6 +541,8 @@ public static class BuildCommand
         if (icons is not null)
             File.Copy(icons.Icns, Path.Combine(resources, "icon.icns"), true);
         if (!CopyBundleResources(config.Bundle.Resources, workingDir, resources))
+            return null;
+        if (!CopyExternalBinaries(config.Bundle.ExternalBin, workingDir, macos, target))
             return null;
 
         await File.WriteAllTextAsync(
@@ -674,6 +696,64 @@ public static class BuildCommand
             File.Copy(f, f.Replace(src, dst), true);
     }
 
+    /// <summary>
+    /// Maps a build target (RID-style) to the Rust-style target triple that names sidecar variants,
+    /// matching Tauri's convention. Returns null for targets we don't produce sidecars for.
+    /// </summary>
+    internal static string? TargetTriple(string target) => target switch
+    {
+        "osx-arm64" => "aarch64-apple-darwin",
+        "osx-x64" => "x86_64-apple-darwin",
+        "osx-universal" => "universal-apple-darwin",
+        "win-x64" => "x86_64-pc-windows-msvc",
+        "win-arm64" => "aarch64-pc-windows-msvc",
+        "win-x86" => "i686-pc-windows-msvc",
+        "linux-x64" => "x86_64-unknown-linux-gnu",
+        "linux-arm64" => "aarch64-unknown-linux-gnu",
+        _ => null,
+    };
+
+    /// <summary>
+    /// Copies each configured external binary next to the app executable. The developer provides
+    /// "<c>&lt;entry&gt;-&lt;triple&gt;</c>" (Windows adds ".exe"); the bundled file is renamed to just the
+    /// entry's leaf so the shell plugin can resolve it beside the executable at runtime.
+    /// </summary>
+    internal static bool CopyExternalBinaries(
+        IEnumerable<string> externalBins, string workingDir, string destination, string target)
+    {
+        var bins = externalBins.ToList();
+        if (bins.Count == 0) return true;
+
+        var triple = TargetTriple(target);
+        if (triple is null)
+        {
+            WriteError($"Cannot bundle external binaries for unknown target '{target}'.");
+            return false;
+        }
+
+        var isWindows = target.StartsWith("win", StringComparison.OrdinalIgnoreCase);
+        Directory.CreateDirectory(destination);
+        foreach (var entry in bins)
+        {
+            var source = Path.GetFullPath(
+                Path.Combine(workingDir, $"{entry}-{triple}" + (isWindows ? ".exe" : "")));
+            if (!File.Exists(source))
+            {
+                WriteError($"External binary not found for target {target}: {source}");
+                return false;
+            }
+
+            var destPath = Path.Combine(destination, Path.GetFileName(entry) + (isWindows ? ".exe" : ""));
+            File.Copy(source, destPath, true);
+            if (!isWindows && !OperatingSystem.IsWindows())
+                File.SetUnixFileMode(destPath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                    UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                    UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        }
+        return true;
+    }
+
     private static bool CopyBundleResources(IEnumerable<string> resources, string workingDir, string destination)
     {
         foreach (var configured in resources)
@@ -719,6 +799,8 @@ public static class BuildCommand
             Directory.CreateDirectory(resourceDir);
             if (!CopyBundleResources(config.Bundle.Resources, workingDir, resourceDir)) return null;
         }
+        // Sidecars sit beside the .exe so the shell plugin resolves them next to the executable.
+        if (!CopyExternalBinaries(config.Bundle.ExternalBin, workingDir, outDir, target)) return null;
 
         var thumbprint = config.Bundle.Windows.CertificateThumbprint
             ?? Environment.GetEnvironmentVariable("WINDOWS_CERTIFICATE_THUMBPRINT");
@@ -1020,6 +1102,9 @@ public static class BuildCommand
         var exeName = Path.GetFileName(exe);
         var name = string.IsNullOrWhiteSpace(config.App.Name) ? exeName : config.App.Name;
         var slug = LinuxSlug(name);
+
+        // Stage sidecars beside the published exe; per-format builders copy this directory's binary.
+        if (!CopyExternalBinaries(config.Bundle.ExternalBin, workingDir, outDir, target)) return null;
 
         var formats = config.Bundle.Linux.Formats
             .Select(format => format.Trim().ToLowerInvariant())

@@ -188,6 +188,12 @@
                 "copyright": { "type": ["string", "null"] },
                 "category": { "type": "string", "default": "Utility" },
                 "resources": { "type": "array", "items": { "type": "string" }, "default": [] },
+                "externalBin": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": [],
+                    "description": "External executables ('sidecars') bundled next to the app. Each entry is a path prefix, e.g. 'binaries/my-tool'; provide a per-target 'binaries/my-tool-<triple>' variant and run it with the shell plugin's sidecar()."
+                },
                 "fileAssociations": { "type": "array", "items": { "$ref": "#/definitions/FileAssociation" }, "default": [] },
                 "protocols": { "type": "array", "items": { "$ref": "#/definitions/Protocol" }, "default": [] },
                 "macOS": { "$ref": "#/definitions/MacOSBundle" },
