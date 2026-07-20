@@ -36,11 +36,16 @@ internal sealed class NoopWebView : ICarbonWebView
     public bool IsFullscreen => false; public bool IsMaximized => false; public bool IsMinimized => false;
     public bool IsAlwaysOnTop => false; public bool IsResizable => true; public bool IsVisible => true;
     public bool IsFocused => false;
-    public void SetTitle(string t) { } public void SetSize(int w, int h) { } public void SetPosition(int x, int y) { }
+    /// <summary>Records the last geometry setter calls so tests can observe window-state restore.</summary>
+    public (int Width, int Height)? LastSize { get; private set; }
+    public (int X, int Y)? LastPosition { get; private set; }
+    public bool? LastMaximized { get; private set; }
+
+    public void SetTitle(string t) { } public void SetSize(int w, int h) { LastSize = (w, h); } public void SetPosition(int x, int y) { LastPosition = (x, y); }
     public void Center() { } public void SetMinSize(int w, int h) { } public void SetMaxSize(int w, int h) { }
     public (int, int) GetInnerSize() => (800, 600); public (int, int) GetOuterSize() => (800, 600);
     public (int, int) GetInnerPosition() => (0, 0); public (int, int) GetOuterPosition() => (0, 0);
-    public void SetMinimized(bool m) { } public void SetMaximized(bool m) { } public void SetFullscreen(bool f) { }
+    public void SetMinimized(bool m) { } public void SetMaximized(bool m) { LastMaximized = m; } public void SetFullscreen(bool f) { }
     public void SetAlwaysOnTop(bool a) { } public void SetResizable(bool r) { }
     public void Show() { } public void Hide() { } public void SetFocus() { } public void RequestUserAttention() { }
     public void StartDragging() { }

@@ -83,6 +83,15 @@ public static class AddCommand
                 "OsPlugin",
                 "os",
                 ["os:*"]),
+            ["window-state"] = new(
+                ["window-state", "windowstate", "window_state", "DotCarbon.Plugins.WindowState"],
+                "DotCarbon.Plugins.WindowState",
+                "@dotcarbon/plugin-window-state",
+                "DotCarbon.Plugins.WindowState",
+                "WindowStatePlugin",
+                "window-state",
+                ["window-state:*"],
+                Platforms: ["desktop"]),
             ["log"] = new(
                 ["log", "logger", "logging", "DotCarbon.Plugins.Log"],
                 "DotCarbon.Plugins.Log",
