@@ -11,11 +11,49 @@ public static class CapabilitiesCommand
     {
         var command = new Command("capabilities", "Sync and validate Carbon command capabilities");
         command.AddAlias("capability");
+        command.AddCommand(NewSubcommand());
         command.AddCommand(ListSubcommand());
         command.AddCommand(AddSubcommand());
         command.AddCommand(SyncSubcommand());
         command.AddCommand(CheckSubcommand());
         return command;
+    }
+
+    private static Command NewSubcommand()
+    {
+        var cmd = new Command("new", "Create a new capability file and attach it to a window");
+        var name = new Argument<string>("name", "Capability name / file name, e.g. settings");
+        var project = new Option<DirectoryInfo?>(
+            "--project", "Path to the Carbon project (default: current directory)");
+        var window = new Option<string>(
+            "--window", getDefaultValue: () => "main", description: "Window label the capability applies to");
+        var force = new Option<bool>("--force", "Overwrite an existing capability file");
+        cmd.AddArgument(name);
+        cmd.AddOption(project);
+        cmd.AddOption(window);
+        cmd.AddOption(force);
+        cmd.SetHandler((capabilityName, projectDir, windowLabel, overwrite) =>
+        {
+            var root = projectDir?.FullName ?? Directory.GetCurrentDirectory();
+            var path = Path.Combine(root, "src-carbon", "capabilities", capabilityName + ".json");
+            if (File.Exists(path) && !overwrite)
+            {
+                WriteColor(
+                    $"[Carbon] Capability already exists: {Path.GetRelativePath(root, path)} (use --force to overwrite)",
+                    ConsoleColor.Yellow);
+                return;
+            }
+
+            SaveJson(CreateCapability(capabilityName, windowLabel), path);
+            var configPath = Path.Combine(root, "carbon.json");
+            if (File.Exists(configPath))
+                EnsureCapabilityAttached(configPath, capabilityName, windowLabel);
+
+            WriteColor(
+                $"[Carbon] Created capability '{capabilityName}' -> {Path.GetRelativePath(root, path)}",
+                ConsoleColor.Green);
+        }, name, project, window, force);
+        return cmd;
     }
 
     private static Command ListSubcommand()
@@ -243,7 +281,7 @@ public static class CapabilitiesCommand
         return CreateCapability(name, windowLabel);
     }
 
-    private static JsonObject CreateCapability(string name, string windowLabel) => new()
+    internal static JsonObject CreateCapability(string name, string windowLabel) => new()
     {
         ["identifier"] = name,
         ["description"] = $"{name} window permissions.",
@@ -251,7 +289,7 @@ public static class CapabilitiesCommand
         ["permissions"] = new JsonArray()
     };
 
-    private static void EnsureCapabilityAttached(string configPath, string capabilityName, string windowLabel)
+    internal static void EnsureCapabilityAttached(string configPath, string capabilityName, string windowLabel)
     {
         var root = JsonNode.Parse(File.ReadAllText(configPath))?.AsObject()
             ?? throw new InvalidOperationException("carbon.json must contain a JSON object.");
@@ -280,7 +318,7 @@ public static class CapabilitiesCommand
         return value;
     }
 
-    private static JsonArray GetArray(JsonObject root, string property)
+    internal static JsonArray GetArray(JsonObject root, string property)
     {
         if (root[property] is JsonArray existing) return existing;
         var value = new JsonArray();
@@ -298,13 +336,13 @@ public static class CapabilitiesCommand
         return true;
     }
 
-    private static void SaveJson(JsonObject root, string path)
+    internal static void SaveJson(JsonObject root, string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
     }
 
-    private static void WriteColor(string message, ConsoleColor color)
+    internal static void WriteColor(string message, ConsoleColor color)
     {
         Console.ForegroundColor = color;
         Console.WriteLine(message);

@@ -11,6 +11,7 @@ root.AddCommand(PlatformCommand.Build());
 root.AddCommand(DoctorCommand.Build());
 root.AddCommand(TypesCommand.Build());
 root.AddCommand(CapabilitiesCommand.Build());
+root.AddCommand(PermissionCommand.Build());
 root.AddCommand(IconCommand.Build());
 root.AddCommand(SignerCommand.Build());
 
