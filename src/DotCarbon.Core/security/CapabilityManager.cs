@@ -35,13 +35,34 @@ internal sealed class CapabilityManager
 
     public void SetPluginMetadata(IEnumerable<PluginMetadata> plugins)
     {
-        _permissionCommands = plugins
+        var pluginList = plugins.ToList();
+        var map = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+
+        // Author-declared permissions (a plugin may split one identifier across several attributes).
+        foreach (var group in pluginList
             .SelectMany(plugin => plugin.Permissions)
-            .GroupBy(permission => permission.Identifier, StringComparer.Ordinal)
-            .ToDictionary(
-                group => group.Key,
-                group => (IReadOnlyList<string>)group.SelectMany(permission => permission.Commands).Distinct(StringComparer.Ordinal).ToArray(),
-                StringComparer.Ordinal);
+            .GroupBy(permission => permission.Identifier, StringComparer.Ordinal))
+        {
+            map[group.Key] = group
+                .SelectMany(permission => permission.Commands)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        // Auto-generate a fine-grained permission per command: "<ns>:allow-<command>" grants exactly
+        // that command, so a capability can allow a single command without the coarse "<ns>:default".
+        // An explicit declaration of the same identifier wins.
+        foreach (var plugin in pluginList)
+        {
+            foreach (var command in plugin.Commands)
+            {
+                var identifier = $"{plugin.Namespace}:allow-{command.Name.Replace('_', '-')}";
+                if (!map.ContainsKey(identifier))
+                    map[identifier] = [command.FullName];
+            }
+        }
+
+        _permissionCommands = map;
     }
 
     public void EnsureCommandAllowed(CarbonWindow window, string command)
@@ -193,10 +214,26 @@ internal sealed class CapabilityManager
             .Where(capability => capability is not null)
             .Cast<CapabilityConfig>();
 
-    private bool PermissionAllows(string permission, string command)
+    private bool PermissionAllows(string permission, string command) =>
+        PermissionAllows(permission, command, new HashSet<string>(StringComparer.Ordinal));
+
+    private bool PermissionAllows(string permission, string command, HashSet<string> visited)
     {
+        if (!visited.Add(permission)) return false; // guard against permission-set cycles
+
         if (_permissionCommands.TryGetValue(permission, out var patterns))
-            return patterns.Any(pattern => CommandPatternMatches(pattern, command));
+        {
+            foreach (var pattern in patterns)
+            {
+                if (CommandPatternMatches(pattern, command)) return true;
+                // A pattern that names another permission composes it — permission-set composition,
+                // so "<ns>:default" can be defined as a list of finer permissions.
+                if (_permissionCommands.ContainsKey(pattern) &&
+                    PermissionAllows(pattern, command, visited))
+                    return true;
+            }
+            return false;
+        }
 
         // Back-compat: older capability files sometimes used permissions as command patterns.
         return CommandPatternMatches(permission, command);
