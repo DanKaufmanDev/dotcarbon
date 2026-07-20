@@ -20,10 +20,14 @@ public static class CapabilitiesCommand
 
     private static Command ListSubcommand()
     {
-        var cmd = new Command("list", "List known first-party capability permissions");
-        cmd.SetHandler(() =>
+        var cmd = new Command("list", "List known capability permissions (first-party + discovered plugin manifests)");
+        var project = new Option<DirectoryInfo?>(
+            "--project", "Path to the Carbon project (default: current directory)");
+        cmd.AddOption(project);
+        cmd.SetHandler(projectDir =>
         {
-            foreach (var permission in CapabilityPermissionCatalog.All)
+            var root = projectDir?.FullName ?? Directory.GetCurrentDirectory();
+            foreach (var permission in CapabilityPermissionCatalog.ForProject(root))
             {
                 Console.WriteLine($"{permission.Id}");
                 Console.WriteLine($"  plugin:    {permission.PluginNamespace}");
@@ -33,7 +37,7 @@ public static class CapabilitiesCommand
                     Console.WriteLine($"  requires:  {string.Join(", ", permission.Requirements.Select(requirement => requirement.Path))}");
                 Console.WriteLine();
             }
-        });
+        }, project);
         return cmd;
     }
 
@@ -161,7 +165,8 @@ public static class CapabilitiesCommand
             if (capability.Commands.Count == 0 && capability.Permissions.Count == 0)
                 warnings.Add($"Capability '{name}' does not allow any commands.");
 
-            warnings.AddRange(CapabilityPermissionCatalog.RequirementWarnings(config, permissionIds));
+            warnings.AddRange(CapabilityPermissionCatalog.RequirementWarnings(
+                CapabilityPermissionCatalog.ForProject(root), config, permissionIds));
         }
 
         if (config.Security.Enabled &&
@@ -184,7 +189,8 @@ public static class CapabilitiesCommand
         if (!File.Exists(configPath))
             throw new FileNotFoundException($"No carbon.json found in {root}");
 
-        var permission = CapabilityPermissionCatalog.Resolve(permissionValue)
+        var permission = CapabilityPermissionCatalog.Resolve(
+                CapabilityPermissionCatalog.ForProject(root), permissionValue)
             ?? throw new InvalidOperationException(
                 $"Unknown permission '{permissionValue}'. Run `carbon capabilities list` to see known permissions.");
         var permissionId = permission.Id;

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DotCarbon.Core.Config;
 
 namespace DotCarbon.Cli.Commands;
@@ -12,6 +13,26 @@ internal sealed record CapabilityPermissionDefinition(
     IReadOnlyList<CapabilityRequirement> Requirements);
 
 internal sealed record CapabilityRequirement(string Path, string Hint);
+
+// A permission manifest a third-party plugin ships (dropped under <project>/(src-carbon/)permissions/*.json),
+// so `carbon capabilities` discovers its permissions and scope requirements without a hardcoded catalog entry.
+internal sealed record PermissionManifest(
+    string? Namespace = null,
+    string? Package = null,
+    string[]? Platforms = null,
+    PermissionManifestEntry[]? Permissions = null);
+
+internal sealed record PermissionManifestEntry(
+    string Identifier,
+    string? Description = null,
+    string[]? Commands = null,
+    PermissionManifestRequirement[]? Requirements = null);
+
+internal sealed record PermissionManifestRequirement(string Path, string Hint);
+
+[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
+[JsonSerializable(typeof(PermissionManifest))]
+internal partial class PermissionManifestJsonContext : JsonSerializerContext;
 
 internal static class CapabilityPermissionCatalog
 {
@@ -56,27 +77,97 @@ internal static class CapabilityPermissionCatalog
             .OrderBy(permission => permission.Id, StringComparer.Ordinal)
             .ToArray();
 
-    public static CapabilityPermissionDefinition? Resolve(string value)
+    private static readonly string[] AllPlatforms = ["desktop", "android", "ios"];
+
+    /// <summary>
+    /// Discovers third-party permission manifests dropped under <c>src-carbon/permissions/*.json</c> or
+    /// <c>permissions/*.json</c> — a package can ship one so its permissions show up here without a
+    /// hardcoded catalog entry.
+    /// </summary>
+    public static IReadOnlyList<CapabilityPermissionDefinition> Discover(string projectDir)
     {
-        foreach (var permission in All)
+        var directories = new[]
         {
-            if (permission.Id.Equals(value, StringComparison.OrdinalIgnoreCase) ||
-                permission.PluginNamespace.Equals(value, StringComparison.OrdinalIgnoreCase) ||
-                permission.Id.Equals(value + ":default", StringComparison.OrdinalIgnoreCase))
-                return permission;
+            Path.Combine(projectDir, "src-carbon", "permissions"),
+            Path.Combine(projectDir, "permissions"),
+        };
+
+        var definitions = new List<CapabilityPermissionDefinition>();
+        foreach (var directory in directories.Where(Directory.Exists))
+        {
+            foreach (var file in Directory.GetFiles(directory, "*.json"))
+            {
+                PermissionManifest? manifest;
+                try
+                {
+                    manifest = JsonSerializer.Deserialize(
+                        File.ReadAllText(file), PermissionManifestJsonContext.Default.PermissionManifest);
+                }
+                catch (JsonException)
+                {
+                    continue;
+                }
+
+                if (manifest?.Permissions is null || string.IsNullOrWhiteSpace(manifest.Namespace))
+                    continue;
+
+                foreach (var entry in manifest.Permissions)
+                {
+                    if (string.IsNullOrWhiteSpace(entry.Identifier)) continue;
+                    definitions.Add(new CapabilityPermissionDefinition(
+                        entry.Identifier,
+                        manifest.Namespace!,
+                        entry.Description ?? $"{manifest.Package ?? manifest.Namespace} permission.",
+                        entry.Commands ?? [],
+                        manifest.Platforms ?? AllPlatforms,
+                        (entry.Requirements ?? [])
+                            .Select(requirement => new CapabilityRequirement(requirement.Path, requirement.Hint))
+                            .ToArray()));
+                }
+            }
         }
 
-        return null;
+        return definitions;
+    }
+
+    /// <summary>The first-party catalog plus any discovered third-party manifests; first-party wins on id.</summary>
+    public static IReadOnlyList<CapabilityPermissionDefinition> ForProject(string projectDir)
+    {
+        var merged = All.ToList();
+        var known = merged.Select(definition => definition.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var discovered in Discover(projectDir))
+            if (known.Add(discovered.Id))
+                merged.Add(discovered);
+
+        return merged.OrderBy(definition => definition.Id, StringComparer.Ordinal).ToArray();
+    }
+
+    public static CapabilityPermissionDefinition? Resolve(string value) => Resolve(All, value);
+
+    public static CapabilityPermissionDefinition? Resolve(
+        IReadOnlyList<CapabilityPermissionDefinition> catalog, string value)
+    {
+        // An exact id or the namespace's default wins over a bare-namespace alias, which now that a
+        // namespace can expose several permissions would otherwise be ambiguous.
+        return catalog.FirstOrDefault(permission => permission.Id.Equals(value, StringComparison.OrdinalIgnoreCase))
+            ?? catalog.FirstOrDefault(permission => permission.Id.Equals(value + ":default", StringComparison.OrdinalIgnoreCase))
+            ?? catalog.FirstOrDefault(permission => permission.PluginNamespace.Equals(value, StringComparison.OrdinalIgnoreCase));
     }
 
     public static IReadOnlyList<string> RequirementWarnings(
+        CarbonConfig config,
+        IEnumerable<string> permissionIds) =>
+        RequirementWarnings(All, config, permissionIds);
+
+    public static IReadOnlyList<string> RequirementWarnings(
+        IReadOnlyList<CapabilityPermissionDefinition> catalog,
         CarbonConfig config,
         IEnumerable<string> permissionIds)
     {
         var warnings = new List<string>();
         foreach (var permissionId in permissionIds.Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var permission = Resolve(permissionId);
+            var permission = Resolve(catalog, permissionId);
             if (permission is null) continue;
 
             foreach (var requirement in permission.Requirements)
@@ -90,25 +181,38 @@ internal static class CapabilityPermissionCatalog
 
     public static bool IsKnownPermission(string value) => Resolve(value) is not null;
 
-    private static bool IsConfigured(CarbonConfig config, string path) => path switch
+    private static bool IsConfigured(CarbonConfig config, string path)
     {
-        "plugins.fs.scopes" => HasPluginArray(config, "fs", "scopes"),
-        "plugins.http.scope" => HasPluginArray(config, "http", "scope"),
-        "plugins.shell.allowedPrograms" => HasPluginArray(config, "shell", "allowedPrograms"),
-        "bundle.updater.endpoints" => config.Bundle.Updater.Endpoints.Count > 0,
-        "bundle.updater.publicKey" => !string.IsNullOrWhiteSpace(config.Bundle.Updater.PublicKey),
-        _ => true
-    };
+        switch (path)
+        {
+            case "bundle.updater.endpoints": return config.Bundle.Updater.Endpoints.Count > 0;
+            case "bundle.updater.publicKey": return !string.IsNullOrWhiteSpace(config.Bundle.Updater.PublicKey);
+        }
 
-    private static bool HasPluginArray(CarbonConfig config, string plugin, string property)
+        // Generic "plugins.<ns>.<prop>" — covers first-party (fs.scopes, http.scope, …) and any
+        // third-party requirement a manifest declares. Configured when the property is a non-empty
+        // array/string or true.
+        var parts = path.Split('.');
+        if (parts.Length == 3 && parts[0].Equals("plugins", StringComparison.OrdinalIgnoreCase))
+            return HasPluginValue(config, parts[1], parts[2]);
+
+        return true; // unknown path shape → don't warn
+    }
+
+    private static bool HasPluginValue(CarbonConfig config, string plugin, string property)
     {
         if (!TryGetPluginConfig(config, plugin, out var configElement) ||
-            !TryGetProperty(configElement, property, out var propertyElement) ||
-            propertyElement.ValueKind != JsonValueKind.Array)
+            !TryGetProperty(configElement, property, out var propertyElement))
             return false;
 
-        return propertyElement.EnumerateArray()
-            .Any(item => item.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(item.GetString()));
+        return propertyElement.ValueKind switch
+        {
+            JsonValueKind.Array => propertyElement.EnumerateArray()
+                .Any(item => item.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(item.GetString())),
+            JsonValueKind.String => !string.IsNullOrWhiteSpace(propertyElement.GetString()),
+            JsonValueKind.True => true,
+            _ => false,
+        };
     }
 
     private static bool TryGetPluginConfig(CarbonConfig config, string plugin, out JsonElement element)
