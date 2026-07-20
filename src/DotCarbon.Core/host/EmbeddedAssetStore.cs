@@ -1,10 +1,12 @@
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using DotCarbon.Core.Config;
 
 namespace DotCarbon.Core.Host;
 
-internal static class EmbeddedAssetStore
+internal static partial class EmbeddedAssetStore
 {
     private const string AssetPrefix = "DotCarbon.Assets/";
     private const string ConfigResource = "DotCarbon.Config/carbon.json";
@@ -169,18 +171,78 @@ internal static class EmbeddedAssetStore
             return stream;
 
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-        var html = reader.ReadToEnd();
-        if (html.Contains("http-equiv=\"Content-Security-Policy\"", StringComparison.OrdinalIgnoreCase))
-            return new MemoryStream(Encoding.UTF8.GetBytes(html), writable: false);
+        var html = ApplyContentSecurityPolicy(reader.ReadToEnd(), _security.ContentSecurityPolicy);
+        return new MemoryStream(Encoding.UTF8.GetBytes(html), writable: false);
+    }
 
-        var escaped = _security.ContentSecurityPolicy
+    /// <summary>
+    /// Injects the configured CSP as a <c>&lt;meta&gt;</c> tag, hashing the page's inline scripts/styles
+    /// so a strict directive (one without <c>'unsafe-inline'</c>) still allows exactly that bundled
+    /// content. A directive that already has <c>'unsafe-inline'</c>, or an author-provided CSP meta, is
+    /// left as-is.
+    /// </summary>
+    internal static string ApplyContentSecurityPolicy(string html, string csp)
+    {
+        if (html.Contains("http-equiv=\"Content-Security-Policy\"", StringComparison.OrdinalIgnoreCase))
+            return html;
+
+        var effective = AugmentDirective(csp, "script-src", InlineHashes(html, InlineScriptRegex()));
+        effective = AugmentDirective(effective, "style-src", InlineHashes(html, InlineStyleRegex()));
+
+        var escaped = effective
             .Replace("&", "&amp;", StringComparison.Ordinal)
             .Replace("\"", "&quot;", StringComparison.Ordinal);
         var meta = $"<meta http-equiv=\"Content-Security-Policy\" content=\"{escaped}\">";
         var head = html.IndexOf("<head>", StringComparison.OrdinalIgnoreCase);
-        html = head >= 0
-            ? html.Insert(head + "<head>".Length, meta)
-            : meta + html;
-        return new MemoryStream(Encoding.UTF8.GetBytes(html), writable: false);
+        return head >= 0 ? html.Insert(head + "<head>".Length, meta) : meta + html;
     }
+
+    /// <summary>The <c>'sha256-…'</c> source for each inline block the regex matches (deduplicated).</summary>
+    private static IReadOnlyList<string> InlineHashes(string html, Regex regex)
+    {
+        var sources = new List<string>();
+        foreach (Match match in regex.Matches(html))
+        {
+            var hash = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(match.Groups[1].Value)));
+            var source = $"'sha256-{hash}'";
+            if (!sources.Contains(source)) sources.Add(source);
+        }
+        return sources;
+    }
+
+    /// <summary>
+    /// Appends the given sources to an existing directive, unless it already allows all inline content
+    /// (<c>'unsafe-inline'</c>) — in which case adding a hash would paradoxically disable it. A missing
+    /// directive is left untouched.
+    /// </summary>
+    private static string AugmentDirective(string csp, string directive, IReadOnlyList<string> sources)
+    {
+        if (sources.Count == 0) return csp;
+
+        var parts = csp.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        for (var i = 0; i < parts.Count; i++)
+        {
+            var tokens = parts[i].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length == 0 || !tokens[0].Equals(directive, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (tokens.Any(token => token.Equals("'unsafe-inline'", StringComparison.OrdinalIgnoreCase)))
+                return csp;
+
+            var existing = new HashSet<string>(tokens, StringComparer.Ordinal);
+            var additions = sources.Where(source => existing.Add(source)).ToList();
+            if (additions.Count == 0) return csp;
+
+            parts[i] = parts[i] + " " + string.Join(' ', additions);
+            return string.Join("; ", parts);
+        }
+
+        return csp;
+    }
+
+    [GeneratedRegex(@"<script\b(?![^>]*\ssrc\s*=)[^>]*>(.*?)</script>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex InlineScriptRegex();
+
+    [GeneratedRegex(@"<style\b[^>]*>(.*?)</style>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex InlineStyleRegex();
 }
