@@ -9,8 +9,28 @@ internal sealed class NoopHost : ICarbonPlatformHost
     public void Run(ICarbonWebView mainWebView) { }
 }
 
+/// <summary>
+/// A host that keeps each window's webview by label so a test can see which windows an event reached.
+/// </summary>
+internal sealed class RecordingHost : ICarbonPlatformHost
+{
+    public Dictionary<string, NoopWebView> Views { get; } = new(StringComparer.Ordinal);
+
+    public ICarbonWebView CreateWebView(CarbonWebViewContext context)
+    {
+        var view = new NoopWebView();
+        Views[context.Options.Label] = view;
+        return view;
+    }
+
+    public void Run(ICarbonWebView mainWebView) { }
+}
+
 internal sealed class NoopWebView : ICarbonWebView
 {
+    /// <summary>Messages pushed to this webview (bridge responses, events, channel frames).</summary>
+    public List<string> Sent { get; } = [];
+
     public string Title => "main";
     public int Width => 800; public int Height => 600; public int X => 0; public int Y => 0;
     public bool IsFullscreen => false; public bool IsMaximized => false; public bool IsMinimized => false;
@@ -37,6 +57,10 @@ internal sealed class NoopWebView : ICarbonWebView
     public void SetProgressBar(string status, int progress) { } public void SetBadge(string? label) { }
     public void SetEffect(string effect) { }
     public void LoadUri(System.Uri uri) { } public void LoadString(string html) { }
-    public System.Threading.Tasks.Task SendMessageAsync(string message) => System.Threading.Tasks.Task.CompletedTask;
+    public System.Threading.Tasks.Task SendMessageAsync(string message)
+    {
+        Sent.Add(message);
+        return System.Threading.Tasks.Task.CompletedTask;
+    }
     public void Close() { }
 }

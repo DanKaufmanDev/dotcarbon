@@ -175,6 +175,22 @@ export async function emit<K extends string>(
     });
 }
 
+/**
+ * Emit an event to a specific target only — a window label, 'app' (backend listeners), or an
+ * EventTarget object. Mirrors Tauri's emitTo(target, event, payload).
+ */
+export async function emitTo<K extends string>(
+    target: EventTarget,
+    event: K,
+    payload: EventPayload<K>,
+): Promise<void> {
+    await invoke('__carbon:event_emit', {
+        event,
+        payload,
+        target,
+    });
+}
+
 export async function listen<K extends string>(
     event: K,
     handler: EventHandler<EventPayload<K>>,
