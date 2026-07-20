@@ -83,6 +83,14 @@ public static class AddCommand
                 "OsPlugin",
                 "os",
                 ["os:*"]),
+            ["log"] = new(
+                ["log", "logger", "logging", "DotCarbon.Plugins.Log"],
+                "DotCarbon.Plugins.Log",
+                "@dotcarbon/plugin-log",
+                "DotCarbon.Plugins.Log",
+                "LogPlugin",
+                "log",
+                ["log:*"]),
             ["path"] = new(
                 ["path", "paths", "dirs", "DotCarbon.Plugins.Path"],
                 "DotCarbon.Plugins.Path",
