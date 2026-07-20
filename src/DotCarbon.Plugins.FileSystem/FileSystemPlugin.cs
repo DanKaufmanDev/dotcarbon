@@ -1,5 +1,6 @@
 using DotCarbon.Core.Bridge;
 using DotCarbon.Core.Plugins;
+using DotCarbon.Core.Runtime;
 
 namespace DotCarbon.Plugins.FileSystem;
 
@@ -8,7 +9,13 @@ namespace DotCarbon.Plugins.FileSystem;
 [CarbonPermission("fs:default", "Allow all file-system commands.", Commands = new[] { "fs:*" })]
 public partial class FileSystemPlugin : IPlugin
 {
+    private readonly AppHandle _app;
     private FileSystemOptions _options = new([]);
+
+    public FileSystemPlugin(AppHandle app)
+    {
+        _app = app;
+    }
 
     public string Namespace => "fs";
 
@@ -115,12 +122,27 @@ public partial class FileSystemPlugin : IPlugin
 
         var fullPath = Path.GetFullPath(path);
 
-        var scopes = _options.Scopes ?? [];
-        if (scopes.Length == 0)
-            throw new UnauthorizedAccessException("File-system access requires plugins.fs.scopes to include the requested path root.");
+        // The static plugin config scopes and the per-capability scopes granted to the current window
+        // (Task 5.3) are merged: either may allow a path; a capability deny always wins.
+        var scope = _app.ResolvePermissionScope(_app.CurrentWindow, Namespace);
+        var allowRoots = (_options.Scopes ?? [])
+            .Concat(scope.Allow)
+            .Select(ResolveScopeRoot)
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .ToArray();
 
-        if (!scopes.Select(ResolveScopeRoot).Where(root => !string.IsNullOrWhiteSpace(root)).Any(root => IsWithin(fullPath, root)))
-            throw new UnauthorizedAccessException($"Path is outside the configured file-system scopes: {path}");
+        if (allowRoots.Length == 0)
+            throw new UnauthorizedAccessException(
+                "File-system access requires an allowed scope (plugins.fs.scopes or a capability fs permission allow).");
+
+        if (!allowRoots.Any(root => IsWithin(fullPath, root)))
+            throw new UnauthorizedAccessException($"Path is outside the allowed file-system scopes: {path}");
+
+        if (scope.Deny
+            .Select(ResolveScopeRoot)
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Any(root => IsWithin(fullPath, root)))
+            throw new UnauthorizedAccessException($"Path is denied by a capability scope: {path}");
 
         return fullPath;
     }
@@ -129,18 +151,42 @@ public partial class FileSystemPlugin : IPlugin
     {
         if (string.IsNullOrWhiteSpace(scope)) return string.Empty;
 
-        var value = scope.Trim();
-        var root = value.TrimStart('$').ToLowerInvariant() switch
+        // A trailing glob ("$APPDATA/*", "logs/**") just means "everything under it" — containment via
+        // IsWithin already covers that — so resolve to the last non-glob directory segment.
+        var value = TrimGlobTail(scope.Trim());
+        if (value.Length == 0) return string.Empty;
+
+        string root;
+        if (value.StartsWith('$'))
         {
-            "appdata" => Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "documents" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "downloads" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
-            "home" => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            "temp" or "tmp" => Path.GetTempPath(),
-            _ => ExpandHome(value)
-        };
+            var separator = value.IndexOfAny(['/', '\\']);
+            var token = (separator < 0 ? value[1..] : value[1..separator]).ToLowerInvariant();
+            var rest = separator < 0 ? string.Empty : value[(separator + 1)..];
+            var baseDir = token switch
+            {
+                "appdata" => Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "documents" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "downloads" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
+                "home" => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "temp" or "tmp" => Path.GetTempPath(),
+                _ => string.Empty
+            };
+            if (string.IsNullOrEmpty(baseDir)) return string.Empty;
+            root = string.IsNullOrEmpty(rest) ? baseDir : Path.Combine(baseDir, rest);
+        }
+        else
+        {
+            root = ExpandHome(value);
+        }
 
         return string.IsNullOrWhiteSpace(root) ? string.Empty : Path.GetFullPath(root);
+    }
+
+    private static string TrimGlobTail(string value)
+    {
+        var parts = value.Split('/', '\\');
+        var kept = parts.TakeWhile(part => !part.Contains('*') && !part.Contains('?')).ToArray();
+        return kept.Length == parts.Length ? value : string.Join(Path.DirectorySeparatorChar, kept);
     }
 
     private static string ExpandHome(string path)

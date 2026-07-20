@@ -1,5 +1,7 @@
 using System.Text.Json;
+using DotCarbon.Core.Config;
 using DotCarbon.Core.Plugins;
+using DotCarbon.Core.Runtime;
 using DotCarbon.Plugins.FileSystem;
 using Xunit;
 
@@ -7,13 +9,30 @@ namespace DotCarbon.Tests;
 
 public class FileSystemPluginTests
 {
+    // The plugin resolves capability scopes through its AppHandle, so build a real (window-less) app.
+    private static FileSystemPlugin Build(out System.Action shutdown, params string[] scopes)
+    {
+        var config = new CarbonConfig { Window = new WindowConfig { Label = "main" } };
+        var app = CarbonApp.Create(config).UsePlatform(new NoopHost());
+        var handle = app.Start();
+        shutdown = app.Shutdown;
+
+        var plugin = new FileSystemPlugin(handle);
+        if (scopes.Length > 0)
+            plugin.InitializeAsync(new PluginContext(null!, JsonSerializer.SerializeToElement(new { scopes }))).AsTask().Wait();
+        return plugin;
+    }
+
     [Fact]
     public async Task Commands_require_configured_scope()
     {
-        var plugin = new FileSystemPlugin();
-
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            plugin.Exists(new ExistsArgs(Path.Combine(Path.GetTempPath(), "carbon-no-scope"))));
+        var plugin = Build(out var shutdown);
+        try
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                plugin.Exists(new ExistsArgs(Path.Combine(Path.GetTempPath(), "carbon-no-scope"))));
+        }
+        finally { shutdown(); }
     }
 
     [Fact]
@@ -22,16 +41,15 @@ public class FileSystemPluginTests
         var root = Path.Combine(Path.GetTempPath(), "carbon-fs-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
 
-        var plugin = new FileSystemPlugin();
-        await plugin.InitializeAsync(new PluginContext(null!, JsonSerializer.SerializeToElement(new
+        var plugin = Build(out var shutdown, root);
+        try
         {
-            scopes = new[] { root }
-        })));
+            var target = Path.Combine(root, "nested", "..", "settings.json");
+            await plugin.WriteFile(new WriteFileArgs(target, "{\"ok\":true}"));
 
-        var target = Path.Combine(root, "nested", "..", "settings.json");
-        await plugin.WriteFile(new WriteFileArgs(target, "{\"ok\":true}"));
-
-        Assert.Equal("{\"ok\":true}", await plugin.ReadFile(new ReadFileArgs(Path.Combine(root, "settings.json"))));
+            Assert.Equal("{\"ok\":true}", await plugin.ReadFile(new ReadFileArgs(Path.Combine(root, "settings.json"))));
+        }
+        finally { shutdown(); }
     }
 
     [Fact]
@@ -42,13 +60,12 @@ public class FileSystemPluginTests
         Directory.CreateDirectory(root);
         Directory.CreateDirectory(outside);
 
-        var plugin = new FileSystemPlugin();
-        await plugin.InitializeAsync(new PluginContext(null!, JsonSerializer.SerializeToElement(new
+        var plugin = Build(out var shutdown, root);
+        try
         {
-            scopes = new[] { root }
-        })));
-
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            plugin.CreateDir(new ReadDirArgs(Path.Combine(outside, "blocked"))));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                plugin.CreateDir(new ReadDirArgs(Path.Combine(outside, "blocked"))));
+        }
+        finally { shutdown(); }
     }
 }

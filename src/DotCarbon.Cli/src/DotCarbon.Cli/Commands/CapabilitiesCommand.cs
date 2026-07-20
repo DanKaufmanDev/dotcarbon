@@ -146,7 +146,13 @@ public static class CapabilitiesCommand
                     errors.Add($"Capability '{name}' targets unknown window '{label}'.");
             }
 
-            foreach (var pattern in capability.Commands.Concat(capability.Permissions))
+            var permissionIds = capability.Permissions
+                .Select(entry => entry.Identifier)
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Cast<string>()
+                .ToList();
+
+            foreach (var pattern in capability.Commands.Concat(permissionIds))
             {
                 if (!IsCommandPattern(pattern))
                     errors.Add($"Capability '{name}' has invalid command pattern '{pattern}'.");
@@ -155,7 +161,7 @@ public static class CapabilitiesCommand
             if (capability.Commands.Count == 0 && capability.Permissions.Count == 0)
                 warnings.Add($"Capability '{name}' does not allow any commands.");
 
-            warnings.AddRange(CapabilityPermissionCatalog.RequirementWarnings(config, capability.Permissions));
+            warnings.AddRange(CapabilityPermissionCatalog.RequirementWarnings(config, permissionIds));
         }
 
         if (config.Security.Enabled &&

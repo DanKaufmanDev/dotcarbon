@@ -129,7 +129,7 @@ public class CapabilityConfig
     public string? Description { get; set; }
     public List<string> Windows { get; set; } = [];
     public List<string> Commands { get; set; } = [];
-    public List<string> Permissions { get; set; } = [];
+    public List<PermissionEntry> Permissions { get; set; } = [];
 
     /// <summary>
     /// Remote origins allowed to use this capability's permissions. Without it, a capability applies
@@ -142,6 +142,91 @@ public class CapabilityConfig
 public class RemoteConfig
 {
     public List<string> Urls { get; set; } = [];
+}
+
+/// <summary>
+/// A permission granted by a capability. In JSON it may be a bare string (just the identifier) or an
+/// object carrying per-capability scopes: <c>{ "identifier": "fs:default", "allow": [...], "deny": [...] }</c>.
+/// The <c>allow</c>/<c>deny</c> entries are opaque strings interpreted by the owning plugin (paths for
+/// fs, URLs for http, …) and merged across every capability that grants the permission to a window.
+/// </summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(PermissionEntryConverter))]
+public sealed class PermissionEntry
+{
+    public string? Identifier { get; set; }
+    public List<string> Allow { get; set; } = [];
+    public List<string> Deny { get; set; } = [];
+}
+
+/// <summary>Reads a <see cref="PermissionEntry"/> from either a string or an object (AOT-safe, manual).</summary>
+public sealed class PermissionEntryConverter : System.Text.Json.Serialization.JsonConverter<PermissionEntry>
+{
+    public override PermissionEntry Read(
+        ref System.Text.Json.Utf8JsonReader reader,
+        Type typeToConvert,
+        System.Text.Json.JsonSerializerOptions options)
+    {
+        if (reader.TokenType == System.Text.Json.JsonTokenType.String)
+            return new PermissionEntry { Identifier = reader.GetString() };
+
+        if (reader.TokenType != System.Text.Json.JsonTokenType.StartObject)
+            throw new System.Text.Json.JsonException("A capability permission must be a string or an object.");
+
+        var entry = new PermissionEntry();
+        while (reader.Read())
+        {
+            if (reader.TokenType == System.Text.Json.JsonTokenType.EndObject) return entry;
+            if (reader.TokenType != System.Text.Json.JsonTokenType.PropertyName) continue;
+
+            var name = reader.GetString();
+            reader.Read();
+            switch (name)
+            {
+                case "identifier": entry.Identifier = reader.GetString(); break;
+                case "allow": entry.Allow = ReadStringArray(ref reader); break;
+                case "deny": entry.Deny = ReadStringArray(ref reader); break;
+                default: reader.Skip(); break;
+            }
+        }
+        throw new System.Text.Json.JsonException("Unterminated permission object.");
+    }
+
+    private static List<string> ReadStringArray(ref System.Text.Json.Utf8JsonReader reader)
+    {
+        var items = new List<string>();
+        if (reader.TokenType != System.Text.Json.JsonTokenType.StartArray) return items;
+        while (reader.Read() && reader.TokenType != System.Text.Json.JsonTokenType.EndArray)
+        {
+            if (reader.TokenType == System.Text.Json.JsonTokenType.String)
+            {
+                var value = reader.GetString();
+                if (!string.IsNullOrEmpty(value)) items.Add(value);
+            }
+        }
+        return items;
+    }
+
+    public override void Write(
+        System.Text.Json.Utf8JsonWriter writer,
+        PermissionEntry value,
+        System.Text.Json.JsonSerializerOptions options)
+    {
+        // Round-trips to the object form; the string form is only an input convenience.
+        writer.WriteStartObject();
+        writer.WriteString("identifier", value.Identifier);
+        writer.WritePropertyName("allow");
+        WriteStringArray(writer, value.Allow);
+        writer.WritePropertyName("deny");
+        WriteStringArray(writer, value.Deny);
+        writer.WriteEndObject();
+    }
+
+    private static void WriteStringArray(System.Text.Json.Utf8JsonWriter writer, List<string> items)
+    {
+        writer.WriteStartArray();
+        foreach (var item in items) writer.WriteStringValue(item);
+        writer.WriteEndArray();
+    }
 }
 
 public class BuildConfig

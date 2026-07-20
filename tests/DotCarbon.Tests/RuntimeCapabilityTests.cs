@@ -28,7 +28,7 @@ public class RuntimeCapabilityTests
                 {
                     ["main"] = new CapabilityConfig
                     {
-                        Permissions = ["test:default"],
+                        Permissions = [new PermissionEntry { Identifier = "test:default" }],
                     },
                 },
             },

@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using DotCarbon.Core.Bridge;
 using DotCarbon.Core.Config;
 using DotCarbon.Core.Plugins;
+using DotCarbon.Core.Security;
 
 namespace DotCarbon.Core.Runtime;
 
@@ -103,6 +104,20 @@ public sealed class AppHandle
         JsonTypeInfo<T> typeInfo,
         CarbonEventTarget? target = null) =>
         Events.EmitAsync(name, payload, typeInfo, target);
+
+    /// <summary>
+    /// The merged <c>allow</c>/<c>deny</c> scopes granted to <paramref name="window"/> for a permission
+    /// namespace (e.g. "fs"), unioned across every capability that applies to it. Plugins call this at
+    /// invocation time — usually with <see cref="CurrentWindow"/> — to enforce per-capability scopes.
+    /// Returns empty when security isn't configured.
+    /// </summary>
+    public CarbonPermissionScope ResolvePermissionScope(CarbonWindow window, string permissionNamespace)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentException.ThrowIfNullOrWhiteSpace(permissionNamespace);
+        return Services.GetService<CapabilityManager>()?.ResolveScope(window, permissionNamespace)
+            ?? CarbonPermissionScope.Empty;
+    }
 
     public void Exit() => _app.Exit();
 

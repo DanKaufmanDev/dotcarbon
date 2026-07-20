@@ -134,6 +134,22 @@
                 }
             }
         },
+        "PermissionEntry": {
+            "oneOf": [
+                { "type": "string", "description": "A permission identifier, e.g. fs:default." },
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "A permission with per-capability scopes.",
+                    "properties": {
+                        "identifier": { "type": "string", "description": "The permission id, e.g. fs:default." },
+                        "allow": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Scope entries this capability grants (plugin-specific: fs paths like $APPDATA/*, http URLs, …)." },
+                        "deny": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Scope entries denied even if allowed elsewhere; deny wins." }
+                    },
+                    "required": ["identifier"]
+                }
+            ]
+        },
         "Capability": {
             "type": "object",
             "additionalProperties": false,
@@ -155,9 +171,9 @@
                 },
                 "permissions": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": { "$ref": "#/definitions/PermissionEntry" },
                     "default": [],
-                    "description": "First-class permission ids such as fs:default or Tauri-style command aliases. Carbon expands known plugin permissions to their declared commands and validates required scopes."
+                    "description": "First-class permission ids such as fs:default. A permission may be a bare string, or an object { identifier, allow, deny } that attaches per-capability scopes (e.g. fs paths), merged at runtime across capabilities that grant it."
                 },
                 "remote": {
                     "type": ["object", "null"],

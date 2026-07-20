@@ -93,4 +93,5 @@ public static class ConfigLoader
 [JsonSerializable(typeof(CarbonConfig))]
 [JsonSerializable(typeof(CapabilityConfig))]
 [JsonSerializable(typeof(RemoteConfig))]
+[JsonSerializable(typeof(PermissionEntry))]
 internal partial class CarbonConfigJsonContext : JsonSerializerContext;

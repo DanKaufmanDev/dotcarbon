@@ -4,6 +4,15 @@ using DotCarbon.Core.Runtime;
 
 namespace DotCarbon.Core.Security;
 
+/// <summary>
+/// The merged <c>allow</c>/<c>deny</c> scope entries a window carries for one permission namespace.
+/// The strings are plugin-specific (paths for fs, URLs for http, …); the plugin interprets and enforces.
+/// </summary>
+public sealed record CarbonPermissionScope(IReadOnlyList<string> Allow, IReadOnlyList<string> Deny)
+{
+    public static CarbonPermissionScope Empty { get; } = new([], []);
+}
+
 internal sealed class CapabilityManager
 {
     private readonly CarbonConfig _config;
@@ -53,10 +62,7 @@ internal sealed class CapabilityManager
         // window. Remote content is default-denied — only capabilities that name its URL in `remote`
         // apply. This keeps a page loaded from the web from silently reaching the bridge.
         var localContent = IsLocalContent(window.CurrentUri);
-        return GetCapabilityNames(window)
-            .Select(name => _config.Security.Capabilities.GetValueOrDefault(name))
-            .Where(capability => capability is not null)
-            .Cast<CapabilityConfig>()
+        return ApplicableCapabilities(window)
             .Where(capability => localContent || CapabilityAllowsRemote(capability, window.CurrentUri))
             .Any(capability => CapabilityAllows(capability, command));
     }
@@ -145,7 +151,47 @@ internal sealed class CapabilityManager
 
     private bool CapabilityAllows(CapabilityConfig capability, string command) =>
         capability.Commands.Any(pattern => CommandPatternMatches(pattern, command)) ||
-        capability.Permissions.Any(permission => PermissionAllows(permission, command));
+        capability.Permissions.Any(entry =>
+            entry.Identifier is not null && PermissionAllows(entry.Identifier, command));
+
+    /// <summary>
+    /// Merges the <c>allow</c>/<c>deny</c> scopes that every capability applicable to <paramref name="window"/>
+    /// grants for permissions in <paramref name="permissionNamespace"/> (e.g. "fs"). The scope strings are
+    /// opaque here — the owning plugin interprets them. Follows the same local/remote rules as command
+    /// checks, so remote content only carries the scopes of capabilities that opted it in.
+    /// </summary>
+    public CarbonPermissionScope ResolveScope(CarbonWindow window, string permissionNamespace)
+    {
+        var allow = new List<string>();
+        var deny = new List<string>();
+        var localContent = IsLocalContent(window.CurrentUri);
+
+        foreach (var capability in ApplicableCapabilities(window))
+        {
+            if (!localContent && !CapabilityAllowsRemote(capability, window.CurrentUri))
+                continue;
+
+            foreach (var entry in capability.Permissions)
+            {
+                if (entry.Identifier is null || !PermissionInNamespace(entry.Identifier, permissionNamespace))
+                    continue;
+                allow.AddRange(entry.Allow);
+                deny.AddRange(entry.Deny);
+            }
+        }
+
+        return new CarbonPermissionScope(allow, deny);
+    }
+
+    private static bool PermissionInNamespace(string identifier, string permissionNamespace) =>
+        string.Equals(identifier, permissionNamespace, StringComparison.Ordinal) ||
+        identifier.StartsWith(permissionNamespace + ":", StringComparison.Ordinal);
+
+    private IEnumerable<CapabilityConfig> ApplicableCapabilities(CarbonWindow window) =>
+        GetCapabilityNames(window)
+            .Select(name => _config.Security.Capabilities.GetValueOrDefault(name))
+            .Where(capability => capability is not null)
+            .Cast<CapabilityConfig>();
 
     private bool PermissionAllows(string permission, string command)
     {
