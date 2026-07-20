@@ -21,6 +21,12 @@ dist/
 !tests/mobile-smoke/ui/dist/
 !tests/mobile-smoke/ui/dist/index.html
 *.log
+# The *.log rule above also matches the DotCarbon.Plugins.Log project dir on case-insensitive
+# filesystems (macOS/Windows), which would silently un-track the plugin. Re-include its source
+# (not bin/obj, which stay ignored by the rules above).
+!src/DotCarbon.Plugins.Log/
+!src/DotCarbon.Plugins.Log/*.cs
+!src/DotCarbon.Plugins.Log/*.csproj
 
 # Carbon build output
 out/
