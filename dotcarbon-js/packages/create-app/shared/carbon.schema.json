@@ -187,7 +187,12 @@
                 "publisher": { "type": ["string", "null"] },
                 "copyright": { "type": ["string", "null"] },
                 "category": { "type": "string", "default": "Utility" },
-                "resources": { "type": "array", "items": { "type": "string" }, "default": [] },
+                "resources": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": [],
+                    "description": "Files bundled with the app, kept at their relative paths. Each entry is a file, a directory (copied recursively), or a glob (*, ?, ** across directories), e.g. 'assets/**/*.png'. Resolve them at runtime with the path API's resolveResource()."
+                },
                 "externalBin": {
                     "type": "array",
                     "items": { "type": "string" },

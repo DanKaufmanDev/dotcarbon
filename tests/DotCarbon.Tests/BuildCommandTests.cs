@@ -84,4 +84,61 @@ public class BuildCommandTests
                 Directory.Delete(dir, recursive: true);
         }
     }
+
+    [Fact]
+    public void ExpandResource_handles_literals_dirs_and_globs_preserving_structure()
+    {
+        // Task 4.8: entries may be a literal file, a directory, or a glob; the relative path is kept so
+        // the runtime can resolve resolveResource("assets/<name>") against the resource dir.
+        var dir = Path.Combine(Path.GetTempPath(), "carbon-res-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "assets", "sub"));
+            File.WriteAllText(Path.Combine(dir, "LICENSE"), "x");
+            File.WriteAllText(Path.Combine(dir, "assets", "a.json"), "x");
+            File.WriteAllText(Path.Combine(dir, "assets", "b.txt"), "x");
+            File.WriteAllText(Path.Combine(dir, "assets", "sub", "c.json"), "x");
+
+            string[] Rel(IEnumerable<string> paths) =>
+                paths.Select(p => Path.GetRelativePath(dir, p).Replace('\\', '/')).OrderBy(p => p).ToArray();
+
+            // Literal file.
+            Assert.Equal(["LICENSE"], Rel(BuildCommand.ExpandResource(dir, "LICENSE")));
+            // Directory → every file under it, recursively.
+            Assert.Equal(["assets/a.json", "assets/b.txt", "assets/sub/c.json"], Rel(BuildCommand.ExpandResource(dir, "assets")));
+            // Top-level glob does not descend.
+            Assert.Equal(["assets/a.json"], Rel(BuildCommand.ExpandResource(dir, "assets/*.json")));
+            // Recursive glob spans directories.
+            Assert.Equal(["assets/a.json", "assets/sub/c.json"], Rel(BuildCommand.ExpandResource(dir, "assets/**/*.json")));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CopyBundleResources_preserves_relative_paths_for_globs()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "carbon-rescopy-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "assets", "sub"));
+            File.WriteAllText(Path.Combine(dir, "assets", "a.json"), "aa");
+            File.WriteAllText(Path.Combine(dir, "assets", "sub", "c.json"), "cc");
+            var dest = Path.Combine(dir, "dest");
+
+            Assert.True(BuildCommand.CopyBundleResources(["assets/**/*.json"], dir, dest));
+
+            // The "assets/..." structure is preserved under the destination, not flattened.
+            Assert.Equal("aa", File.ReadAllText(Path.Combine(dest, "assets", "a.json")));
+            Assert.Equal("cc", File.ReadAllText(Path.Combine(dest, "assets", "sub", "c.json")));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
 }

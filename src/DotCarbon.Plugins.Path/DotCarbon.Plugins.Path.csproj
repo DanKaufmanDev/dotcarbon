@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotCarbon.Core\DotCarbon.Core.csproj" />
+    <InternalsVisibleTo Include="DotCarbon.Tests" />
   </ItemGroup>
 
   <PropertyGroup>

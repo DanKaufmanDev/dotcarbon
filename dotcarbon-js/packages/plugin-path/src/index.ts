@@ -5,8 +5,10 @@ import { invoke } from '@dotcarbon/api'
 
 export const homeDir = (): Promise<string> => invoke('path:home_dir')
 export const tempDir = (): Promise<string> => invoke('path:temp_dir')
-/** Where bundled resources live, next to the executable. */
+/** The directory holding the app's bundled resources (bundle.resources). */
 export const resourceDir = (): Promise<string> => invoke('path:resource_dir')
+/** Resolve a path relative to the resource directory, e.g. resolveResource('assets/icon.png'). */
+export const resolveResource = (path: string): Promise<string> => invoke('path:resolve_resource', { path })
 export const appConfigDir = (): Promise<string> => invoke('path:app_config_dir')
 export const appDataDir = (): Promise<string> => invoke('path:app_data_dir')
 export const appCacheDir = (): Promise<string> => invoke('path:app_cache_dir')
@@ -34,6 +36,7 @@ declare module '@dotcarbon/api' {
         'path:home_dir': { args: void; result: string }
         'path:temp_dir': { args: void; result: string }
         'path:resource_dir': { args: void; result: string }
+        'path:resolve_resource': { args: { path: string }; result: string }
         'path:app_config_dir': { args: void; result: string }
         'path:app_data_dir': { args: void; result: string }
         'path:app_cache_dir': { args: void; result: string }

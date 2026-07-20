@@ -3,7 +3,9 @@ using System.Diagnostics;
 using System.Reflection.Metadata;
 using System.Security.Cryptography;
 using System.Reflection.PortableExecutable;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DotCarbon.Cli.Bundling;
 using DotCarbon.Core.Config;
@@ -244,10 +246,9 @@ public static class BuildCommand
 
         foreach (var resource in config.Bundle.Resources)
         {
-            var path = Path.GetFullPath(Path.Combine(workingDir, resource));
-            if (!File.Exists(path) && !Directory.Exists(path))
+            if (!ExpandResource(workingDir, resource).Any())
             {
-                error = $"Configured bundle resource does not exist: {path}";
+                error = $"Configured bundle resource matched no files: {resource}";
                 return false;
             }
         }
@@ -687,15 +688,6 @@ public static class BuildCommand
         _ => "public.app-category.utilities",
     };
 
-    private static void CopyDir(string src, string dst)
-    {
-        Directory.CreateDirectory(dst);
-        foreach (var d in Directory.GetDirectories(src, "*", SearchOption.AllDirectories))
-            Directory.CreateDirectory(d.Replace(src, dst));
-        foreach (var f in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
-            File.Copy(f, f.Replace(src, dst), true);
-    }
-
     /// <summary>
     /// Maps a build target (RID-style) to the Rust-style target triple that names sidecar variants,
     /// matching Tauri's convention. Returns null for targets we don't produce sidecars for.
@@ -754,28 +746,81 @@ public static class BuildCommand
         return true;
     }
 
-    private static bool CopyBundleResources(IEnumerable<string> resources, string workingDir, string destination)
+    internal static bool CopyBundleResources(IEnumerable<string> resources, string workingDir, string destination)
     {
         foreach (var configured in resources)
         {
-            var source = Path.GetFullPath(Path.Combine(workingDir, configured));
-            if (File.Exists(source))
+            var matches = ExpandResource(workingDir, configured).ToList();
+            if (matches.Count == 0)
             {
-                File.Copy(source, Path.Combine(destination, Path.GetFileName(source)), true);
-                continue;
-            }
-            if (Directory.Exists(source))
-            {
-                CopyDir(source, Path.Combine(destination, Path.GetFileName(source)));
-                continue;
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[Carbon] Configured bundle resource matched no files: {configured}");
+                Console.ResetColor();
+                return false;
             }
 
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"[Carbon] Configured bundle resource does not exist: {source}");
-            Console.ResetColor();
-            return false;
+            foreach (var source in matches)
+            {
+                // Preserve the path relative to the project so resolveResource("assets/x") finds it.
+                var target = Path.Combine(destination, Path.GetRelativePath(workingDir, source));
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(source, target, true);
+            }
         }
         return true;
+    }
+
+    /// <summary>
+    /// Expands a <c>bundle.resources</c> entry to the files it covers: a literal file, a directory
+    /// (recursively), or a glob (<c>*</c>, <c>?</c>, and <c>**</c> across directories), relative to the project.
+    /// </summary>
+    internal static IEnumerable<string> ExpandResource(string workingDir, string entry)
+    {
+        var segments = entry.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var literalCount = segments.TakeWhile(segment => !HasGlobChar(segment)).Count();
+
+        // No glob characters: a literal file or a directory copied recursively.
+        if (literalCount == segments.Length)
+        {
+            var full = Path.GetFullPath(Path.Combine(workingDir, string.Join('/', segments)));
+            if (File.Exists(full)) return [full];
+            if (Directory.Exists(full)) return Directory.EnumerateFiles(full, "*", SearchOption.AllDirectories);
+            return [];
+        }
+
+        // Glob: enumerate under the longest literal prefix, then match the remainder.
+        var baseDir = Path.GetFullPath(Path.Combine([workingDir, .. segments[..literalCount]]));
+        if (!Directory.Exists(baseDir)) return [];
+        var pattern = GlobToRegex(string.Join('/', segments[literalCount..]));
+        return Directory.EnumerateFiles(baseDir, "*", SearchOption.AllDirectories)
+            .Where(file => pattern.IsMatch(Path.GetRelativePath(baseDir, file).Replace('\\', '/')));
+    }
+
+    private static bool HasGlobChar(string segment) => segment.Contains('*') || segment.Contains('?');
+
+    private static Regex GlobToRegex(string glob)
+    {
+        var sb = new StringBuilder("^");
+        for (var i = 0; i < glob.Length; i++)
+        {
+            var c = glob[i];
+            if (c == '*')
+            {
+                if (i + 1 < glob.Length && glob[i + 1] == '*')
+                {
+                    i++;
+                    // "**/" spans any number of directories (including none); a trailing "**" matches anything.
+                    if (i + 1 < glob.Length && glob[i + 1] == '/') { sb.Append("(?:.*/)?"); i++; }
+                    else sb.Append(".*");
+                }
+                else sb.Append("[^/]*");
+            }
+            else if (c == '?') sb.Append("[^/]");
+            else if ("+()^$.{}[]|\\".Contains(c)) sb.Append('\\').Append(c);
+            else sb.Append(c);
+        }
+        sb.Append('$');
+        return new Regex(sb.ToString(), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private static async Task<string?> BundleWindows(

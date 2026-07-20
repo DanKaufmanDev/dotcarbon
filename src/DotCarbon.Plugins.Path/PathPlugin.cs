@@ -35,9 +35,45 @@ public partial class PathPlugin : IPlugin
     [CarbonCommand("temp_dir")]
     public string TempDir() => Trim(SysPath.GetTempPath());
 
-    /// <summary>Where bundled resources live — next to the running executable.</summary>
+    /// <summary>
+    /// Directory holding the app's bundled resources (<c>bundle.resources</c>). Its real location
+    /// differs by platform: Linux launchers export <c>CARBON_RESOURCE_DIR</c>; macOS keeps them in the
+    /// .app's <c>Contents/Resources</c> (beside <c>Contents/MacOS</c>); Windows uses a <c>resources/</c>
+    /// dir next to the executable; unbundled dev runs fall back to the output directory.
+    /// </summary>
     [CarbonCommand("resource_dir")]
-    public string ResourceDir() => Trim(AppContext.BaseDirectory);
+    public string ResourceDir() => Trim(ResourceRoot());
+
+    /// <summary>Resolve a path relative to the resource directory (Tauri's <c>resolveResource</c>).</summary>
+    [CarbonCommand("resolve_resource")]
+    public string ResolveResource(PathArg args) =>
+        SysPath.GetFullPath(SysPath.Combine(ResourceRoot(), args.Path));
+
+    private static string ResourceRoot() => ResolveResourceRoot(
+        Environment.GetEnvironmentVariable("CARBON_RESOURCE_DIR"),
+        AppContext.BaseDirectory,
+        OperatingSystem.IsMacOS());
+
+    /// <summary>Pure resolution of the resource root, kept separate so every platform branch is testable.</summary>
+    internal static string ResolveResourceRoot(string? envOverride, string baseDir, bool isMacOs)
+    {
+        if (!string.IsNullOrWhiteSpace(envOverride)) return envOverride;
+
+        var trimmed = SysPath.TrimEndingDirectorySeparator(baseDir);
+        // macOS .app: the executable runs from Contents/MacOS; resources sit in the sibling Contents/Resources.
+        if (isMacOs && SysPath.GetFileName(trimmed) == "MacOS")
+        {
+            var contents = SysPath.GetDirectoryName(trimmed);
+            if (contents is not null) return SysPath.Combine(contents, "Resources");
+        }
+
+        // Windows/other bundles: a resources/ dir next to the executable.
+        var sub = SysPath.Combine(baseDir, "resources");
+        if (Directory.Exists(sub)) return sub;
+
+        // Unbundled dev run.
+        return baseDir;
+    }
 
     [CarbonCommand("app_config_dir")]
     public string AppConfigDir() => SysPath.Combine(ConfigRoot(), AppId);
