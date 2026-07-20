@@ -505,7 +505,7 @@ public static class BuildCommand
             Path.Combine(app, "Contents", "Info.plist"),
             InfoPlist(config, launcherName, appName, icons is not null));
         if (!await SignMacApp(config, workingDir, outputDir, app)) return null;
-        if (await RunProcessToCompletion(
+        if (await RunProcessWithRetry(
                 "hdiutil", $"create -volname \"{appName}\" -srcfolder \"{app}\" -ov -format UDZO \"{dmg}\"",
                 outputDir, "[pkg]", ConsoleColor.Blue) != 0)
             return null;
@@ -553,7 +553,7 @@ public static class BuildCommand
 
         if (!await SignMacApp(config, workingDir, outDir, app)) return null;
 
-        if (await RunProcessToCompletion("hdiutil",
+        if (await RunProcessWithRetry("hdiutil",
             $"create -volname \"{appName}\" -srcfolder \"{app}\" -ov -format UDZO \"{dmg}\"",
             outDir, "[pkg]", ConsoleColor.Blue) != 0)
             return null;
@@ -1831,6 +1831,29 @@ public static class BuildCommand
         await process.WaitForExitAsync();
 
         return process.ExitCode;
+    }
+
+    /// <summary>
+    /// Runs a process, retrying on a non-zero exit with a short backoff. Used for <c>hdiutil create</c>,
+    /// which intermittently fails with "Resource busy" on CI while the freshly-signed .app is still held
+    /// by codesign/Spotlight.
+    /// </summary>
+    private static async Task<int> RunProcessWithRetry(
+        string command, string args, string workingDir, string prefix, ConsoleColor color,
+        int attempts = 4, int delayMs = 1500)
+    {
+        var exit = 0;
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            exit = await RunProcessToCompletion(command, args, workingDir, prefix, color);
+            if (exit == 0) return 0;
+            if (attempt < attempts)
+            {
+                WriteWarning($"{command} failed (exit {exit}); retry {attempt}/{attempts - 1} in {delayMs}ms...");
+                await Task.Delay(delayMs);
+            }
+        }
+        return exit;
     }
 
     private static string? FindPackageJson(string startDir)
