@@ -70,8 +70,42 @@ internal sealed class CapabilityManager
     }
 
     private static bool CapabilityTargetsWindow(CapabilityConfig capability, string label) =>
-        capability.Windows.Any(window =>
-            window == "*" || string.Equals(window, label, StringComparison.Ordinal));
+        capability.Windows.Any(pattern => WindowLabelMatches(pattern, label));
+
+    /// <summary>
+    /// Matches a window label against a capability's <c>windows</c> entry. Supports glob wildcards like
+    /// Tauri — <c>*</c> (any run) and <c>?</c> (one character) — so <c>editor-*</c> covers every editor
+    /// window. Labels are single tokens, so there are no path-separator semantics.
+    /// </summary>
+    private static bool WindowLabelMatches(string pattern, string label)
+    {
+        int p = 0, s = 0, star = -1, mark = 0;
+        while (s < label.Length)
+        {
+            if (p < pattern.Length && (pattern[p] == '?' || pattern[p] == label[s]))
+            {
+                p++;
+                s++;
+            }
+            else if (p < pattern.Length && pattern[p] == '*')
+            {
+                star = p++;
+                mark = s;
+            }
+            else if (star != -1)
+            {
+                p = star + 1;
+                s = ++mark;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        while (p < pattern.Length && pattern[p] == '*') p++;
+        return p == pattern.Length;
+    }
 
     private bool CapabilityAllows(CapabilityConfig capability, string command) =>
         capability.Commands.Any(pattern => CommandPatternMatches(pattern, command)) ||

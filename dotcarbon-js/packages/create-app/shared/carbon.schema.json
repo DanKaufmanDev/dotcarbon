@@ -145,7 +145,7 @@
                     "type": "array",
                     "items": { "type": "string" },
                     "default": [],
-                    "description": "Window labels this capability applies to. Use * for all windows."
+                    "description": "Window labels this capability applies to. Supports glob wildcards: * (any run) and ? (one character), e.g. editor-* for every editor window, or * for all windows."
                 },
                 "commands": {
                     "type": "array",
