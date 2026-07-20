@@ -130,6 +130,18 @@ public class CapabilityConfig
     public List<string> Windows { get; set; } = [];
     public List<string> Commands { get; set; } = [];
     public List<string> Permissions { get; set; } = [];
+
+    /// <summary>
+    /// Remote origins allowed to use this capability's permissions. Without it, a capability applies
+    /// only to local content (<c>carbon://localhost</c> and your dev server); remote content is denied
+    /// the bridge by default. Each URL supports <c>*</c>/<c>?</c> globs, e.g. <c>https://*.example.com</c>.
+    /// </summary>
+    public RemoteConfig? Remote { get; set; }
+}
+
+public class RemoteConfig
+{
+    public List<string> Urls { get; set; } = [];
 }
 
 public class BuildConfig

@@ -47,12 +47,48 @@ internal sealed class CapabilityManager
         throw new UnauthorizedAccessException(message);
     }
 
-    private bool IsCommandAllowed(CarbonWindow window, string command) =>
-        GetCapabilityNames(window)
+    private bool IsCommandAllowed(CarbonWindow window, string command)
+    {
+        // Local content (carbon://localhost, your dev server) may use any capability that targets the
+        // window. Remote content is default-denied — only capabilities that name its URL in `remote`
+        // apply. This keeps a page loaded from the web from silently reaching the bridge.
+        var localContent = IsLocalContent(window.CurrentUri);
+        return GetCapabilityNames(window)
             .Select(name => _config.Security.Capabilities.GetValueOrDefault(name))
             .Where(capability => capability is not null)
             .Cast<CapabilityConfig>()
+            .Where(capability => localContent || CapabilityAllowsRemote(capability, window.CurrentUri))
             .Any(capability => CapabilityAllows(capability, command));
+    }
+
+    private bool IsLocalContent(Uri? uri)
+    {
+        // Null means no page has committed yet; the bridge policy already blocks calls in that state,
+        // so treat it as local here rather than double-denying.
+        if (uri is null) return true;
+        if (IsRuntimeOrigin(uri)) return true;
+        return !string.IsNullOrWhiteSpace(_config.Build.DevUrl)
+            && Uri.TryCreate(_config.Build.DevUrl, UriKind.Absolute, out var dev)
+            && OriginEquals(uri, dev);
+    }
+
+    private static bool CapabilityAllowsRemote(CapabilityConfig capability, Uri? uri)
+    {
+        if (uri is null || capability.Remote is null || capability.Remote.Urls.Count == 0)
+            return false;
+
+        var origin = Origin(uri);
+        var full = uri.ToString();
+        return capability.Remote.Urls.Any(pattern => GlobMatch(pattern, origin) || GlobMatch(pattern, full));
+    }
+
+    private static bool IsRuntimeOrigin(Uri uri) =>
+        uri.Scheme == "carbon" && string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase);
+
+    private static string Origin(Uri uri) => uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+
+    private static bool OriginEquals(Uri a, Uri b) =>
+        string.Equals(Origin(a), Origin(b), StringComparison.OrdinalIgnoreCase);
 
     private IEnumerable<string> GetCapabilityNames(CarbonWindow window)
     {
@@ -70,19 +106,19 @@ internal sealed class CapabilityManager
     }
 
     private static bool CapabilityTargetsWindow(CapabilityConfig capability, string label) =>
-        capability.Windows.Any(pattern => WindowLabelMatches(pattern, label));
+        capability.Windows.Any(pattern => GlobMatch(pattern, label));
 
     /// <summary>
-    /// Matches a window label against a capability's <c>windows</c> entry. Supports glob wildcards like
-    /// Tauri — <c>*</c> (any run) and <c>?</c> (one character) — so <c>editor-*</c> covers every editor
-    /// window. Labels are single tokens, so there are no path-separator semantics.
+    /// Glob-matches a value against a pattern with Tauri-style wildcards — <c>*</c> (any run) and
+    /// <c>?</c> (one character). Used for both window labels (<c>editor-*</c>) and remote URLs
+    /// (<c>https://*.example.com</c>); the value is treated as one flat string, no path semantics.
     /// </summary>
-    private static bool WindowLabelMatches(string pattern, string label)
+    private static bool GlobMatch(string pattern, string value)
     {
         int p = 0, s = 0, star = -1, mark = 0;
-        while (s < label.Length)
+        while (s < value.Length)
         {
-            if (p < pattern.Length && (pattern[p] == '?' || pattern[p] == label[s]))
+            if (p < pattern.Length && (pattern[p] == '?' || pattern[p] == value[s]))
             {
                 p++;
                 s++;

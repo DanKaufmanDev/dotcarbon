@@ -92,4 +92,5 @@ public static class ConfigLoader
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(CarbonConfig))]
 [JsonSerializable(typeof(CapabilityConfig))]
+[JsonSerializable(typeof(RemoteConfig))]
 internal partial class CarbonConfigJsonContext : JsonSerializerContext;

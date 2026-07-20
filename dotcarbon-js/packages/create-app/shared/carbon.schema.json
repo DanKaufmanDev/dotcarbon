@@ -158,6 +158,19 @@
                     "items": { "type": "string" },
                     "default": [],
                     "description": "First-class permission ids such as fs:default or Tauri-style command aliases. Carbon expands known plugin permissions to their declared commands and validates required scopes."
+                },
+                "remote": {
+                    "type": ["object", "null"],
+                    "additionalProperties": false,
+                    "description": "Opt in remote origins to this capability. Without it, the capability applies only to local content (carbon://localhost and your dev server); remote content is denied the bridge by default.",
+                    "properties": {
+                        "urls": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "default": [],
+                            "description": "Remote URLs allowed to use this capability's permissions. Supports * and ? globs, e.g. https://*.example.com."
+                        }
+                    }
                 }
             }
         },
