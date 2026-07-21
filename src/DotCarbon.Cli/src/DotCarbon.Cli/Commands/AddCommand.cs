@@ -22,6 +22,15 @@ public static class AddCommand
                 "autostart",
                 ["autostart:*"],
                 Platforms: ["desktop"]),
+            ["cli"] = new(
+                ["cli", "args", "arguments", "DotCarbon.Plugins.Cli"],
+                "DotCarbon.Plugins.Cli",
+                "@dotcarbon/plugin-cli",
+                "DotCarbon.Plugins.Cli",
+                "CliPlugin",
+                "cli",
+                ["cli:*"],
+                Platforms: ["desktop"]),
             ["clipboard"] = new(
                 ["clipboard", "clip", "DotCarbon.Plugins.Clipboard"],
                 "DotCarbon.Plugins.Clipboard",

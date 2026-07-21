@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\src\DotCarbon.Cli\DotCarbon.Cli.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Host.Desktop\DotCarbon.Host.Desktop.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Autostart\DotCarbon.Plugins.Autostart.csproj" />
+    <ProjectReference Include="..\..\src\DotCarbon.Plugins.Cli\DotCarbon.Plugins.Cli.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.FileSystem\DotCarbon.Plugins.FileSystem.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Http\DotCarbon.Plugins.Http.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Log\DotCarbon.Plugins.Log.csproj" />
