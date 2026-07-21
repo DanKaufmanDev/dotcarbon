@@ -1,0 +1,40 @@
+---
+import { getCollection } from 'astro:content';
+
+const posts = (await getCollection('docs'))
+  .filter((entry) => entry.id.startsWith('blog/') && entry.id !== 'blog/index')
+  .sort((a, b) => b.id.localeCompare(a.id));
+---
+
+<ul class="blog-posts">
+  {posts.map((post) => (
+    <li>
+      <a href={`/${post.id}/`}>{post.data.title}</a>
+      {post.data.description && <p>{post.data.description}</p>}
+    </li>
+  ))}
+</ul>
+
+<style>
+  .blog-posts {
+    display: grid;
+    gap: 1rem;
+    padding: 0;
+    list-style: none;
+  }
+
+  .blog-posts li {
+    padding-block: 1rem;
+    border-bottom: 1px solid var(--sl-color-hairline);
+  }
+
+  .blog-posts a {
+    font-size: var(--sl-text-lg);
+    font-weight: 600;
+  }
+
+  .blog-posts p {
+    margin-block: 0.35rem 0;
+    color: var(--sl-color-gray-2);
+  }
+</style>
