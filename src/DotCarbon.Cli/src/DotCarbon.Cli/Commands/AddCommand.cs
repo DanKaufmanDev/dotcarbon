@@ -119,6 +119,15 @@ public static class AddCommand
                 "window-state",
                 ["window-state:*"],
                 Platforms: ["desktop"]),
+            ["localhost"] = new(
+                ["localhost", "local-server", "http-server", "DotCarbon.Plugins.Localhost"],
+                "DotCarbon.Plugins.Localhost",
+                "@dotcarbon/plugin-localhost",
+                "DotCarbon.Plugins.Localhost",
+                "LocalhostPlugin",
+                "localhost",
+                ["localhost:*"],
+                Platforms: ["desktop"]),
             ["log"] = new(
                 ["log", "logger", "logging", "DotCarbon.Plugins.Log"],
                 "DotCarbon.Plugins.Log",

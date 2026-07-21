@@ -18,6 +18,7 @@
     <Project Path="src/DotCarbon.Plugins.Http/DotCarbon.Plugins.Http.csproj" />
     <Project Path="src/DotCarbon.Plugins.Notification/DotCarbon.Plugins.Notification.csproj" />
     <Project Path="src/DotCarbon.Plugins.Os/DotCarbon.Plugins.Os.csproj" />
+    <Project Path="src/DotCarbon.Plugins.Localhost/DotCarbon.Plugins.Localhost.csproj" />
     <Project Path="src/DotCarbon.Plugins.Log/DotCarbon.Plugins.Log.csproj" />
     <Project Path="src/DotCarbon.Plugins.Path/DotCarbon.Plugins.Path.csproj" />
     <Project Path="src/DotCarbon.Plugins.PersistedScope/DotCarbon.Plugins.PersistedScope.csproj" />
