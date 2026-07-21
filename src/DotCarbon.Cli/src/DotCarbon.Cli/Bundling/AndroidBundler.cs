@@ -143,6 +143,9 @@ internal sealed class AndroidBundler
         Console.CancelKeyPress += onCancel;
         try
         {
+            // 0. Make sure a device/emulator is available — start an emulator automatically if not.
+            if (!await EnsureAndroidDeviceAsync(adb, cts.Token)) return 1;
+
             // 1. Bring up (or reuse) the frontend dev server.
             Task? devServer = null;
             if (await MobileBundleSupport.IsReachable(devUrl, cts.Token))
@@ -209,6 +212,64 @@ internal sealed class AndroidBundler
             await MobileBundleSupport.RunCapture(adb, $"reverse --remove tcp:{port}"); // drop the forward
         }
     }
+
+    /// <summary>
+    /// Ensures an emulator/device is connected, starting the first available AVD if none is. Returns
+    /// false only if there is nothing to start or the emulator did not finish booting in time.
+    /// </summary>
+    private static async Task<bool> EnsureAndroidDeviceAsync(string adb, CancellationToken ct)
+    {
+        if (await HasReadyDevice(adb)) return true;
+
+        var emulator = MobileBundleSupport.FindEmulator();
+        if (emulator is null)
+        {
+            MobileBundleSupport.Error(
+                "No emulator/device is connected and the Android 'emulator' tool was not found. " +
+                "Start a device (or set ANDROID_HOME); check with `adb devices`.");
+            return false;
+        }
+
+        var avd = (await MobileBundleSupport.RunCapture(emulator, "-list-avds"))
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
+        if (string.IsNullOrEmpty(avd))
+        {
+            MobileBundleSupport.Error(
+                "No Android Virtual Device (AVD) found. Create one in Android Studio's Device Manager, then retry.");
+            return false;
+        }
+
+        Console.WriteLine($"[Carbon] Starting Android emulator '{avd}'...");
+        // Detached: the emulator must outlive this command so the user can reuse it.
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                emulator, $"-avd {avd} -no-boot-anim") { UseShellExecute = false });
+        }
+        catch (Exception ex)
+        {
+            MobileBundleSupport.Error($"Could not start the emulator: {ex.Message}");
+            return false;
+        }
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromMinutes(3);
+        while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+        {
+            if (await HasReadyDevice(adb) &&
+                (await MobileBundleSupport.RunCapture(adb, "shell getprop sys.boot_completed")) == "1")
+                return true;
+            try { await Task.Delay(2000, ct); } catch (OperationCanceledException) { return false; }
+        }
+        MobileBundleSupport.Error("Timed out waiting for the Android emulator to boot.");
+        return false;
+    }
+
+    private static async Task<bool> HasReadyDevice(string adb) =>
+        (await MobileBundleSupport.RunCapture(adb, "devices"))
+        .Split('\n')
+        .Skip(1) // header line
+        .Any(line => line.Contains("\tdevice", StringComparison.Ordinal));
 
     private static string AndroidPackage(CarbonConfig config) =>
         string.IsNullOrWhiteSpace(config.Bundle.Android.Package)

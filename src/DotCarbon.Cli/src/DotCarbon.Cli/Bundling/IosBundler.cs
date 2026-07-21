@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using DotCarbon.Cli.Commands;
 using DotCarbon.Cli.Platforms;
@@ -169,6 +170,9 @@ internal sealed class IosBundler
         Console.CancelKeyPress += onCancel;
         try
         {
+            // 0. Make sure a simulator is booted — boot one automatically if the user hasn't.
+            if (!await EnsureBootedSimulatorAsync(cts.Token)) return 1;
+
             // 1. Bring up the frontend dev server (or reuse one already running) so the on-device
             //    webview has something to load over http://localhost.
             var devUrl = config.Build.DevUrl;
@@ -248,6 +252,54 @@ internal sealed class IosBundler
             Console.CancelKeyPress -= onCancel;
             cts.Cancel();
         }
+    }
+
+    /// <summary>
+    /// Ensures a simulator is booted, booting the first available iPhone if none is. Returns false only
+    /// if there is nothing to boot or booting timed out.
+    /// </summary>
+    private static async Task<bool> EnsureBootedSimulatorAsync(CancellationToken ct)
+    {
+        if ((await MobileBundleSupport.RunCapture("xcrun", "simctl list devices booted"))
+            .Contains("(Booted)", StringComparison.Ordinal))
+            return true;
+
+        var udid = FindBootableIphoneUdid(
+            await MobileBundleSupport.RunCapture("xcrun", "simctl list devices available"));
+        if (udid is null)
+        {
+            MobileBundleSupport.Error(
+                "No simulator is booted and no available iPhone simulator was found to boot. " +
+                "Open Simulator.app or run: xcrun simctl boot \"iPhone 17\".");
+            return false;
+        }
+
+        Console.WriteLine($"[Carbon] Booting iOS simulator {udid}...");
+        await MobileBundleSupport.RunCapture("xcrun", $"simctl boot {udid}");
+        await MobileBundleSupport.RunCapture("open", "-a Simulator");
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(90);
+        while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+        {
+            if ((await MobileBundleSupport.RunCapture("xcrun", "simctl list devices booted"))
+                .Contains("(Booted)", StringComparison.Ordinal))
+                return true;
+            try { await Task.Delay(1000, ct); } catch (OperationCanceledException) { return false; }
+        }
+        MobileBundleSupport.Error("Timed out waiting for the iOS simulator to boot.");
+        return false;
+    }
+
+    // `simctl list devices available` prints lines like: "    iPhone 17 (UDID) (Shutdown)".
+    internal static string? FindBootableIphoneUdid(string simctlOutput)
+    {
+        foreach (var line in simctlOutput.Split('\n'))
+        {
+            if (!line.Contains("iPhone", StringComparison.OrdinalIgnoreCase)) continue;
+            var match = Regex.Match(line, @"\(([0-9A-Fa-f-]{36})\)");
+            if (match.Success) return match.Groups[1].Value;
+        }
+        return null;
     }
 
     /// <summary>

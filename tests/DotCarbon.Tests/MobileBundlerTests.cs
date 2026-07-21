@@ -189,6 +189,20 @@ public class MobileBundlerTests
     }
 
     [Fact]
+    public void Ios_simulator_picker_finds_the_first_iphone_udid()
+    {
+        const string output =
+            "== Devices ==\n" +
+            "-- iOS 26.5 --\n" +
+            "    iPad Pro 11-inch (A1B2C3D4-1111-2222-3333-444455556666) (Shutdown)\n" +
+            "    iPhone 17 (52FFF9EF-920F-4BF3-B1D7-8AC1D8E7BF00) (Shutdown)\n" +
+            "    iPhone 17 Pro (85E9853B-4CD5-4332-9201-5891310036B7) (Shutdown)\n";
+
+        Assert.Equal("52FFF9EF-920F-4BF3-B1D7-8AC1D8E7BF00", IosBundler.FindBootableIphoneUdid(output));
+        Assert.Null(IosBundler.FindBootableIphoneUdid("-- iOS 26.5 --\n    iPad Pro (A1B2C3D4-1111-2222-3333-444455556666) (Shutdown)\n"));
+    }
+
+    [Fact]
     public void Ios_artifact_locator_ignores_obj_codesign_app()
     {
         var dir = CreateTempDir();

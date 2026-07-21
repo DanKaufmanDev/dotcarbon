@@ -400,9 +400,15 @@ internal static class MobileBundleSupport
     }
 
     /// <summary>Locates the Android <c>adb</c> executable from the SDK env vars or the usual install path.</summary>
-    public static string FindAdb()
+    public static string FindAdb() =>
+        FindSdkTool(Path.Combine("platform-tools", OperatingSystem.IsWindows() ? "adb.exe" : "adb")) ?? "adb";
+
+    /// <summary>Locates the Android <c>emulator</c> executable, or null if the SDK's emulator isn't present.</summary>
+    public static string? FindEmulator() =>
+        FindSdkTool(Path.Combine("emulator", OperatingSystem.IsWindows() ? "emulator.exe" : "emulator"));
+
+    private static string? FindSdkTool(string relative)
     {
-        var exe = OperatingSystem.IsWindows() ? "adb.exe" : "adb";
         var roots = new[]
         {
             Environment.GetEnvironmentVariable("ANDROID_HOME"),
@@ -413,10 +419,10 @@ internal static class MobileBundleSupport
         foreach (var root in roots)
         {
             if (string.IsNullOrWhiteSpace(root)) continue;
-            var candidate = Path.Combine(root, "platform-tools", exe);
+            var candidate = Path.Combine(root, relative);
             if (File.Exists(candidate)) return candidate;
         }
-        return "adb"; // fall back to PATH
+        return null;
     }
 
     /// <summary>Whether a dev server is already answering at <paramref name="url"/>.</summary>
