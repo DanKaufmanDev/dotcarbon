@@ -188,6 +188,15 @@ public static class AddCommand
                 "StorePlugin",
                 "store",
                 ["store:*"]),
+            ["upload"] = new(
+                ["upload", "uploads", "download", "transfer", "DotCarbon.Plugins.Upload"],
+                "DotCarbon.Plugins.Upload",
+                "@dotcarbon/plugin-upload",
+                "DotCarbon.Plugins.Upload",
+                "UploadPlugin",
+                "upload",
+                ["upload:*"],
+                Platforms: ["desktop"]),
             ["updater"] = new(
                 ["updater", "update", "updates", "DotCarbon.Plugins.Updater"],
                 "DotCarbon.Plugins.Updater",

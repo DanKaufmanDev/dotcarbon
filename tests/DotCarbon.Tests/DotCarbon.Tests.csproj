@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Cli\DotCarbon.Plugins.Cli.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Positioner\DotCarbon.Plugins.Positioner.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Sql\DotCarbon.Plugins.Sql.csproj" />
+    <ProjectReference Include="..\..\src\DotCarbon.Plugins.Upload\DotCarbon.Plugins.Upload.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.WebSocket\DotCarbon.Plugins.WebSocket.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.FileSystem\DotCarbon.Plugins.FileSystem.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Http\DotCarbon.Plugins.Http.csproj" />
