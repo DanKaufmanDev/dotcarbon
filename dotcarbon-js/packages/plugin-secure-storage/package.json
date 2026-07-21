@@ -1,0 +1,50 @@
+{
+    "name": "@dotcarbon/plugin-secure-storage",
+    "version": "0.6.0",
+    "description": "Encrypted key-value store on the OS credential store for DotCarbon",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "prepublishOnly": "npm run build"
+    },
+    "dependencies": {
+        "@dotcarbon/api": "workspace:^"
+    },
+    "devDependencies": {
+        "typescript": "^5.0.0"
+    },
+    "author": "DanKaufmanDev",
+    "license": "MIT",
+    "homepage": "https://github.com/DanKaufmanDev/dotcarbon#readme",
+    "bugs": {
+        "url": "https://github.com/DanKaufmanDev/dotcarbon/issues"
+    },
+    "keywords": [
+        "dotcarbon",
+        "desktop",
+        "plugin",
+        "secure-storage",
+        "keychain",
+        "secrets"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/DanKaufmanDev/dotcarbon.git",
+        "directory": "dotcarbon-js/packages/plugin-secure-storage"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "files": [
+        "dist"
+    ]
+}

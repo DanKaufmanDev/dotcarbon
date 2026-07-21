@@ -24,6 +24,7 @@
     <Project Path="src/DotCarbon.Plugins.PersistedScope/DotCarbon.Plugins.PersistedScope.csproj" />
     <Project Path="src/DotCarbon.Plugins.Process/DotCarbon.Plugins.Process.csproj" />
     <Project Path="src/DotCarbon.Plugins.Opener/DotCarbon.Plugins.Opener.csproj" />
+    <Project Path="src/DotCarbon.Plugins.SecureStorage/DotCarbon.Plugins.SecureStorage.csproj" />
     <Project Path="src/DotCarbon.Plugins.Shell/DotCarbon.Plugins.Shell.csproj" />
     <Project Path="src/DotCarbon.Plugins.WindowState/DotCarbon.Plugins.WindowState.csproj" />
     <Project Path="src/DotCarbon.Plugins.SingleInstance/DotCarbon.Plugins.SingleInstance.csproj" />

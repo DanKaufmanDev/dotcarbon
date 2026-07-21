@@ -180,6 +180,15 @@ public static class AddCommand
                 "sql",
                 ["sql:*"],
                 Platforms: ["desktop"]),
+            ["secure-storage"] = new(
+                ["secure-storage", "securestorage", "keychain", "secrets", "credentials", "DotCarbon.Plugins.SecureStorage"],
+                "DotCarbon.Plugins.SecureStorage",
+                "@dotcarbon/plugin-secure-storage",
+                "DotCarbon.Plugins.SecureStorage",
+                "SecureStoragePlugin",
+                "secure-storage",
+                ["secure-storage:*"],
+                Platforms: ["desktop"]),
             ["shell"] = new(
                 ["shell", "DotCarbon.Plugins.Shell"],
                 "DotCarbon.Plugins.Shell",
