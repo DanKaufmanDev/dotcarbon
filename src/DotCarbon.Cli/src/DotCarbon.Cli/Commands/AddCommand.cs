@@ -153,6 +153,15 @@ public static class AddCommand
                 "opener",
                 ["opener:*"],
                 Platforms: ["desktop"]),
+            ["sql"] = new(
+                ["sql", "sqlite", "database", "db", "DotCarbon.Plugins.Sql"],
+                "DotCarbon.Plugins.Sql",
+                "@dotcarbon/plugin-sql",
+                "DotCarbon.Plugins.Sql",
+                "SqlPlugin",
+                "sql",
+                ["sql:*"],
+                Platforms: ["desktop"]),
             ["shell"] = new(
                 ["shell", "DotCarbon.Plugins.Shell"],
                 "DotCarbon.Plugins.Shell",
