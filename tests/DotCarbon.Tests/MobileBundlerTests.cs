@@ -53,6 +53,60 @@ public class MobileBundlerTests
     }
 
     [Fact]
+    public void Ios_dev_props_embed_config_only_so_the_host_selects_dev_server_mode()
+    {
+        var dir = CreateTempDir();
+        try
+        {
+            var project = Touch(Path.Combine(dir, "Mobile.iOS.csproj"));
+            var config = Touch(Path.Combine(dir, "carbon.json"));
+
+            var props = MobileBundleSupport.WriteDevConfigProps(dir, project, config, "DotCarbon.iOS.props");
+            var propsXml = File.ReadAllText(props);
+
+            // carbon.json is embedded (the host still reads its config from the manifest)...
+            Assert.Contains("DotCarbon.Config/carbon.json", propsXml);
+            Assert.Contains("$(MSBuildProjectFile)", propsXml);
+            // ...but the frontend is not, so EmbeddedAssetStore reports no assets and CarbonApp
+            // loads the live dev server (hot reload) instead of baked assets.
+            Assert.DoesNotContain("DotCarbon.Assets/", propsXml);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Ios_dev_ats_injection_allows_the_plaintext_localhost_dev_server()
+    {
+        if (!OperatingSystem.IsMacOS()) return; // PlistBuddy is macOS-only
+
+        var dir = CreateTempDir();
+        try
+        {
+            var plist = Path.Combine(dir, "Info.plist");
+            File.WriteAllText(plist,
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" " +
+                "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n" +
+                "<plist version=\"1.0\"><dict>\n" +
+                "<key>CFBundleIdentifier</key><string>dev.example.app</string>\n" +
+                "</dict></plist>\n");
+
+            MobileBundleSupport.InjectLocalNetworkingAts(dir);
+
+            var xml = File.ReadAllText(plist);
+            Assert.Contains("NSAppTransportSecurity", xml);
+            Assert.Contains("NSAllowsLocalNetworking", xml);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Ios_project_staging_rewrites_project_references_and_excludes_old_outputs()
     {
         var dir = CreateTempDir();

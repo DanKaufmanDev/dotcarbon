@@ -40,6 +40,71 @@ internal static class MobileBundleSupport
     }
 
     /// <summary>
+    /// Writes an MSBuild props file that embeds <b>only</b> carbon.json — not the frontend — into the
+    /// app assembly. The host still reads its config from the manifest, but with no embedded frontend
+    /// <see cref="Core.Host.EmbeddedAssetStore"/> reports no assets, so CarbonApp selects DevServer
+    /// content mode and the webview loads the live dev server (hot reload) instead of baked assets.
+    /// </summary>
+    public static string WriteDevConfigProps(
+        string platformDir,
+        string project,
+        string configPath,
+        string propsName)
+    {
+        var generatedDir = Path.Combine(platformDir, "obj", "dotcarbon");
+        Directory.CreateDirectory(generatedDir);
+        var propsPath = Path.Combine(generatedDir, propsName);
+        var projectElement = new XElement("Project");
+        projectElement.Add(
+            new XElement("ItemGroup",
+                new XAttribute("Condition", ProjectCondition(project)),
+                new XElement("EmbeddedResource",
+                    new XAttribute("Include", configPath),
+                    new XAttribute("LogicalName", "DotCarbon.Config/carbon.json"))));
+
+        new XDocument(projectElement).Save(propsPath);
+        return propsPath;
+    }
+
+    /// <summary>
+    /// Adds an App Transport Security exception for local networking to the (staged) Info.plist so a
+    /// dev build's WKWebView may load the plaintext-http dev server (e.g. <c>http://localhost:5173</c>).
+    /// Dev-only: the staged project is a throwaway copy, so the user's source plist keeps its
+    /// production ATS defaults.
+    /// </summary>
+    public static void InjectLocalNetworkingAts(string platformDir)
+    {
+        var plist = Path.Combine(platformDir, "Info.plist");
+        if (!OperatingSystem.IsMacOS() || !File.Exists(plist)) return;
+
+        // PlistBuddy is the canonical macOS plist editor. `Add` on an existing key is a no-op error we
+        // ignore; the trailing `Set` guarantees the value regardless of whether the key already existed.
+        RunPlistBuddy(plist, "Add :NSAppTransportSecurity dict");
+        RunPlistBuddy(plist, "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true");
+        RunPlistBuddy(plist, "Set :NSAppTransportSecurity:NSAllowsLocalNetworking true");
+    }
+
+    private static void RunPlistBuddy(string plist, string command)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "/usr/libexec/PlistBuddy",
+                ArgumentList = { "-c", command, plist },
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            });
+            process?.WaitForExit();
+        }
+        catch
+        {
+            // Best effort: an unavailable PlistBuddy just means http localhost may be blocked by ATS.
+        }
+    }
+
+    /// <summary>
     /// Writes targets imported after Microsoft.Common.targets. A props import is too early for an
     /// iOS <c>BeforeTargets</c> hook to reliably join the final codesign graph.
     /// </summary>

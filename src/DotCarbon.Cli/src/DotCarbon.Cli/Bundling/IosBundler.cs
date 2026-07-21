@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Xml.Linq;
 using DotCarbon.Cli.Commands;
@@ -127,7 +128,12 @@ internal sealed class IosBundler
         return 0;
     }
 
-    /// <summary>Builds and runs the app on a booted iOS simulator.</summary>
+    /// <summary>
+    /// Runs the app on a booted iOS simulator in development mode: the frontend is served live by the
+    /// dev server (hot reload) rather than embedded, and the app's stdout is streamed to the terminal.
+    /// The simulator shares the host's loopback, so the on-device webview reaches the host dev server
+    /// directly at <c>build.devUrl</c> (e.g. http://localhost:5173).
+    /// </summary>
     public async Task<int> DevAsync(CarbonConfig config, string workingDir)
     {
         var iosDir = PlatformService.PlatformDir(workingDir, "ios");
@@ -149,24 +155,206 @@ internal sealed class IosBundler
         }
 
         Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("⚡ Carbon ios dev — building and running on the booted simulator...");
+        Console.WriteLine("⚡ Carbon ios dev — hot-reload build on the booted simulator...");
         Console.ResetColor();
-        Console.WriteLine("  (boot a simulator first, e.g. `xcrun simctl boot \"iPhone 15\"` or open Simulator.app)");
+        Console.WriteLine("  (boot a simulator first, e.g. `xcrun simctl boot \"iPhone 17\"` or open Simulator.app)");
 
-        await MobileBundleSupport.WarnIfXcodeMismatchAsync();
+        using var cts = new CancellationTokenSource();
+        ConsoleCancelEventHandler onCancel = (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            Console.WriteLine("\n[Carbon] Shutting down ios dev...");
+            cts.Cancel();
+        };
+        Console.CancelKeyPress += onCancel;
+        try
+        {
+            // 1. Bring up the frontend dev server (or reuse one already running) so the on-device
+            //    webview has something to load over http://localhost.
+            var devUrl = config.Build.DevUrl;
+            Task? devServer = null;
+            if (await IsReachable(devUrl, cts.Token))
+            {
+                Console.WriteLine($"[Carbon] Reusing dev server already running at {devUrl}");
+            }
+            else
+            {
+                devServer = StartDevServer(config, workingDir, cts.Token);
+                Console.WriteLine($"[Carbon] Waiting for dev server at {devUrl}...");
+                if (!await WaitForDevServer(devUrl, TimeSpan.FromSeconds(60), cts.Token))
+                {
+                    MobileBundleSupport.Error(
+                        $"Frontend dev server never became reachable at {devUrl}. " +
+                        "Check build.devCommand and build.devUrl in carbon.json.");
+                    return 1;
+                }
+            }
+            _ = devServer; // kept alive by the shared CancellationTokenSource until we shut down
 
-        var prepared = await PrepareAsync(config, workingDir, iosDir, project);
-        if (prepared is null) return 1;
+            await MobileBundleSupport.WarnIfXcodeMismatchAsync();
 
-        MobileBundleSupport.StripExtendedAttributes(prepared.ProjectDirectory);
-        Environment.SetEnvironmentVariable("COPYFILE_DISABLE", "1");
+            // 2. Build a dev app bundle that embeds only carbon.json (no frontend) so the host picks
+            //    DevServer content mode, with an ATS exception allowing the plaintext-http dev server.
+            var prepared = PrepareDev(config, workingDir, iosDir, project);
+            MobileBundleSupport.StripExtendedAttributes(prepared.ProjectDirectory);
+            Environment.SetEnvironmentVariable("COPYFILE_DISABLE", "1");
 
-        var args =
-            $"build \"{prepared.Project}\" -c Debug -f net10.0-ios -t:Run -p:RuntimeIdentifier={SimulatorRid()} " +
-            $"-p:CustomBeforeMicrosoftCommonProps=\"{prepared.EmbedProps}\" " +
-            $"-p:CustomAfterMicrosoftCommonTargets=\"{prepared.CodesignTargets}\"";
-        return await BuildCommand.RunProcessToCompletion(
-            "dotnet", args, prepared.ProjectDirectory, "[ios]", ConsoleColor.Magenta);
+            Console.WriteLine("\n[Carbon] Building .NET iOS app (dev)...");
+            // Simulator dev builds run under the Mono interpreter: fast rebuilds and no device-only
+            // AOT step (which the iOS SDK's AOT compiler can crash on, and which a dev loop never needs).
+            var buildArgs =
+                $"build \"{prepared.Project}\" -c Debug -f net10.0-ios -p:RuntimeIdentifier={SimulatorRid()} " +
+                "-p:MtouchInterpreter=all -p:RunAOTCompilation=false " +
+                $"-p:CustomBeforeMicrosoftCommonProps=\"{prepared.EmbedProps}\" " +
+                $"-p:CustomAfterMicrosoftCommonTargets=\"{prepared.CodesignTargets}\"";
+            if (await BuildCommand.RunProcessToCompletion(
+                    "dotnet", buildArgs, prepared.ProjectDirectory, "[ios]", ConsoleColor.Magenta) != 0)
+            {
+                MobileBundleSupport.Error(".NET iOS build failed.");
+                MobileBundleSupport.HintIosBuildFailure();
+                return 1;
+            }
+
+            // 3. Install onto the booted simulator and launch with a pty so the app's stdout streams
+            //    back here (Console.WriteLine, including CarbonApp's content-mode banner).
+            var appBundle = LocateArtifact(prepared.ProjectDirectory, archive: false, "Debug");
+            if (appBundle is null)
+            {
+                MobileBundleSupport.Error("Build finished but the .app bundle could not be located.");
+                return 1;
+            }
+
+            Console.WriteLine($"[Carbon] Installing {Path.GetFileName(appBundle)} on the booted simulator...");
+            if (await RunStreaming("xcrun", $"simctl install booted \"{appBundle}\"",
+                    prepared.ProjectDirectory, "[sim]", ConsoleColor.Blue, cts.Token) != 0)
+            {
+                MobileBundleSupport.Error(
+                    "simctl install failed. Boot a simulator first: xcrun simctl boot \"iPhone 17\".");
+                return 1;
+            }
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"[Carbon] Launching {config.App.Identifier} — streaming logs (Ctrl-C to stop)...");
+            Console.ResetColor();
+            await RunStreaming(
+                "xcrun",
+                $"simctl launch --console-pty --terminate-running-process booted {config.App.Identifier}",
+                prepared.ProjectDirectory, "[app]", ConsoleColor.Magenta, cts.Token);
+
+            return 0;
+        }
+        finally
+        {
+            Console.CancelKeyPress -= onCancel;
+            cts.Cancel();
+        }
+    }
+
+    /// <summary>
+    /// Prepares a dev build: stages the project, embeds only carbon.json (no frontend, so the host
+    /// runs in DevServer mode), and relaxes ATS so the webview can load the http dev server.
+    /// </summary>
+    private static PreparedBuild PrepareDev(
+        CarbonConfig config, string workingDir, string iosDir, string project)
+    {
+        var buildRoot = MobileBundleSupport.LocalBuildRoot(workingDir, "ios");
+        var stagedProject = StageProject(iosDir, project, buildRoot);
+        var stagedDir = Path.GetDirectoryName(stagedProject)!;
+        var props = MobileBundleSupport.WriteDevConfigProps(
+            stagedDir, stagedProject, Path.Combine(workingDir, "carbon.json"), "DotCarbon.iOS.props");
+        MobileBundleSupport.InjectLocalNetworkingAts(stagedDir);
+        var targets = MobileBundleSupport.WriteIosCodesignTargets(stagedDir);
+        return new PreparedBuild(stagedProject, stagedDir, props, targets);
+    }
+
+    private static Task StartDevServer(CarbonConfig config, string workingDir, CancellationToken ct)
+    {
+        var parts = config.Build.DevCommand.Split(' ', 2);
+        var command = parts[0];
+        var args = parts.Length > 1 ? parts[1] : string.Empty;
+        var frontendDir = Path.GetFullPath(
+            Path.Combine(workingDir, Path.GetDirectoryName(config.Build.FrontendDist) ?? "ui"));
+        var packageJsonDir = FindPackageJson(frontendDir) ?? workingDir;
+
+        Console.WriteLine($"[Carbon] Starting frontend dev server: {config.Build.DevCommand} (in {packageJsonDir})");
+        return RunStreaming(command, args, packageJsonDir, "[ui]", ConsoleColor.Green, ct);
+    }
+
+    private static async Task<bool> IsReachable(string url, CancellationToken ct)
+    {
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+        try
+        {
+            return (await client.GetAsync(url, ct)).IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> WaitForDevServer(string url, TimeSpan timeout, CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+        {
+            if (await IsReachable(url, ct)) return true;
+            try { await Task.Delay(500, ct); } catch (OperationCanceledException) { return false; }
+        }
+        return false;
+    }
+
+    private static string? FindPackageJson(string startDir)
+    {
+        var dir = new DirectoryInfo(startDir);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "package.json"))) return dir.FullName;
+            dir = dir.Parent;
+        }
+        return null;
+    }
+
+    /// <summary>Runs a process, streaming its stdout/stderr to the terminal until it exits or is cancelled.</summary>
+    private static async Task<int> RunStreaming(
+        string command, string args, string workingDir, string prefix, ConsoleColor color, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = command,
+            Arguments = args,
+            WorkingDirectory = workingDir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+
+        void Emit(string? data, ConsoleColor lineColor)
+        {
+            if (data is null) return;
+            Console.ForegroundColor = lineColor;
+            Console.Write($"{prefix} ");
+            Console.ResetColor();
+            Console.WriteLine(data);
+        }
+
+        process.OutputDataReceived += (_, e) => Emit(e.Data, color);
+        process.ErrorDataReceived += (_, e) => Emit(e.Data, ConsoleColor.Yellow);
+
+        try
+        {
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            await process.WaitForExitAsync(ct);
+            return process.ExitCode;
+        }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            return 0;
+        }
     }
 
     private static string? FindProject(string iosDir) =>
