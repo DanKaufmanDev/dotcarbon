@@ -197,6 +197,15 @@ public static class AddCommand
                 "updater",
                 ["updater:*"],
                 Platforms: ["desktop"]),
+            ["websocket"] = new(
+                ["websocket", "ws", "web-socket", "sockets", "DotCarbon.Plugins.WebSocket"],
+                "DotCarbon.Plugins.WebSocket",
+                "@dotcarbon/plugin-websocket",
+                "DotCarbon.Plugins.WebSocket",
+                "WebSocketPlugin",
+                "websocket",
+                ["websocket:*"],
+                Platforms: ["desktop"]),
             ["window"] = new(
                 ["window", "windows", "webview", "DotCarbon.Plugins.Window"],
                 "DotCarbon.Plugins.Window",
