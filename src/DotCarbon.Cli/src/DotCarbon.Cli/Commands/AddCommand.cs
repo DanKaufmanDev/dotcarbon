@@ -31,6 +31,15 @@ public static class AddCommand
                 "cli",
                 ["cli:*"],
                 Platforms: ["desktop"]),
+            ["positioner"] = new(
+                ["positioner", "position", "window-position", "DotCarbon.Plugins.Positioner"],
+                "DotCarbon.Plugins.Positioner",
+                "@dotcarbon/plugin-positioner",
+                "DotCarbon.Plugins.Positioner",
+                "PositionerPlugin",
+                "positioner",
+                ["positioner:*"],
+                Platforms: ["desktop"]),
             ["clipboard"] = new(
                 ["clipboard", "clip", "DotCarbon.Plugins.Clipboard"],
                 "DotCarbon.Plugins.Clipboard",
