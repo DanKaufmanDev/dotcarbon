@@ -135,6 +135,15 @@ public static class AddCommand
                 "PathPlugin",
                 "path",
                 ["path:*"]),
+            ["persisted-scope"] = new(
+                ["persisted-scope", "persistedscope", "persist-scope", "scope-persistence", "DotCarbon.Plugins.PersistedScope"],
+                "DotCarbon.Plugins.PersistedScope",
+                "@dotcarbon/plugin-persisted-scope",
+                "DotCarbon.Plugins.PersistedScope",
+                "PersistedScopePlugin",
+                "persisted-scope",
+                ["persisted-scope:*"],
+                Platforms: ["desktop"]),
             ["process"] = new(
                 ["process", "proc", "exit", "relaunch", "DotCarbon.Plugins.Process"],
                 "DotCarbon.Plugins.Process",

@@ -15,10 +15,14 @@ public static class CarbonAssetScope
     /// <summary>Whether <paramref name="fullPath"/> (already absolute) sits inside an allowed root.</summary>
     public static bool IsAllowed(string fullPath)
     {
-        return _roots
+        if (_roots
             .Select(ResolveRoot)
             .Where(root => root.Length > 0)
-            .Any(root => IsWithin(fullPath, root));
+            .Any(root => IsWithin(fullPath, root)))
+            return true;
+
+        // Also honor roots granted at runtime and restored by the persisted-scope plugin (Task 6.9).
+        return CarbonRuntimeScope.IsAllowed(CarbonRuntimeScope.Asset, fullPath);
     }
 
     private static string ResolveRoot(string scope)

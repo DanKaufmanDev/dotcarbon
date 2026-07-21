@@ -1,4 +1,5 @@
 using DotCarbon.Core.Bridge;
+using DotCarbon.Core.Host;
 using DotCarbon.Core.Plugins;
 using DotCarbon.Core.Runtime;
 
@@ -131,11 +132,15 @@ public partial class FileSystemPlugin : IPlugin
             .Where(root => !string.IsNullOrWhiteSpace(root))
             .ToArray();
 
-        if (allowRoots.Length == 0)
+        // Roots granted at runtime (Task 6.9) — e.g. a folder the user picked — count as allowed too.
+        var runtimeAllows = CarbonRuntimeScope.HasEntries(CarbonRuntimeScope.FileSystem);
+
+        if (allowRoots.Length == 0 && !runtimeAllows)
             throw new UnauthorizedAccessException(
                 "File-system access requires an allowed scope (plugins.fs.scopes or a capability fs permission allow).");
 
-        if (!allowRoots.Any(root => IsWithin(fullPath, root)))
+        if (!allowRoots.Any(root => IsWithin(fullPath, root)) &&
+            !CarbonRuntimeScope.IsAllowed(CarbonRuntimeScope.FileSystem, fullPath))
             throw new UnauthorizedAccessException($"Path is outside the allowed file-system scopes: {path}");
 
         if (scope.Deny

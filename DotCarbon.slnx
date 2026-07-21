@@ -20,6 +20,7 @@
     <Project Path="src/DotCarbon.Plugins.Os/DotCarbon.Plugins.Os.csproj" />
     <Project Path="src/DotCarbon.Plugins.Log/DotCarbon.Plugins.Log.csproj" />
     <Project Path="src/DotCarbon.Plugins.Path/DotCarbon.Plugins.Path.csproj" />
+    <Project Path="src/DotCarbon.Plugins.PersistedScope/DotCarbon.Plugins.PersistedScope.csproj" />
     <Project Path="src/DotCarbon.Plugins.Process/DotCarbon.Plugins.Process.csproj" />
     <Project Path="src/DotCarbon.Plugins.Opener/DotCarbon.Plugins.Opener.csproj" />
     <Project Path="src/DotCarbon.Plugins.Shell/DotCarbon.Plugins.Shell.csproj" />
