@@ -9,6 +9,7 @@
     <Project Path="src/DotCarbon.Plugins.Dialog/DotCarbon.Plugins.Dialog.csproj" />
     <Project Path="src/DotCarbon.Plugins.FileSystem/DotCarbon.Plugins.FileSystem.csproj" />
     <Project Path="src/DotCarbon.Plugins.GlobalShortcut/DotCarbon.Plugins.GlobalShortcut.csproj" />
+    <Project Path="src/DotCarbon.Plugins.Autostart/DotCarbon.Plugins.Autostart.csproj" />
     <Project Path="src/DotCarbon.Plugins.Http/DotCarbon.Plugins.Http.csproj" />
     <Project Path="src/DotCarbon.Plugins.Notification/DotCarbon.Plugins.Notification.csproj" />
     <Project Path="src/DotCarbon.Plugins.Os/DotCarbon.Plugins.Os.csproj" />

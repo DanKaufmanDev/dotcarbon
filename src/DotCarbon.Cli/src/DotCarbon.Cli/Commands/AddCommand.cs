@@ -13,6 +13,15 @@ public static class AddCommand
     private static readonly IReadOnlyDictionary<string, PluginDefinition> Plugins =
         new Dictionary<string, PluginDefinition>(StringComparer.OrdinalIgnoreCase)
         {
+            ["autostart"] = new(
+                ["autostart", "auto-start", "launch-at-login", "startup", "DotCarbon.Plugins.Autostart"],
+                "DotCarbon.Plugins.Autostart",
+                "@dotcarbon/plugin-autostart",
+                "DotCarbon.Plugins.Autostart",
+                "AutostartPlugin",
+                "autostart",
+                ["autostart:*"],
+                Platforms: ["desktop"]),
             ["clipboard"] = new(
                 ["clipboard", "clip", "DotCarbon.Plugins.Clipboard"],
                 "DotCarbon.Plugins.Clipboard",
