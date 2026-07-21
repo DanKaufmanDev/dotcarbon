@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
+using DotCarbon.Core.Config;
 
 namespace DotCarbon.Cli.Bundling;
 
@@ -363,6 +365,173 @@ internal static class MobileBundleSupport
         if (string.IsNullOrWhiteSpace(version)) return null;
         var parts = version.Split('.', '/', '-');
         return parts.Length >= 2 ? $"{parts[0]}.{parts[1]}" : null;
+    }
+
+    /// <summary>
+    /// Writes an Android dev props file: embeds only carbon.json (so the host runs in DevServer mode,
+    /// same as iOS) plus a manifest overlay that permits cleartext http — Android blocks plaintext
+    /// traffic by default, which would stop the WebView loading the local dev server.
+    /// </summary>
+    public static string WriteAndroidDevProps(
+        string platformDir, string project, string configPath, string propsName)
+    {
+        var generatedDir = Path.Combine(platformDir, "obj", "dotcarbon");
+        Directory.CreateDirectory(generatedDir);
+
+        var overlayPath = Path.Combine(generatedDir, "DotCarbon.Dev.AndroidManifest.xml");
+        File.WriteAllText(overlayPath,
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
+            "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">\n" +
+            "    <application android:usesCleartextTraffic=\"true\" />\n" +
+            "</manifest>\n");
+
+        var propsPath = Path.Combine(generatedDir, propsName);
+        var projectElement = new XElement("Project");
+        projectElement.Add(
+            new XElement("ItemGroup",
+                new XAttribute("Condition", ProjectCondition(project)),
+                new XElement("EmbeddedResource",
+                    new XAttribute("Include", configPath),
+                    new XAttribute("LogicalName", "DotCarbon.Config/carbon.json")),
+                new XElement("AndroidManifestOverlay",
+                    new XAttribute("Include", overlayPath))));
+        new XDocument(projectElement).Save(propsPath);
+        return propsPath;
+    }
+
+    /// <summary>Locates the Android <c>adb</c> executable from the SDK env vars or the usual install path.</summary>
+    public static string FindAdb()
+    {
+        var exe = OperatingSystem.IsWindows() ? "adb.exe" : "adb";
+        var roots = new[]
+        {
+            Environment.GetEnvironmentVariable("ANDROID_HOME"),
+            Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Android", "sdk"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Android", "Sdk"),
+        };
+        foreach (var root in roots)
+        {
+            if (string.IsNullOrWhiteSpace(root)) continue;
+            var candidate = Path.Combine(root, "platform-tools", exe);
+            if (File.Exists(candidate)) return candidate;
+        }
+        return "adb"; // fall back to PATH
+    }
+
+    /// <summary>Whether a dev server is already answering at <paramref name="url"/>.</summary>
+    public static async Task<bool> IsReachable(string url, CancellationToken ct)
+    {
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+        try
+        {
+            return (await client.GetAsync(url, ct)).IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Polls <paramref name="url"/> until it answers or the timeout elapses.</summary>
+    public static async Task<bool> WaitForDevServer(string url, TimeSpan timeout, CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+        {
+            if (await IsReachable(url, ct)) return true;
+            try { await Task.Delay(500, ct); } catch (OperationCanceledException) { return false; }
+        }
+        return false;
+    }
+
+    /// <summary>Starts the configured frontend dev server (<c>build.devCommand</c>) and streams its output.</summary>
+    public static Task StartDevServer(CarbonConfig config, string workingDir, CancellationToken ct)
+    {
+        var parts = config.Build.DevCommand.Split(' ', 2);
+        var command = parts[0];
+        var args = parts.Length > 1 ? parts[1] : string.Empty;
+        var frontendDir = Path.GetFullPath(
+            Path.Combine(workingDir, Path.GetDirectoryName(config.Build.FrontendDist) ?? "ui"));
+        var packageJsonDir = FindPackageJson(frontendDir) ?? workingDir;
+
+        Console.WriteLine($"[Carbon] Starting frontend dev server: {config.Build.DevCommand} (in {packageJsonDir})");
+        return RunStreaming(command, args, packageJsonDir, "[ui]", ConsoleColor.Green, ct);
+    }
+
+    public static string? FindPackageJson(string startDir)
+    {
+        var dir = new DirectoryInfo(startDir);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "package.json"))) return dir.FullName;
+            dir = dir.Parent;
+        }
+        return null;
+    }
+
+    /// <summary>Runs a process, streaming its stdout/stderr to the terminal until it exits or is cancelled.</summary>
+    public static async Task<int> RunStreaming(
+        string command, string args, string workingDir, string prefix, ConsoleColor color, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = command,
+            Arguments = args,
+            WorkingDirectory = workingDir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+
+        void Emit(string? data, ConsoleColor lineColor)
+        {
+            if (data is null) return;
+            Console.ForegroundColor = lineColor;
+            Console.Write($"{prefix} ");
+            Console.ResetColor();
+            Console.WriteLine(data);
+        }
+
+        process.OutputDataReceived += (_, e) => Emit(e.Data, color);
+        process.ErrorDataReceived += (_, e) => Emit(e.Data, ConsoleColor.Yellow);
+
+        try
+        {
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            await process.WaitForExitAsync(ct);
+            return process.ExitCode;
+        }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            return 0;
+        }
+    }
+
+    /// <summary>Runs a process to completion, capturing its trimmed stdout (empty on any failure).</summary>
+    public static async Task<string> RunCapture(string command, string args)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo(command, args)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+            });
+            if (process is null) return string.Empty;
+            var output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            return output.Trim();
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     public static void Error(string message) => Write(message, ConsoleColor.Red);

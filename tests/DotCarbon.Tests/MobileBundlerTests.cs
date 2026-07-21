@@ -78,6 +78,34 @@ public class MobileBundlerTests
     }
 
     [Fact]
+    public void Android_dev_props_embed_config_only_and_allow_cleartext_for_the_dev_server()
+    {
+        var dir = CreateTempDir();
+        try
+        {
+            var project = Touch(Path.Combine(dir, "Mobile.Android.csproj"));
+            var config = Touch(Path.Combine(dir, "carbon.json"));
+
+            var props = MobileBundleSupport.WriteAndroidDevProps(dir, project, config, "DotCarbon.Android.props");
+            var propsXml = File.ReadAllText(props);
+
+            // config embedded, frontend not (-> DevServer mode), and a manifest overlay is wired in.
+            Assert.Contains("DotCarbon.Config/carbon.json", propsXml);
+            Assert.DoesNotContain("DotCarbon.Assets/", propsXml);
+            Assert.Contains("AndroidManifestOverlay", propsXml);
+
+            // the referenced overlay permits cleartext http so the WebView can reach the dev server.
+            var overlay = Path.Combine(dir, "obj", "dotcarbon", "DotCarbon.Dev.AndroidManifest.xml");
+            Assert.True(File.Exists(overlay));
+            Assert.Contains("usesCleartextTraffic", File.ReadAllText(overlay));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Ios_dev_ats_injection_allows_the_plaintext_localhost_dev_server()
     {
         if (!OperatingSystem.IsMacOS()) return; // PlistBuddy is macOS-only

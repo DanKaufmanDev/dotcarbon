@@ -173,15 +173,15 @@ internal sealed class IosBundler
             //    webview has something to load over http://localhost.
             var devUrl = config.Build.DevUrl;
             Task? devServer = null;
-            if (await IsReachable(devUrl, cts.Token))
+            if (await MobileBundleSupport.IsReachable(devUrl, cts.Token))
             {
                 Console.WriteLine($"[Carbon] Reusing dev server already running at {devUrl}");
             }
             else
             {
-                devServer = StartDevServer(config, workingDir, cts.Token);
+                devServer = MobileBundleSupport.StartDevServer(config, workingDir, cts.Token);
                 Console.WriteLine($"[Carbon] Waiting for dev server at {devUrl}...");
-                if (!await WaitForDevServer(devUrl, TimeSpan.FromSeconds(60), cts.Token))
+                if (!await MobileBundleSupport.WaitForDevServer(devUrl, TimeSpan.FromSeconds(60), cts.Token))
                 {
                     MobileBundleSupport.Error(
                         $"Frontend dev server never became reachable at {devUrl}. " +
@@ -225,7 +225,7 @@ internal sealed class IosBundler
             }
 
             Console.WriteLine($"[Carbon] Installing {Path.GetFileName(appBundle)} on the booted simulator...");
-            if (await RunStreaming("xcrun", $"simctl install booted \"{appBundle}\"",
+            if (await MobileBundleSupport.RunStreaming("xcrun", $"simctl install booted \"{appBundle}\"",
                     prepared.ProjectDirectory, "[sim]", ConsoleColor.Blue, cts.Token) != 0)
             {
                 MobileBundleSupport.Error(
@@ -236,7 +236,7 @@ internal sealed class IosBundler
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine($"[Carbon] Launching {config.App.Identifier} — streaming logs (Ctrl-C to stop)...");
             Console.ResetColor();
-            await RunStreaming(
+            await MobileBundleSupport.RunStreaming(
                 "xcrun",
                 $"simctl launch --console-pty --terminate-running-process booted {config.App.Identifier}",
                 prepared.ProjectDirectory, "[app]", ConsoleColor.Magenta, cts.Token);
@@ -265,96 +265,6 @@ internal sealed class IosBundler
         MobileBundleSupport.InjectLocalNetworkingAts(stagedDir);
         var targets = MobileBundleSupport.WriteIosCodesignTargets(stagedDir);
         return new PreparedBuild(stagedProject, stagedDir, props, targets);
-    }
-
-    private static Task StartDevServer(CarbonConfig config, string workingDir, CancellationToken ct)
-    {
-        var parts = config.Build.DevCommand.Split(' ', 2);
-        var command = parts[0];
-        var args = parts.Length > 1 ? parts[1] : string.Empty;
-        var frontendDir = Path.GetFullPath(
-            Path.Combine(workingDir, Path.GetDirectoryName(config.Build.FrontendDist) ?? "ui"));
-        var packageJsonDir = FindPackageJson(frontendDir) ?? workingDir;
-
-        Console.WriteLine($"[Carbon] Starting frontend dev server: {config.Build.DevCommand} (in {packageJsonDir})");
-        return RunStreaming(command, args, packageJsonDir, "[ui]", ConsoleColor.Green, ct);
-    }
-
-    private static async Task<bool> IsReachable(string url, CancellationToken ct)
-    {
-        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
-        try
-        {
-            return (await client.GetAsync(url, ct)).IsSuccessStatusCode;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static async Task<bool> WaitForDevServer(string url, TimeSpan timeout, CancellationToken ct)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
-        {
-            if (await IsReachable(url, ct)) return true;
-            try { await Task.Delay(500, ct); } catch (OperationCanceledException) { return false; }
-        }
-        return false;
-    }
-
-    private static string? FindPackageJson(string startDir)
-    {
-        var dir = new DirectoryInfo(startDir);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "package.json"))) return dir.FullName;
-            dir = dir.Parent;
-        }
-        return null;
-    }
-
-    /// <summary>Runs a process, streaming its stdout/stderr to the terminal until it exits or is cancelled.</summary>
-    private static async Task<int> RunStreaming(
-        string command, string args, string workingDir, string prefix, ConsoleColor color, CancellationToken ct)
-    {
-        var psi = new ProcessStartInfo
-        {
-            FileName = command,
-            Arguments = args,
-            WorkingDirectory = workingDir,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-        using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
-
-        void Emit(string? data, ConsoleColor lineColor)
-        {
-            if (data is null) return;
-            Console.ForegroundColor = lineColor;
-            Console.Write($"{prefix} ");
-            Console.ResetColor();
-            Console.WriteLine(data);
-        }
-
-        process.OutputDataReceived += (_, e) => Emit(e.Data, color);
-        process.ErrorDataReceived += (_, e) => Emit(e.Data, ConsoleColor.Yellow);
-
-        try
-        {
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            await process.WaitForExitAsync(ct);
-            return process.ExitCode;
-        }
-        catch (OperationCanceledException)
-        {
-            if (!process.HasExited) process.Kill(entireProcessTree: true);
-            return 0;
-        }
     }
 
     private static string? FindProject(string iosDir) =>
