@@ -13,7 +13,8 @@ var config = ConfigLoader.Load();
 CarbonApp.Create(config)
     .UseDesktop()
     .WithPlugin<FileSystemPlugin>()
-    .WithWindowPlugin((_, window) => new DialogPlugin(window.Photino()))
+    // Dialogs come from the host (ICarbonDialogs) now, so this registers like any other plugin.
+    .WithPlugin<DialogPlugin>()
     .WithPlugin<ShellPlugin>()
     .WithPlugin<WindowPlugin>()
     .WithPlugin<NotificationPlugin>()

@@ -20,4 +20,10 @@ public interface ICarbonPlatformHost
     /// it back (e.g. <c>app.PlatformNativeHandle as Android.Content.Context</c>). Null on desktop.
     /// </summary>
     object? NativeHandle => null;
+
+    /// <summary>
+    /// The host's native dialogs, or null when it provides none (the Dialog plugin then reports that
+    /// dialogs are unavailable rather than failing obscurely).
+    /// </summary>
+    ICarbonDialogs? Dialogs => null;
 }

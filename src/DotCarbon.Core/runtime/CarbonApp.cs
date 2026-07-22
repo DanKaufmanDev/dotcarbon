@@ -83,6 +83,9 @@ public sealed class CarbonApp
     /// <summary>The platform host's native handle (Android <c>Context</c> / iOS <c>WKWebView</c>), or null on desktop.</summary>
     internal object? PlatformNativeHandle => _platformHost?.NativeHandle;
 
+    /// <summary>The platform host's native dialogs, or null when it provides none.</summary>
+    internal ICarbonDialogs? PlatformDialogs => _platformHost?.Dialogs;
+
     public CarbonApp Manage<TState>(TState state) where TState : class
     {
         EnsureNotRunning();

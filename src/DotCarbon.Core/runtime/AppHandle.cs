@@ -43,6 +43,12 @@ public sealed class AppHandle
     /// </summary>
     public object? PlatformNativeHandle => _app.PlatformNativeHandle;
 
+    /// <summary>
+    /// The platform host's native dialogs (message/confirm/file choosers), or null when the host
+    /// provides none. Used by <c>DotCarbon.Plugins.Dialog</c> so it needs no platform reference.
+    /// </summary>
+    public Host.ICarbonDialogs? PlatformDialogs => _app.PlatformDialogs;
+
     public IReadOnlyList<PluginMetadata> Plugins
     {
         get

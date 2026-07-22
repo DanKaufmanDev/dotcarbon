@@ -1,13 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <PackageReference Include="Photino.NET" Version="4.0.16" />
+    <!-- No platform reference: native dialogs come from the host via ICarbonDialogs, so this plugin
+         runs on desktop and mobile alike. -->
     <ProjectReference Include="..\DotCarbon.Core\DotCarbon.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotCarbon.Tests" />
   </ItemGroup>
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Description>Native dialog plugin for DotCarbon.</Description>
+    <Description>Native dialog plugin for DotCarbon (desktop and mobile).</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

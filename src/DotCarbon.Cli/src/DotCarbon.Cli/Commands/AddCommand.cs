@@ -75,8 +75,9 @@ public static class AddCommand
                 "DialogPlugin",
                 "dialog",
                 ["dialog:*"],
-                WindowPluginFactory: "(_, window) => new DialogPlugin(window.Photino())",
-                Platforms: ["desktop"]),
+                // Dialogs now come from the host (ICarbonDialogs), so this registers like any other
+                // plugin — no Photino window needs threading through a window factory.
+                Platforms: ["desktop", "android", "ios"]),
             ["fs"] = new(
                 ["fs", "filesystem", "file-system", "DotCarbon.Plugins.FileSystem"],
                 "DotCarbon.Plugins.FileSystem",

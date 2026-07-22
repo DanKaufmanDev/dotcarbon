@@ -14,6 +14,12 @@ public sealed class IosPlatformHost : ICarbonPlatformHost
     /// <summary>The native <see cref="global::WebKit.WKWebView"/>, for native plugin bindings.</summary>
     public object? NativeHandle => _mainWebView.Native;
 
+    /// <summary>Native iOS dialogs, presented on the webview's root view controller.</summary>
+    public ICarbonDialogs? Dialogs =>
+        _dialogs ??= new IosDialogs(() => _mainWebView.Native.Window?.RootViewController);
+
+    private IosDialogs? _dialogs;
+
     public ICarbonWebView CreateWebView(CarbonWebViewContext context)
     {
         if (context.Parent is not null)
