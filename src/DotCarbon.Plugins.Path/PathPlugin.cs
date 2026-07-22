@@ -76,18 +76,30 @@ public partial class PathPlugin : IPlugin
     }
 
     [CarbonCommand("app_config_dir")]
-    public string AppConfigDir() => SysPath.Combine(ConfigRoot(), AppId);
+    public string AppConfigDir() => AppScoped(ConfigRoot());
 
     [CarbonCommand("app_data_dir")]
-    public string AppDataDir() => SysPath.Combine(DataRoot(), AppId);
+    public string AppDataDir() => AppScoped(DataRoot());
 
     [CarbonCommand("app_cache_dir")]
-    public string AppCacheDir() => SysPath.Combine(CacheRoot(), AppId);
+    public string AppCacheDir() => AppScoped(CacheRoot());
 
     [CarbonCommand("app_log_dir")]
     public string AppLogDir() => OperatingSystem.IsMacOS()
         ? SysPath.Combine(Home(), "Library", "Logs", AppId)
-        : SysPath.Combine(DataRoot(), AppId, "logs");
+        : SysPath.Combine(AppScoped(DataRoot()), "logs");
+
+    private string AppScoped(string root) => AppScopedDir(root, AppId, IsMobile);
+
+    /// <summary>
+    /// Desktop app directories are shared trees, so each app nests under its identifier. A mobile app
+    /// already runs in a per-app sandbox (Android <c>/data/user/0/&lt;pkg&gt;</c>, the iOS app container),
+    /// so nesting again just buries files one level deeper for no isolation benefit.
+    /// </summary>
+    internal static string AppScopedDir(string root, string appId, bool isMobile) =>
+        isMobile ? Trim(root) : SysPath.Combine(root, appId);
+
+    private static bool IsMobile => OperatingSystem.IsAndroid() || OperatingSystem.IsIOS();
 
     // --- path manipulation -------------------------------------------------------------------
 
@@ -128,7 +140,10 @@ public partial class PathPlugin : IPlugin
     {
         if (OperatingSystem.IsMacOS()) return SysPath.Combine(Home(), "Library", "Application Support");
         if (OperatingSystem.IsLinux()) return Xdg("XDG_CONFIG_HOME", ".config");
-        // Windows and mobile: %APPDATA% / the platform's roaming-config equivalent.
+        // Mobile sandboxes have no separate roaming-config location (and ApplicationData would append a
+        // Linux-style ".config" on Android), so configuration lives in the app data root.
+        if (IsMobile) return DataRoot();
+        // Windows: %APPDATA%.
         return Trim(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
     }
 
@@ -142,6 +157,11 @@ public partial class PathPlugin : IPlugin
     private static string CacheRoot()
     {
         if (OperatingSystem.IsMacOS()) return SysPath.Combine(Home(), "Library", "Caches");
+        // iOS: the app container's own Library/Caches (Home() is the sandbox root).
+        if (OperatingSystem.IsIOS()) return SysPath.Combine(Home(), "Library", "Caches");
+        // Android: the app's cache dir, which is what GetTempPath() resolves to
+        // (/data/user/0/<pkg>/cache). LocalApplicationData would wrongly land under files/.
+        if (OperatingSystem.IsAndroid()) return Trim(SysPath.GetTempPath());
         if (OperatingSystem.IsLinux()) return Xdg("XDG_CACHE_HOME", ".cache");
         return Trim(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
     }
