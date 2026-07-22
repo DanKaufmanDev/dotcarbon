@@ -15,8 +15,17 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
     {
         var ios = config.Bundle.Ios;
         return $"{config.App.Name}|{AppDisplayName(config)}|{BundleId(config)}|{config.App.Version}|{ios.MinimumOSVersion}|{ios.DevelopmentTeam}|" +
+               $"{string.Join(",", DeepLinkSchemes(config))}|" +
                PermissionCatalog.Signature(config);
     }
+
+    private static List<string> DeepLinkSchemes(CarbonConfig config) =>
+        config.Bundle.Protocols
+            .SelectMany(protocol => protocol.Schemes)
+            .Select(scheme => scheme.Trim().TrimEnd(':'))
+            .Where(scheme => scheme.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     public IReadOnlyList<GeneratedFile> Generate(PlatformContext context)
     {
@@ -39,6 +48,16 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
 
         var usageKeys = string.Concat(PermissionCatalog.IosUsageDescriptions(config)
             .Select(entry => $"    <key>{entry.Key}</key><string>{Escape(entry.Description)}</string>\n"));
+
+        // Deep-link schemes (bundle.protocols) become CFBundleURLTypes so the OS routes myscheme:// URLs
+        // to the app; CarbonAppDelegate delivers them to the DeepLink plugin.
+        var schemes = DeepLinkSchemes(config);
+        var urlTypes = schemes.Count == 0 ? string.Empty :
+            "    <key>CFBundleURLTypes</key>\n    <array>\n        <dict>\n" +
+            $"            <key>CFBundleURLName</key><string>{bundleId}</string>\n" +
+            "            <key>CFBundleURLSchemes</key>\n            <array>\n" +
+            string.Concat(schemes.Select(scheme => $"                <string>{scheme}</string>\n")) +
+            "            </array>\n        </dict>\n    </array>\n";
 
         return new List<GeneratedFile>
         {
@@ -109,6 +128,7 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
                 "        <string>UIInterfaceOrientationLandscapeRight</string>\n" +
                 "    </array>\n" +
                 usageKeys +
+                urlTypes +
                 "</dict>\n</plist>\n"),
 
             new("Entitlements.plist",

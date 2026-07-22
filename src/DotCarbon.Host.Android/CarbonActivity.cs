@@ -1,4 +1,5 @@
 using Android.App;
+using Android.Content;
 using Android.OS;
 using Android.Webkit;
 using DotCarbon.Core.Config;
@@ -38,10 +39,22 @@ public abstract class CarbonActivity : Activity
 
         SetContentView(native);
 
+        // A deep link that launched the app arrives as the intent's data URI; record it before Start()
+        // so the DeepLink plugin sees it at initialization.
+        CarbonDeepLinks.Deliver(Intent?.DataString);
+
         var app = _app = CarbonApp.Create(LoadConfig()).UsePlatform(new AndroidPlatformHost(webView));
         ConfigureApp(app);
         app.Start();
         webView.RaiseCreated();
+    }
+
+    protected override void OnNewIntent(Intent? intent)
+    {
+        base.OnNewIntent(intent);
+        Intent = intent;
+        // A deep link received while the app is already running.
+        CarbonDeepLinks.Deliver(intent?.DataString);
     }
 
     protected override void OnResume()

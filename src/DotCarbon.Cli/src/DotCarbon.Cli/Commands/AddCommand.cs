@@ -66,7 +66,7 @@ public static class AddCommand
                 "DeepLinkPlugin",
                 "deep-link",
                 ["deep-link:*"],
-                Platforms: ["desktop"]),
+                Platforms: ["desktop", "android", "ios"]),
             ["dialog"] = new(
                 ["dialog", "dialogs", "DotCarbon.Plugins.Dialog"],
                 "DotCarbon.Plugins.Dialog",

@@ -48,10 +48,22 @@ public abstract class CarbonAppDelegate : UIApplicationDelegate
         Window = new UIWindow(UIScreen.MainScreen.Bounds) { RootViewController = controller };
         Window.MakeKeyAndVisible();
 
+        // A deep link that launched the app arrives in the launch options; record it before Start()
+        // so the DeepLink plugin sees it at initialization.
+        if (launchOptions?[UIApplication.LaunchOptionsUrlKey] is NSUrl launchUrl)
+            CarbonDeepLinks.Deliver(launchUrl.AbsoluteString);
+
         var app = _app = CarbonApp.Create(LoadConfig()).UsePlatform(new IosPlatformHost(webView));
         ConfigureApp(app);
         app.Start();
         webView.RaiseCreated();
+        return true;
+    }
+
+    public override bool OpenUrl(UIApplication application, NSUrl url, NSDictionary options)
+    {
+        // A deep link received while the app is already running.
+        CarbonDeepLinks.Deliver(url.AbsoluteString);
         return true;
     }
 
