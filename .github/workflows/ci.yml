@@ -114,7 +114,13 @@ jobs:
           "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Install Linux package tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y file desktop-file-utils
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y file desktop-file-utils
+          # appimagetool is itself an AppImage that needs FUSE to run. ubuntu-24.04 runners drop FUSE2
+          # by default (and not every appimagetool build honours APPIMAGE_EXTRACT_AND_RUN), so make it
+          # available. The package is libfuse2t64 on 24.04, libfuse2 on 22.04.
+          sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2 || true
       - name: Package fixture
         run: dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- bundle desktop --project tests/DotCarbon.Tests/fixtures/package-app --target ${{ matrix.rid }}
       - name: Verify package artifact
