@@ -13,6 +13,15 @@ public static class AddCommand
     private static readonly IReadOnlyDictionary<string, PluginDefinition> Plugins =
         new Dictionary<string, PluginDefinition>(StringComparer.OrdinalIgnoreCase)
         {
+            ["geolocation"] = new(
+                ["geolocation", "geo", "location", "DotCarbon.Plugins.Geolocation"],
+                "DotCarbon.Plugins.Geolocation",
+                "@dotcarbon/plugin-geolocation",
+                "DotCarbon.Plugins.Geolocation",
+                "GeolocationPlugin",
+                "geolocation",
+                ["geolocation:*"],
+                Platforms: ["android", "ios"]),
             ["permissions"] = new(
                 ["permissions", "permission", "DotCarbon.Plugins.Permissions"],
                 "DotCarbon.Plugins.Permissions",
