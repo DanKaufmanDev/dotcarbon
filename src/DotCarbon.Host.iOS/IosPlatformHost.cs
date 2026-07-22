@@ -11,6 +11,9 @@ public sealed class IosPlatformHost : ICarbonPlatformHost
 
     public IosPlatformHost(IosWebView mainWebView) => _mainWebView = mainWebView;
 
+    /// <summary>The native <see cref="global::WebKit.WKWebView"/>, for native plugin bindings.</summary>
+    public object? NativeHandle => _mainWebView.Native;
+
     public ICarbonWebView CreateWebView(CarbonWebViewContext context)
     {
         if (context.Parent is not null)

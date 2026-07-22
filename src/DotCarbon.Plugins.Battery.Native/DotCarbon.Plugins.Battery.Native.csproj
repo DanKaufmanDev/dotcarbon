@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The mobile native binding for the Battery plugin. Like the DotCarbon mobile *hosts*, this project
+    targets the mobile TFMs and is kept OUT of DotCarbon.slnx so the solution stays buildable on Linux/
+    Windows CI. iOS is only added on macOS (net10.0-ios cannot build elsewhere); it is packed separately.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('OSX'))">net10.0-android;net10.0-ios</TargetFrameworks>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">24</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Description>Native Android/iOS battery reader for DotCarbon's Battery plugin. Call app.UseBattery().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotCarbon.Core\DotCarbon.Core.csproj" />
+    <ProjectReference Include="..\DotCarbon.Plugins.Battery\DotCarbon.Plugins.Battery.csproj" />
+  </ItemGroup>
+
+</Project>

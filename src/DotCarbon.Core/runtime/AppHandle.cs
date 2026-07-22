@@ -37,6 +37,12 @@ public sealed class AppHandle
     public JsonSerializerOptions JsonOptions { get; }
     public CarbonEventBus Events { get; }
 
+    /// <summary>
+    /// The platform host's native handle for mobile plugin bindings — the Android <c>Context</c> or the
+    /// iOS <c>WKWebView</c> — or null on desktop. A native binding casts it to the platform type it needs.
+    /// </summary>
+    public object? PlatformNativeHandle => _app.PlatformNativeHandle;
+
     public IReadOnlyList<PluginMetadata> Plugins
     {
         get

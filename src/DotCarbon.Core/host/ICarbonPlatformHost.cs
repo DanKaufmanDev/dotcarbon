@@ -12,4 +12,12 @@ public interface ICarbonPlatformHost
 
     /// <summary>Run the platform message loop until the main webview closes (blocking).</summary>
     void Run(ICarbonWebView mainWebView);
+
+    /// <summary>
+    /// The host's native handle, for mobile plugin bindings that call platform APIs — the Android
+    /// <c>Context</c> or the iOS <c>WKWebView</c>. It is typed as <see cref="object"/> so the
+    /// platform-neutral core carries it without referencing Android/iOS types; a native binding casts
+    /// it back (e.g. <c>app.PlatformNativeHandle as Android.Content.Context</c>). Null on desktop.
+    /// </summary>
+    object? NativeHandle => null;
 }

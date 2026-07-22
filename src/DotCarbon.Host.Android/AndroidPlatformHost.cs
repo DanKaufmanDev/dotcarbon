@@ -11,6 +11,9 @@ public sealed class AndroidPlatformHost : ICarbonPlatformHost
 
     public AndroidPlatformHost(AndroidWebView mainWebView) => _mainWebView = mainWebView;
 
+    /// <summary>The WebView's Android <see cref="global::Android.Content.Context"/>, for native plugin bindings.</summary>
+    public object? NativeHandle => _mainWebView.Native.Context;
+
     public ICarbonWebView CreateWebView(CarbonWebViewContext context)
     {
         if (context.Parent is not null)

@@ -1,0 +1,50 @@
+{
+    "name": "@dotcarbon/plugin-battery",
+    "version": "0.6.0",
+    "description": "Read device battery level and charging state for DotCarbon (desktop + Android/iOS)",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "prepublishOnly": "npm run build"
+    },
+    "dependencies": {
+        "@dotcarbon/api": "workspace:^"
+    },
+    "devDependencies": {
+        "typescript": "^5.0.0"
+    },
+    "author": "DanKaufmanDev",
+    "license": "MIT",
+    "homepage": "https://github.com/DanKaufmanDev/dotcarbon#readme",
+    "bugs": {
+        "url": "https://github.com/DanKaufmanDev/dotcarbon/issues"
+    },
+    "keywords": [
+        "dotcarbon",
+        "desktop",
+        "mobile",
+        "plugin",
+        "battery",
+        "power"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/DanKaufmanDev/dotcarbon.git",
+        "directory": "dotcarbon-js/packages/plugin-battery"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "files": [
+        "dist"
+    ]
+}
