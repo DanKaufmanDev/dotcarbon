@@ -13,6 +13,15 @@ public static class AddCommand
     private static readonly IReadOnlyDictionary<string, PluginDefinition> Plugins =
         new Dictionary<string, PluginDefinition>(StringComparer.OrdinalIgnoreCase)
         {
+            ["biometric"] = new(
+                ["biometric", "biometrics", "faceid", "touchid", "DotCarbon.Plugins.Biometric"],
+                "DotCarbon.Plugins.Biometric",
+                "@dotcarbon/plugin-biometric",
+                "DotCarbon.Plugins.Biometric",
+                "BiometricPlugin",
+                "biometric",
+                ["biometric:*"],
+                Platforms: ["android", "ios"]),
             ["geolocation"] = new(
                 ["geolocation", "geo", "location", "DotCarbon.Plugins.Geolocation"],
                 "DotCarbon.Plugins.Geolocation",

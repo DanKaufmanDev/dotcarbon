@@ -249,6 +249,16 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  packages/plugin-biometric:
+    dependencies:
+      '@dotcarbon/api':
+        specifier: workspace:^
+        version: link:../api
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   packages/plugin-cli:
     dependencies:
       '@dotcarbon/api':

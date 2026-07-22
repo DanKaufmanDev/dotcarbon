@@ -27,6 +27,10 @@ internal static class PermissionCatalog
         new("photoLibrary", ["android.permission.READ_MEDIA_IMAGES"], "NSPhotoLibraryUsageDescription", "This app accesses your photo library."),
         // Haptics: a normal Android permission (no runtime prompt), and nothing to declare on iOS.
         new("vibrate", ["android.permission.VIBRATE"], null, string.Empty),
+        // Biometrics: Android's BiometricManager throws without USE_BIOMETRIC even though it is a
+        // normal permission, and iOS terminates an app that uses Face ID with no usage description.
+        new("biometric", ["android.permission.USE_BIOMETRIC"], "NSFaceIDUsageDescription",
+            "This app uses biometrics to verify it's you."),
     ];
 
     public static bool IsEnabled(PermissionsConfig permissions, string id) => id switch
@@ -38,6 +42,7 @@ internal static class PermissionCatalog
         "contacts" => permissions.Contacts,
         "photoLibrary" => permissions.PhotoLibrary,
         "vibrate" => permissions.Vibrate,
+        "biometric" => permissions.Biometric,
         _ => false,
     };
 

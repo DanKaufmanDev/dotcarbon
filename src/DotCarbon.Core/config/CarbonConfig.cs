@@ -30,6 +30,12 @@ public class PermissionsConfig
     /// <summary>Haptic feedback (Android's VIBRATE; a normal permission, so no runtime prompt).</summary>
     public bool Vibrate { get; set; }
 
+    /// <summary>
+    /// Biometric authentication: Android's USE_BIOMETRIC (a normal permission — but BiometricManager
+    /// throws without it) and iOS's NSFaceIDUsageDescription, which Face ID requires.
+    /// </summary>
+    public bool Biometric { get; set; }
+
     /// <summary>File access scope: null (none), "appData", "documents", or "external".</summary>
     public string? Files { get; set; }
 
