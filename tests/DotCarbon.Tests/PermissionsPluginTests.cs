@@ -46,16 +46,24 @@ public class PermissionsPluginTests
         Assert.Contains("permissions:request", registry.Handlers.Keys);
     }
 
-    private sealed class FakePermissions(string initial) : ICarbonPermissions
+    private sealed class FakePermissions : ICarbonPermissions
     {
+        private readonly string _status;
+
+        public FakePermissions(string status)
+        {
+            _status = status;
+            RequestResult = status;
+        }
+
         public string? LastStatusQuery { get; private set; }
         public string? LastRequest { get; private set; }
-        public string RequestResult { get; set; } = initial;
+        public string RequestResult { get; set; }
 
         public Task<string> StatusAsync(string permission)
         {
             LastStatusQuery = permission;
-            return Task.FromResult(initial);
+            return Task.FromResult(_status);
         }
 
         public Task<string> RequestAsync(string permission)
