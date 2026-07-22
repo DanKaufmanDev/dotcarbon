@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Mobile native binding for the Clipboard plugin. Kept out of DotCarbon.slnx (like the hosts);
+       iOS is added only on macOS and packed separately. See MOBILE_PLUGINS.md. -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('OSX'))">net10.0-android;net10.0-ios</TargetFrameworks>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">24</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Description>Native Android/iOS clipboard for DotCarbon's Clipboard plugin. Call app.UseClipboard().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotCarbon.Core\DotCarbon.Core.csproj" />
+    <ProjectReference Include="..\DotCarbon.Plugins.Clipboard\DotCarbon.Plugins.Clipboard.csproj" />
+  </ItemGroup>
+
+</Project>

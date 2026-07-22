@@ -4,9 +4,13 @@
     <ProjectReference Include="..\DotCarbon.Core\DotCarbon.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotCarbon.Tests" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <Description>Clipboard plugin for DotCarbon.</Description>
+    <Description>Clipboard plugin for DotCarbon. Cross-platform surface with a native binding (DotCarbon.Plugins.Clipboard.Native) for Android/iOS.</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

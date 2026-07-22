@@ -57,7 +57,7 @@ public static class AddCommand
                 "ClipboardPlugin",
                 "clipboard",
                 ["clipboard:*"],
-                Platforms: ["desktop"]),
+                Platforms: ["desktop", "android", "ios"]),
             ["deep-link"] = new(
                 ["deep-link", "deeplink", "deep-links", "protocol", "protocols", "DotCarbon.Plugins.DeepLink"],
                 "DotCarbon.Plugins.DeepLink",
@@ -110,7 +110,7 @@ public static class AddCommand
                 "NotificationPlugin",
                 "notification",
                 ["notification:*"],
-                Platforms: ["desktop"]),
+                Platforms: ["desktop", "android", "ios"]),
             ["os"] = new(
                 ["os", "system", "DotCarbon.Plugins.Os"],
                 "DotCarbon.Plugins.Os",
