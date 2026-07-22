@@ -20,6 +20,12 @@ public sealed class AndroidPlatformHost : ICarbonPlatformHost
 
     private AndroidDialogs? _dialogs;
 
+    /// <summary>Android runtime permission checks/prompts, driven by the Activity.</summary>
+    public ICarbonPermissions? Permissions =>
+        _permissions ??= new AndroidPermissions(() => _mainWebView.Native.Context!);
+
+    private AndroidPermissions? _permissions;
+
     public ICarbonWebView CreateWebView(CarbonWebViewContext context)
     {
         if (context.Parent is not null)

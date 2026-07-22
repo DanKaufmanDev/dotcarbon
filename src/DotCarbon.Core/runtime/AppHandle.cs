@@ -49,6 +49,12 @@ public sealed class AppHandle
     /// </summary>
     public Host.ICarbonDialogs? PlatformDialogs => _app.PlatformDialogs;
 
+    /// <summary>
+    /// The platform host's runtime permission prompts, or null when the platform gates nothing
+    /// (desktop). Used by plugins that need the camera, location or notifications.
+    /// </summary>
+    public Host.ICarbonPermissions? PlatformPermissions => _app.PlatformPermissions;
+
     public IReadOnlyList<PluginMetadata> Plugins
     {
         get

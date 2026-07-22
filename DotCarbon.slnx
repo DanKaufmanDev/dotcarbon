@@ -12,6 +12,7 @@
     <Project Path="src/DotCarbon.Plugins.Autostart/DotCarbon.Plugins.Autostart.csproj" />
     <Project Path="src/DotCarbon.Plugins.Battery/DotCarbon.Plugins.Battery.csproj" />
     <Project Path="src/DotCarbon.Plugins.Haptics/DotCarbon.Plugins.Haptics.csproj" />
+    <Project Path="src/DotCarbon.Plugins.Permissions/DotCarbon.Plugins.Permissions.csproj" />
     <Project Path="src/DotCarbon.Plugins.Cli/DotCarbon.Plugins.Cli.csproj" />
     <Project Path="src/DotCarbon.Plugins.Positioner/DotCarbon.Plugins.Positioner.csproj" />
     <Project Path="src/DotCarbon.Plugins.Sql/DotCarbon.Plugins.Sql.csproj" />

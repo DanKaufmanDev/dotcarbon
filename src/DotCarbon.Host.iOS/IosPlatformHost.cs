@@ -20,6 +20,11 @@ public sealed class IosPlatformHost : ICarbonPlatformHost
 
     private IosDialogs? _dialogs;
 
+    /// <summary>iOS authorization checks/prompts (per-framework).</summary>
+    public ICarbonPermissions? Permissions => _permissions ??= new IosPermissions();
+
+    private IosPermissions? _permissions;
+
     public ICarbonWebView CreateWebView(CarbonWebViewContext context)
     {
         if (context.Parent is not null)

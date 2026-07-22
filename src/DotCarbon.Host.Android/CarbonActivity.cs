@@ -1,5 +1,6 @@
 using Android.App;
 using Android.Content;
+using Android.Content.PM;
 using Android.OS;
 using Android.Webkit;
 using DotCarbon.Core.Config;
@@ -47,6 +48,14 @@ public abstract class CarbonActivity : Activity
         ConfigureApp(app);
         app.Start();
         webView.RaiseCreated();
+    }
+
+    public override void OnRequestPermissionsResult(
+        int requestCode, string[] permissions, Permission[] grantResults)
+    {
+        base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
+        // Resolve whichever AndroidPermissions.RequestAsync call is awaiting this request code.
+        AndroidPermissions.Complete(requestCode, grantResults);
     }
 
     protected override void OnNewIntent(Intent? intent)

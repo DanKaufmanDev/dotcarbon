@@ -309,6 +309,16 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  packages/plugin-haptics:
+    dependencies:
+      '@dotcarbon/api':
+        specifier: workspace:^
+        version: link:../api
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   packages/plugin-http:
     dependencies:
       '@dotcarbon/api':
@@ -370,6 +380,16 @@ importers:
         version: 5.9.3
 
   packages/plugin-path:
+    dependencies:
+      '@dotcarbon/api':
+        specifier: workspace:^
+        version: link:../api
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
+  packages/plugin-permissions:
     dependencies:
       '@dotcarbon/api':
         specifier: workspace:^

@@ -26,4 +26,10 @@ public interface ICarbonPlatformHost
     /// dialogs are unavailable rather than failing obscurely).
     /// </summary>
     ICarbonDialogs? Dialogs => null;
+
+    /// <summary>
+    /// The host's runtime permission prompts, or null when the platform does not gate capabilities
+    /// (desktop), in which case callers treat permissions as already granted.
+    /// </summary>
+    ICarbonPermissions? Permissions => null;
 }

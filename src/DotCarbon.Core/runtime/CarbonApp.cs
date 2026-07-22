@@ -86,6 +86,9 @@ public sealed class CarbonApp
     /// <summary>The platform host's native dialogs, or null when it provides none.</summary>
     internal ICarbonDialogs? PlatformDialogs => _platformHost?.Dialogs;
 
+    /// <summary>The platform host's runtime permission prompts, or null when it gates nothing.</summary>
+    internal ICarbonPermissions? PlatformPermissions => _platformHost?.Permissions;
+
     public CarbonApp Manage<TState>(TState state) where TState : class
     {
         EnsureNotRunning();
