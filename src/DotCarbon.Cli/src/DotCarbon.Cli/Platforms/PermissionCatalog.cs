@@ -25,6 +25,8 @@ internal static class PermissionCatalog
         new("notifications", ["android.permission.POST_NOTIFICATIONS"], null, string.Empty),
         new("contacts", ["android.permission.READ_CONTACTS"], "NSContactsUsageDescription", "This app accesses your contacts."),
         new("photoLibrary", ["android.permission.READ_MEDIA_IMAGES"], "NSPhotoLibraryUsageDescription", "This app accesses your photo library."),
+        // Haptics: a normal Android permission (no runtime prompt), and nothing to declare on iOS.
+        new("vibrate", ["android.permission.VIBRATE"], null, string.Empty),
     ];
 
     public static bool IsEnabled(PermissionsConfig permissions, string id) => id switch
@@ -35,6 +37,7 @@ internal static class PermissionCatalog
         "notifications" => permissions.Notifications,
         "contacts" => permissions.Contacts,
         "photoLibrary" => permissions.PhotoLibrary,
+        "vibrate" => permissions.Vibrate,
         _ => false,
     };
 

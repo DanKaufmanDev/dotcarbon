@@ -13,6 +13,15 @@ public static class AddCommand
     private static readonly IReadOnlyDictionary<string, PluginDefinition> Plugins =
         new Dictionary<string, PluginDefinition>(StringComparer.OrdinalIgnoreCase)
         {
+            ["haptics"] = new(
+                ["haptics", "haptic", "vibrate", "vibration", "DotCarbon.Plugins.Haptics"],
+                "DotCarbon.Plugins.Haptics",
+                "@dotcarbon/plugin-haptics",
+                "DotCarbon.Plugins.Haptics",
+                "HapticsPlugin",
+                "haptics",
+                ["haptics:*"],
+                Platforms: ["android", "ios"]),
             ["battery"] = new(
                 ["battery", "power", "DotCarbon.Plugins.Battery"],
                 "DotCarbon.Plugins.Battery",

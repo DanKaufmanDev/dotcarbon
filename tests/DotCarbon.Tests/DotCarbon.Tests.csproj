@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Battery\DotCarbon.Plugins.Battery.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Clipboard\DotCarbon.Plugins.Clipboard.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Dialog\DotCarbon.Plugins.Dialog.csproj" />
+    <ProjectReference Include="..\..\src\DotCarbon.Plugins.Haptics\DotCarbon.Plugins.Haptics.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Notification\DotCarbon.Plugins.Notification.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Cli\DotCarbon.Plugins.Cli.csproj" />
     <ProjectReference Include="..\..\src\DotCarbon.Plugins.Positioner\DotCarbon.Plugins.Positioner.csproj" />

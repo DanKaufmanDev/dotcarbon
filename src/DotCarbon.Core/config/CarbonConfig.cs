@@ -27,6 +27,9 @@ public class PermissionsConfig
     public bool Contacts { get; set; }
     public bool PhotoLibrary { get; set; }
 
+    /// <summary>Haptic feedback (Android's VIBRATE; a normal permission, so no runtime prompt).</summary>
+    public bool Vibrate { get; set; }
+
     /// <summary>File access scope: null (none), "appData", "documents", or "external".</summary>
     public string? Files { get; set; }
 
