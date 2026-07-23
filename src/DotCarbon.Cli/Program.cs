@@ -18,5 +18,6 @@ root.AddCommand(PermissionCommand.Build());
 root.AddCommand(PluginCommand.Build());
 root.AddCommand(IconCommand.Build());
 root.AddCommand(SignerCommand.Build());
+root.AddCommand(CompletionCommand.Build(root));
 
 return await root.InvokeAsync(args);
