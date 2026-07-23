@@ -1,5 +1,4 @@
 using System.CommandLine;
-using System.Reflection;
 using System.Text;
 
 namespace DotCarbon.Cli.Commands;
@@ -11,10 +10,6 @@ namespace DotCarbon.Cli.Commands;
 /// </summary>
 public static class InitCommand
 {
-    /// <summary>Where the mobile generators expect the shared command library to live.</summary>
-    private const string SharedDir = "src-shared";
-    private const string BackendDir = "src-carbon";
-
     public static Command Build()
     {
         var command = new Command("init", "Adopt Carbon into an existing frontend project");
@@ -53,7 +48,7 @@ public static class InitCommand
                 parsed.GetValueForOption(identifierOption),
                 parsed.GetValueForOption(devUrlOption),
                 parsed.GetValueForOption(distOption),
-                parsed.GetValueForOption(versionOption) ?? CarbonVersion(),
+                parsed.GetValueForOption(versionOption) ?? ProjectScaffold.CarbonVersion(),
                 parsed.GetValueForOption(forceOption),
                 parsed.GetValueForOption(dryRunOption));
 
@@ -117,12 +112,8 @@ public static class InitCommand
         var files = new List<(string Path, string Content)>
         {
             (configPath, CarbonJson(appName, identifier, devCommand, buildCommand, devUrl, dist)),
-            (Path.Combine(root, BackendDir, $"{appName}.csproj"), HostProject(appName, request.CarbonVersion)),
-            (Path.Combine(root, BackendDir, "Program.cs"), ProgramCs()),
-            (Path.Combine(root, BackendDir, "capabilities", "main.json"), MainCapability()),
-            (Path.Combine(root, SharedDir, "AppLogic.csproj"), SharedProject(request.CarbonVersion)),
-            (Path.Combine(root, SharedDir, "AppCommands.cs"), AppCommands()),
         };
+        files.AddRange(ProjectScaffold.CSharpFiles(root, appName, request.CarbonVersion));
 
         foreach (var (path, content) in files)
         {
@@ -235,7 +226,7 @@ public static class InitCommand
         if (buildCommand is not null) build.Append($"        \"buildCommand\": \"{buildCommand}\",\n");
         build.Append($"        \"devUrl\": \"{devUrl}\",\n");
         build.Append($"        \"frontendDist\": \"{dist}\",\n");
-        build.Append($"        \"backendProject\": \"{BackendDir}\"");
+        build.Append($"        \"backendProject\": \"{ProjectScaffold.BackendDir}\"");
 
         return "{\n" +
                "    \"app\": {\n" +
@@ -261,93 +252,8 @@ public static class InitCommand
                "}\n";
     }
 
-    private static string HostProject(string appName, string version) =>
-        "<Project Sdk=\"Microsoft.NET.Sdk\">\n\n" +
-        "  <PropertyGroup>\n" +
-        "    <OutputType>Exe</OutputType>\n" +
-        "    <TargetFramework>net10.0</TargetFramework>\n" +
-        "    <Nullable>enable</Nullable>\n" +
-        "    <ImplicitUsings>enable</ImplicitUsings>\n" +
-        $"    <AssemblyName>{appName}</AssemblyName>\n" +
-        "  </PropertyGroup>\n\n" +
-        "  <ItemGroup>\n" +
-        $"    <PackageReference Include=\"DotCarbon.Host.Desktop\" Version=\"{version}\" />\n" +
-        $"    <ProjectReference Include=\"..\\{SharedDir}\\AppLogic.csproj\" />\n" +
-        "  </ItemGroup>\n\n" +
-        "</Project>\n";
-
-    private static string ProgramCs() =>
-        "using DotCarbon.Core.Config;\n" +
-        "using DotCarbon.Core.Runtime;\n" +
-        "using DotCarbon.Host.Desktop;\n\n" +
-        "var config = ConfigLoader.Load();\n\n" +
-        "CarbonApp.Create(config)\n" +
-        "    .UseDesktop()\n" +
-        "    .Manage(new AppState())\n" +
-        "    .UsePlugin<AppCommands>()\n" +
-        "    .Run();\n";
-
-    private static string MainCapability() =>
-        "{\n" +
-        "    \"description\": \"Main window permissions.\",\n" +
-        "    \"windows\": [\"main\"],\n" +
-        "    \"commands\": [\"app:greet\", \"window:*\", \"core:event_emit\"]\n" +
-        "}\n";
-
-    private static string SharedProject(string version) =>
-        "<Project Sdk=\"Microsoft.NET.Sdk\">\n\n" +
-        "  <PropertyGroup>\n" +
-        "    <TargetFramework>net10.0</TargetFramework>\n" +
-        "    <Nullable>enable</Nullable>\n" +
-        "    <ImplicitUsings>enable</ImplicitUsings>\n" +
-        "  </PropertyGroup>\n\n" +
-        "  <ItemGroup>\n" +
-        $"    <PackageReference Include=\"DotCarbon.Core\" Version=\"{version}\" />\n" +
-        "  </ItemGroup>\n\n" +
-        "</Project>\n";
-
-    private static string AppCommands() =>
-        "using DotCarbon.Core.Bridge;\n" +
-        "using DotCarbon.Core.Plugins;\n\n" +
-        "// Desktop and any generated mobile hosts share this command assembly.\n\n" +
-        "public record GreetRequest(string Name);\n\n" +
-        "public sealed class AppState\n" +
-        "{\n" +
-        "    public int GreetingCount { get; set; }\n" +
-        "}\n\n" +
-        "public partial class AppCommands : IPlugin\n" +
-        "{\n" +
-        "    private readonly AppState _state;\n\n" +
-        "    public AppCommands(AppState state)\n" +
-        "    {\n" +
-        "        _state = state;\n" +
-        "    }\n\n" +
-        "    public string Namespace => \"app\";\n\n" +
-        "    [CarbonCommand(\"greet\")]\n" +
-        "    public string Greet(GreetRequest req)\n" +
-        "    {\n" +
-        "        _state.GreetingCount++;\n" +
-        "        return $\"Hello, {req.Name}! You've been greeted {_state.GreetingCount} time(s) from C# ⚡\";\n" +
-        "    }\n" +
-        "}\n";
-
-    /// <summary>Scaffolded package references track the CLI, so the toolchain and the app stay in step.</summary>
-    private static string CarbonVersion()
-    {
-        var informational = typeof(InitCommand).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        var version = informational?.Split('+')[0];
-        return string.IsNullOrWhiteSpace(version) ? "*" : version;
-    }
-
     /// <summary>An assembly name has to be an identifier, and package.json names often are not.</summary>
-    internal static string Sanitize(string name)
-    {
-        var scoped = name.StartsWith('@') && name.Contains('/') ? name[(name.IndexOf('/') + 1)..] : name;
-        var cleaned = new string(scoped.Where(char.IsLetterOrDigit).ToArray());
-        if (cleaned.Length == 0) return "App";
-        return char.IsDigit(cleaned[0]) ? $"App{cleaned}" : char.ToUpperInvariant(cleaned[0]) + cleaned[1..];
-    }
+    internal static string Sanitize(string name) => ProjectScaffold.SanitizeAppName(name);
 
     private static string Relative(string root, string dir)
     {
