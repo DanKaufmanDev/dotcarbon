@@ -13,6 +13,15 @@ public static class AddCommand
     private static readonly IReadOnlyDictionary<string, PluginDefinition> Plugins =
         new Dictionary<string, PluginDefinition>(StringComparer.OrdinalIgnoreCase)
         {
+            ["nfc"] = new(
+                ["nfc", "tag", "ndef", "DotCarbon.Plugins.Nfc"],
+                "DotCarbon.Plugins.Nfc",
+                "@dotcarbon/plugin-nfc",
+                "DotCarbon.Plugins.Nfc",
+                "NfcPlugin",
+                "nfc",
+                ["nfc:*"],
+                Platforms: ["android", "ios"]),
             ["biometric"] = new(
                 ["biometric", "biometrics", "faceid", "touchid", "DotCarbon.Plugins.Biometric"],
                 "DotCarbon.Plugins.Biometric",

@@ -96,12 +96,16 @@ public abstract class CarbonActivity : Activity
 
         var (left, top, right, bottom) = _safeArea;
         var script =
-            "(function(s){" +
+            // This also runs at page-start, where the document element may not exist yet: apply as soon
+            // as it does, so frontend code reading the values at boot sees them rather than empty strings.
+            "(function(){var apply=function(){var e=document.documentElement;if(!e)return false;" +
+            "var s=e.style;" +
             $"s.setProperty('--carbon-safe-area-top','{top / density:0.##}px');" +
             $"s.setProperty('--carbon-safe-area-right','{right / density:0.##}px');" +
             $"s.setProperty('--carbon-safe-area-bottom','{bottom / density:0.##}px');" +
             $"s.setProperty('--carbon-safe-area-left','{left / density:0.##}px');" +
-            "})(document.documentElement.style)";
+            "return true;};" +
+            "if(!apply())document.addEventListener('DOMContentLoaded',apply);})()";
         native.Post(() => native.EvaluateJavascript(script, null));
     }
 

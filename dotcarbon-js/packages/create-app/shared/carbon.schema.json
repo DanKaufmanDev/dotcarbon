@@ -38,6 +38,9 @@
                 "notifications": { "type": "boolean", "default": false },
                 "contacts": { "type": "boolean", "default": false },
                 "photoLibrary": { "type": "boolean", "default": false },
+                "vibrate": { "type": "boolean", "default": false, "description": "Haptics. Emits Android's VIBRATE permission; nothing is needed on iOS." },
+                "biometric": { "type": "boolean", "default": false, "description": "Face ID / Touch ID / BiometricPrompt. Emits Android's USE_BIOMETRIC and iOS's NSFaceIDUsageDescription." },
+                "nfc": { "type": "boolean", "default": false, "description": "NFC tag reading. Emits Android's NFC permission and iOS's NFCReaderUsageDescription." },
                 "files": { "type": ["string", "null"], "enum": ["appData", "documents", "external", null], "description": "File access scope." },
                 "descriptions": {
                     "type": "object",

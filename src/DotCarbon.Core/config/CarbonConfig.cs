@@ -36,6 +36,9 @@ public class PermissionsConfig
     /// </summary>
     public bool Biometric { get; set; }
 
+    /// <summary>NFC tag reading: Android's NFC permission and iOS's NFCReaderUsageDescription.</summary>
+    public bool Nfc { get; set; }
+
     /// <summary>File access scope: null (none), "appData", "documents", or "external".</summary>
     public string? Files { get; set; }
 

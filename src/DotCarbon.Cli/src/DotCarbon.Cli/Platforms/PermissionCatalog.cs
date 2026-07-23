@@ -31,6 +31,9 @@ internal static class PermissionCatalog
         // normal permission, and iOS terminates an app that uses Face ID with no usage description.
         new("biometric", ["android.permission.USE_BIOMETRIC"], "NSFaceIDUsageDescription",
             "This app uses biometrics to verify it's you."),
+        // NFC: iOS also needs the com.apple.developer.nfc.readersession.formats entitlement, which is
+        // a signing asset rather than an Info.plist key — see MOBILE_RELEASE.md.
+        new("nfc", ["android.permission.NFC"], "NFCReaderUsageDescription", "This app reads NFC tags."),
     ];
 
     public static bool IsEnabled(PermissionsConfig permissions, string id) => id switch
@@ -43,6 +46,7 @@ internal static class PermissionCatalog
         "photoLibrary" => permissions.PhotoLibrary,
         "vibrate" => permissions.Vibrate,
         "biometric" => permissions.Biometric,
+        "nfc" => permissions.Nfc,
         _ => false,
     };
 
