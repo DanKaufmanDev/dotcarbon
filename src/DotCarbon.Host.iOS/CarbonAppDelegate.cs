@@ -44,7 +44,8 @@ public abstract class CarbonAppDelegate : UIApplicationDelegate
         };
         var webView = _webView = new IosWebView(native);
 
-        var controller = new UIViewController { View = native };
+        // A controller that republishes the safe-area insets whenever they change (rotation, notch).
+        var controller = new SafeAreaViewController(() => PublishSafeAreaInsets(native)) { View = native };
         Window = new UIWindow(UIScreen.MainScreen.Bounds) { RootViewController = controller };
         Window.MakeKeyAndVisible();
 
@@ -65,6 +66,38 @@ public abstract class CarbonAppDelegate : UIApplicationDelegate
         // A deep link received while the app is already running.
         CarbonDeepLinks.Deliver(url.AbsoluteString);
         return true;
+    }
+
+    /// <summary>
+    /// Publishes the safe-area insets to CSS as <c>--carbon-safe-area-{top,right,bottom,left}</c>. iOS
+    /// also offers <c>env(safe-area-inset-*)</c>, but only when the page opts in with
+    /// <c>viewport-fit=cover</c>; these custom properties work the same way on Android too, so a layout
+    /// can use one API on both platforms. Insets are already in points, which map 1:1 to CSS pixels.
+    /// </summary>
+    private static void PublishSafeAreaInsets(WKWebView webView)
+    {
+        var insets = webView.SafeAreaInsets;
+        var script =
+            "(function(s){" +
+            $"s.setProperty('--carbon-safe-area-top','{insets.Top:0.##}px');" +
+            $"s.setProperty('--carbon-safe-area-right','{insets.Right:0.##}px');" +
+            $"s.setProperty('--carbon-safe-area-bottom','{insets.Bottom:0.##}px');" +
+            $"s.setProperty('--carbon-safe-area-left','{insets.Left:0.##}px');" +
+            "})(document.documentElement.style)";
+        webView.EvaluateJavaScript(new NSString(script), null);
+    }
+
+    private sealed class SafeAreaViewController : UIViewController
+    {
+        private readonly Action _onSafeAreaChanged;
+
+        public SafeAreaViewController(Action onSafeAreaChanged) => _onSafeAreaChanged = onSafeAreaChanged;
+
+        public override void ViewSafeAreaInsetsDidChange()
+        {
+            base.ViewSafeAreaInsetsDidChange();
+            _onSafeAreaChanged();
+        }
     }
 
     public override void OnActivated(UIApplication application) => _webView?.RaiseFocused();

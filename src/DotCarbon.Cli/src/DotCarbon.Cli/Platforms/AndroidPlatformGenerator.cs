@@ -14,10 +14,18 @@ internal sealed class AndroidPlatformGenerator : IPlatformGenerator
     public string ConfigSignature(CarbonConfig config)
     {
         var android = config.Bundle.Android;
-        return $"{config.App.Name}|{AppDisplayName(config)}|{Package(config)}|{config.App.Version}|{android.MinSdk}|{android.TargetSdk}|" +
+        return $"{config.App.Name}|{AppDisplayName(config)}|{Package(config)}|{config.App.Version}|{android.MinSdk}|{android.TargetSdk}|{config.Window.Orientation}|" +
                $"{string.Join(",", DeepLinkSchemes(config))}|" +
                PermissionCatalog.Signature(config);
     }
+
+    /// <summary>Maps carbon.json's window.orientation onto the Activity's ScreenOrientation attribute.</summary>
+    private static string ScreenOrientation(CarbonConfig config) => config.Window.Orientation?.Trim().ToLowerInvariant() switch
+    {
+        "portrait" => "    ScreenOrientation = ScreenOrientation.Portrait,\n",
+        "landscape" => "    ScreenOrientation = ScreenOrientation.Landscape,\n",
+        _ => string.Empty, // "any": leave it to the system
+    };
 
     private static List<string> DeepLinkSchemes(CarbonConfig config) =>
         config.Bundle.Protocols
@@ -41,6 +49,7 @@ internal sealed class AndroidPlatformGenerator : IPlatformGenerator
 
         // Deep-link schemes (bundle.protocols) become <intent-filter>s so the OS routes myscheme:// URLs
         // to the app; CarbonActivity delivers them to the DeepLink plugin.
+        var orientation = ScreenOrientation(config);
         var schemes = DeepLinkSchemes(config);
         var deepLinkUsing = schemes.Count > 0 ? "using Android.Content;\n" : string.Empty;
         var intentFilters = string.Concat(schemes.Select(scheme =>
@@ -89,6 +98,7 @@ internal sealed class AndroidPlatformGenerator : IPlatformGenerator
                 "[Activity(\n" +
                 $"    Label = \"{displayName}\",\n" +
                 "    MainLauncher = true,\n" +
+                orientation +
                 "    ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]\n" +
                 intentFilters +
                 "public class MainActivity : CarbonActivity\n" +

@@ -97,6 +97,12 @@ public class WindowConfig
 
     public bool ContextMenu { get; set; } = true;
 
+    /// <summary>
+    /// Allowed screen orientations on mobile: "any" (default), "portrait" or "landscape". Applied as the
+    /// Android activity's screenOrientation and the iOS supported-orientations list. Ignored on desktop.
+    /// </summary>
+    public string Orientation { get; set; } = "any";
+
     public string? Icon { get; set; }
 }
 

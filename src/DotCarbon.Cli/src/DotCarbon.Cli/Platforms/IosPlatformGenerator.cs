@@ -14,9 +14,25 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
     public string ConfigSignature(CarbonConfig config)
     {
         var ios = config.Bundle.Ios;
-        return $"{config.App.Name}|{AppDisplayName(config)}|{BundleId(config)}|{config.App.Version}|{ios.MinimumOSVersion}|{ios.DevelopmentTeam}|" +
+        return $"{config.App.Name}|{AppDisplayName(config)}|{BundleId(config)}|{config.App.Version}|{ios.MinimumOSVersion}|{ios.DevelopmentTeam}|{config.Window.Orientation}|" +
                $"{string.Join(",", DeepLinkSchemes(config))}|" +
                PermissionCatalog.Signature(config);
+    }
+
+    /// <summary>Maps carbon.json's window.orientation onto the iOS supported-orientations list.</summary>
+    private static string SupportedOrientations(CarbonConfig config)
+    {
+        const string portrait = "        <string>UIInterfaceOrientationPortrait</string>\n";
+        const string landscape =
+            "        <string>UIInterfaceOrientationLandscapeLeft</string>\n" +
+            "        <string>UIInterfaceOrientationLandscapeRight</string>\n";
+
+        return config.Window.Orientation?.Trim().ToLowerInvariant() switch
+        {
+            "portrait" => portrait,
+            "landscape" => landscape,
+            _ => portrait + landscape,
+        };
     }
 
     private static List<string> DeepLinkSchemes(CarbonConfig config) =>
@@ -51,6 +67,7 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
 
         // Deep-link schemes (bundle.protocols) become CFBundleURLTypes so the OS routes myscheme:// URLs
         // to the app; CarbonAppDelegate delivers them to the DeepLink plugin.
+        var orientations = SupportedOrientations(config);
         var schemes = DeepLinkSchemes(config);
         var urlTypes = schemes.Count == 0 ? string.Empty :
             "    <key>CFBundleURLTypes</key>\n    <array>\n        <dict>\n" +
@@ -123,9 +140,7 @@ internal sealed class IosPlatformGenerator : IPlatformGenerator
                 "    <key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>\n" +
                 "    <key>UISupportedInterfaceOrientations</key>\n" +
                 "    <array>\n" +
-                "        <string>UIInterfaceOrientationPortrait</string>\n" +
-                "        <string>UIInterfaceOrientationLandscapeLeft</string>\n" +
-                "        <string>UIInterfaceOrientationLandscapeRight</string>\n" +
+                orientations +
                 "    </array>\n" +
                 usageKeys +
                 urlTypes +

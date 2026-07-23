@@ -11,10 +11,24 @@ namespace DotCarbon.Host.Android;
 /// </summary>
 public sealed class CarbonWebViewClient : WebViewClient
 {
+    private readonly Action? _onPageFinished;
+
+    public CarbonWebViewClient(Action? onPageFinished = null) => _onPageFinished = onPageFinished;
+
+    public override void OnPageFinished(WebView? view, string? url)
+    {
+        base.OnPageFinished(view, url);
+        // Anything injected into the document (e.g. safe-area custom properties) is lost across a
+        // navigation, so the host re-applies it once the new document exists.
+        _onPageFinished?.Invoke();
+    }
+
     public override void OnPageStarted(WebView? view, string? url, Bitmap? favicon)
     {
         // Install the bridge before application scripts can access window.external.
         view?.EvaluateJavascript(CarbonAndroid.BridgeShim, null);
+        // Publish insets as early as the document exists, so first paint already has them.
+        _onPageFinished?.Invoke();
         base.OnPageStarted(view, url, favicon);
     }
 
