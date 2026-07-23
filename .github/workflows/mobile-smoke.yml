@@ -57,33 +57,9 @@ jobs:
           api-level: 30
           arch: x86_64
           target: google_apis
-          script: |
-            echo "installing $APK"
-            adb install -r -t "$APK"
-            adb logcat -c
-            # `monkey` reports success but sometimes never starts the process (observed locally), which
-            # would show up as a mystery "no marker" failure. Resolve the launcher activity and start it
-            # directly, keeping monkey only as a fallback.
-            ACTIVITY=$(adb shell cmd package resolve-activity --brief dev.dotcarbon.mobilesmoke \
-              | tail -1 | tr -d '\r')
-            echo "launcher activity: ${ACTIVITY:-<unresolved>}"
-            if [ -n "$ACTIVITY" ]; then
-              adb shell am start -n "$ACTIVITY"
-            else
-              adb shell monkey -p dev.dotcarbon.mobilesmoke -c android.intent.category.LAUNCHER 1
-            fi
-            # Assert the *round trip*, not just that C# ran: [[CARBON_WEB_READY]] is logged by the C#
-            # command (JS -> C# worked) and [[CARBON_BRIDGE_OK]] by the frontend once the reply lands
-            # (C# -> JS worked). Requiring only the first would miss a broken return path.
-            if timeout 120 bash -lc 'until adb logcat -d | grep -q "\[\[CARBON_BRIDGE_OK\]\]"; do sleep 2; done'; then
-              echo "bridge round-trip completed on the emulator"
-              adb logcat -d | grep -aE "CARBON_WEB_READY|CARBON_BRIDGE_OK"
-            else
-              echo "::error::no [[CARBON_BRIDGE_OK]] marker in logcat"
-              adb logcat -d | grep -aE "CARBON|Carbon" | tail -40
-              adb logcat -d | tail -100
-              exit 1
-            fi
+          # The action runs `script:` one line per `sh -c` — multi-line shell and variables do not
+          # survive between lines — so the actual logic lives in a file that can also be run locally.
+          script: bash tests/mobile-smoke/ci/android-smoke.sh "$APK"
 
   ios-simulator-smoke:
     name: iOS simulator smoke
