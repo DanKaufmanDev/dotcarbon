@@ -3,6 +3,7 @@ using DotCarbon.Cli.Commands;
 
 var root = new RootCommand("⚡ Carbon — C# desktop app framework");
 
+root.AddCommand(InitCommand.Build());
 root.AddCommand(DevCommand.Build());
 root.AddCommand(AddCommand.Build());
 root.AddCommand(BundleCommand.Build());
