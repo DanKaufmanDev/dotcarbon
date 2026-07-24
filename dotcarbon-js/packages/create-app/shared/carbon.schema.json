@@ -307,7 +307,13 @@
                 "minimumSystemVersion": { "type": "string", "default": "12.0" },
                 "signingIdentity": { "type": ["string", "null"] },
                 "entitlements": { "type": ["string", "null"] },
-                "notarizationProfile": { "type": ["string", "null"], "description": "Keychain profile created with xcrun notarytool store-credentials." }
+                "notarizationProfile": { "type": ["string", "null"], "description": "Keychain profile created with xcrun notarytool store-credentials." },
+                "formats": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["app", "dmg"] },
+                    "default": ["app", "dmg"],
+                    "description": "Which macOS artifacts to produce. The .app is always built; listing dmg also wraps it in a disk image."
+                }
             }
         },
         "WindowsBundle": {

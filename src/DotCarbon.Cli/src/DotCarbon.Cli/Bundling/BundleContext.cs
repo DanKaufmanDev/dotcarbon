@@ -14,4 +14,8 @@ internal sealed record BundleContext(
     bool Aot,
     bool Package,
     bool UpdaterArtifacts,
-    bool DryRun);
+    bool DryRun,
+    /// <summary>Publish the Debug configuration instead of Release (faster, unoptimized).</summary>
+    bool Debug = false,
+    /// <summary>CLI override for the per-OS bundle formats; null means use carbon.json.</summary>
+    IReadOnlyList<string>? Formats = null);

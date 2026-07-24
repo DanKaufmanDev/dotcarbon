@@ -76,7 +76,8 @@ internal sealed class DesktopBundler : IBundlerTarget
     public async Task<int> ExecuteAsync(BundleContext ctx)
     {
         Plan(ctx).Render(dryRun: false);
-        return await BuildCommand.Run(ctx.ProjectDir, ctx.Target, ctx.Aot, ctx.Package, ctx.UpdaterArtifacts);
+        return await BuildCommand.Run(
+            ctx.ProjectDir, ctx.Target, ctx.Aot, ctx.Package, ctx.UpdaterArtifacts, ctx.Debug, ctx.Formats);
     }
 
     private static string OsFamily(string target) =>

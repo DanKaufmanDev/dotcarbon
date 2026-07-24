@@ -38,14 +38,30 @@ public static class BundleCommand
 
         var project = new Option<DirectoryInfo?>(
             "--project", "Path to the Carbon project (default: current directory)");
-        var target = new Option<string>(
+        // Repeatable and space-separated: `--target win-x64 linux-x64` or `--target a --target b`.
+        var target = new Option<string[]>(
             "--target",
-            getDefaultValue: BuildCommand.GetDefaultTarget,
-            description: "Runtime target (osx-arm64, osx-x64, osx-universal, win-x64, linux-x64, …)");
+            getDefaultValue: () => [BuildCommand.GetDefaultTarget()],
+            description: "Runtime target(s): osx-arm64, osx-x64, osx-universal, win-x64, linux-x64, … (repeatable)")
+        {
+            AllowMultipleArgumentsPerToken = true,
+        };
         var aot = new Option<bool>(
             "--aot", "Use NativeAOT (experimental; Photino's native library remains a second file)");
         var noPackage = new Option<bool>(
             "--no-package", "Publish the self-contained executable only; skip the installer");
+        // `tauri build` spells this --no-bundle; accept both so muscle memory works either way.
+        var noBundle = new Option<bool>(
+            "--no-bundle", "Alias for --no-package (publish only, no installer)");
+        var debug = new Option<bool>(
+            "--debug", "Publish the Debug configuration instead of Release");
+        var bundles = new Option<string[]>(
+            "--bundles",
+            description: "Installer formats to produce, overriding carbon.json " +
+                         "(macOS: app, dmg | Windows: msi, nsis | Linux: appimage, deb, rpm)")
+        {
+            AllowMultipleArgumentsPerToken = true,
+        };
         var updaterArtifacts = new Option<bool>(
             "--updater-artifacts", "Create and sign updater metadata (requires CARBON_UPDATER_PRIVATE_KEY)");
         var dryRun = new Option<bool>(
@@ -53,24 +69,63 @@ public static class BundleCommand
         var verify = new Option<bool>(
             "--verify", "Validate the existing out/<target> publish output without bundling");
 
-        cmd.AddOption(project);
-        cmd.AddOption(target);
-        cmd.AddOption(aot);
-        cmd.AddOption(noPackage);
-        cmd.AddOption(updaterArtifacts);
-        cmd.AddOption(dryRun);
-        cmd.AddOption(verify);
+        foreach (var option in new Option[]
+        {
+            project, target, aot, noPackage, noBundle, debug, bundles, updaterArtifacts, dryRun, verify,
+        })
+        {
+            cmd.AddOption(option);
+        }
 
         cmd.SetHandler(async context =>
         {
-            context.ExitCode = await RunDesktop(
-                context.ParseResult.GetValueForOption(project),
-                context.ParseResult.GetValueForOption(target)!,
-                context.ParseResult.GetValueForOption(aot),
-                package: !context.ParseResult.GetValueForOption(noPackage),
-                updaterArtifacts: context.ParseResult.GetValueForOption(updaterArtifacts),
-                dryRun: context.ParseResult.GetValueForOption(dryRun),
-                verify: context.ParseResult.GetValueForOption(verify));
+            var parsed = context.ParseResult;
+            var targets = (parsed.GetValueForOption(target) ?? [])
+                .SelectMany(value => value.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries))
+                .Select(value => value.Trim())
+                .Where(value => value.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (targets.Count == 0) targets.Add(BuildCommand.GetDefaultTarget());
+
+            var skipPackage = parsed.GetValueForOption(noPackage) || parsed.GetValueForOption(noBundle);
+            var formats = parsed.GetValueForOption(bundles);
+
+            var failed = 0;
+            foreach (var single in targets)
+            {
+                // Multiple targets are built in sequence, and a failure does not abort the rest — the
+                // summary at the end reports which ones failed, so one broken target does not hide the
+                // status of the others.
+                if (targets.Count > 1)
+                {
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine($"\n[Carbon] === target {single} ({targets.IndexOf(single) + 1}/{targets.Count}) ===");
+                    Console.ResetColor();
+                }
+
+                var code = await RunDesktop(
+                    parsed.GetValueForOption(project),
+                    single,
+                    parsed.GetValueForOption(aot),
+                    package: !skipPackage,
+                    updaterArtifacts: parsed.GetValueForOption(updaterArtifacts),
+                    dryRun: parsed.GetValueForOption(dryRun),
+                    verify: parsed.GetValueForOption(verify),
+                    debug: parsed.GetValueForOption(debug),
+                    formats: formats);
+                if (code != 0) failed++;
+            }
+
+            if (targets.Count > 1)
+            {
+                var succeeded = targets.Count - failed;
+                Console.ForegroundColor = failed == 0 ? ConsoleColor.Green : ConsoleColor.Yellow;
+                Console.WriteLine($"\n[Carbon] {succeeded}/{targets.Count} target(s) succeeded.");
+                Console.ResetColor();
+            }
+
+            context.ExitCode = failed == 0 ? 0 : 1;
         });
 
         return cmd;
@@ -168,7 +223,8 @@ public static class BundleCommand
     }
 
     private static async Task<int> RunDesktop(
-        DirectoryInfo? project, string target, bool aot, bool package, bool updaterArtifacts, bool dryRun, bool verify = false)
+        DirectoryInfo? project, string target, bool aot, bool package, bool updaterArtifacts, bool dryRun,
+        bool verify = false, bool debug = false, IReadOnlyList<string>? formats = null)
     {
         var workingDir = project?.FullName ?? Directory.GetCurrentDirectory();
         var configPath = Path.Combine(workingDir, "carbon.json");
@@ -183,7 +239,7 @@ public static class BundleCommand
             return VerifyDesktopOutput(workingDir, target, aot);
 
         var context = new BundleContext(
-            config, workingDir, project, target, aot, package, updaterArtifacts, dryRun);
+            config, workingDir, project, target, aot, package, updaterArtifacts, dryRun, debug, formats);
 
         var bundler = new DesktopBundler();
         if (dryRun)

@@ -61,7 +61,8 @@ public static class BuildCommand
     }
 
     internal static async Task<int> Run(
-        DirectoryInfo? projectDir, string target, bool aot, bool bundle, bool updaterArtifacts)
+        DirectoryInfo? projectDir, string target, bool aot, bool bundle, bool updaterArtifacts,
+        bool debug = false, IReadOnlyList<string>? formats = null)
     {
         var workingDir = projectDir?.FullName ?? Directory.GetCurrentDirectory();
         var configPath = Path.Combine(workingDir, "carbon.json");
@@ -116,6 +117,9 @@ public static class BuildCommand
             return 1;
         }
 
+        if (formats is { Count: > 0 } && !ApplyFormatOverride(config, target, formats))
+            return 1;
+
         Console.WriteLine($"[Carbon] Host project: {Path.GetRelativePath(workingDir, hostProject)}");
 
         if (target.Equals("osx-universal", StringComparison.OrdinalIgnoreCase))
@@ -133,7 +137,7 @@ public static class BuildCommand
         Console.WriteLine("\n[Carbon] Step 2/2 - Embedding frontend and publishing .NET host...");
         var bundleProps = WriteBundleProps(
             workingDir, hostProject, frontendDist, effectiveConfigPath, target, icons, aot);
-        if (!await PublishHost(hostProject, workingDir, target, bundleProps))
+        if (!await PublishHost(hostProject, workingDir, target, bundleProps, debug))
         {
             WriteError(".NET publish failed.");
             return 1;
@@ -525,7 +529,11 @@ public static class BuildCommand
 
         var exeName = Path.GetFileName(exe);
         var appName = string.IsNullOrWhiteSpace(config.App.Name) ? exeName : config.App.Name;
-        Console.WriteLine("\n[Carbon] Packaging macOS .app + .dmg...");
+
+        // The .app is always built — it is what gets signed, and the .dmg is only a wrapper around it.
+        var wantsDmg = config.Bundle.MacOS.Formats
+            .Any(format => format.Trim().Equals("dmg", StringComparison.OrdinalIgnoreCase));
+        Console.WriteLine($"\n[Carbon] Packaging macOS .app{(wantsDmg ? " + .dmg" : string.Empty)}...");
 
         var app = Path.Combine(outDir, appName + ".app");
         var dmg = Path.Combine(outDir, appName + ".dmg");
@@ -552,6 +560,8 @@ public static class BuildCommand
         await RunProcessToCompletion("chmod", $"+x \"{Path.Combine(macos, exeName)}\"", outDir, "[pkg]", ConsoleColor.Blue);
 
         if (!await SignMacApp(config, workingDir, outDir, app)) return null;
+
+        if (!wantsDmg) return $"out/{target}/{appName}.app";
 
         if (await RunProcessWithRetry("hdiutil",
             $"create -volname \"{appName}\" -srcfolder \"{app}\" -ov -format UDZO \"{dmg}\"",
@@ -1651,11 +1661,47 @@ public static class BuildCommand
         return propsPath;
     }
 
+    /// <summary>
+    /// Applies a <c>--bundles</c> override onto the config for the OS being targeted. Formats are
+    /// per-OS, so the same flag means different values on each; an unknown value is an error rather
+    /// than a silent no-op, because silently producing the default set is worse than refusing.
+    /// </summary>
+    internal static bool ApplyFormatOverride(CarbonConfig config, string target, IReadOnlyList<string> formats)
+    {
+        var requested = formats
+            .SelectMany(value => value.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries))
+            .Select(value => value.Trim().ToLowerInvariant())
+            .Distinct()
+            .ToList();
+
+        var (os, valid) = target switch
+        {
+            _ when target.StartsWith("osx", StringComparison.OrdinalIgnoreCase) => ("macOS", new[] { "app", "dmg" }),
+            _ when target.StartsWith("win", StringComparison.OrdinalIgnoreCase) => ("Windows", ["msi", "nsis"]),
+            _ when target.StartsWith("linux", StringComparison.OrdinalIgnoreCase) => ("Linux", ["appimage", "deb", "rpm"]),
+            _ => ("unknown", []),
+        };
+
+        var unknown = requested.Where(value => !valid.Contains(value)).ToList();
+        if (unknown.Count > 0)
+        {
+            WriteError($"--bundles: {string.Join(", ", unknown)} is not valid for {os} ({target}). " +
+                       $"Valid formats: {string.Join(", ", valid)}.");
+            return false;
+        }
+
+        if (os == "macOS") config.Bundle.MacOS.Formats = [.. requested];
+        else if (os == "Windows") config.Bundle.Windows.Formats = [.. requested];
+        else config.Bundle.Linux.Formats = [.. requested];
+        return true;
+    }
+
     private static async Task<bool> PublishHost(
         string hostProject,
         string workingDir,
         string target,
-        string bundleProps)
+        string bundleProps,
+        bool debug = false)
     {
         var outputDir = Path.Combine(workingDir, "out", target);
         if (Directory.Exists(outputDir)) Directory.Delete(outputDir, recursive: true);
@@ -1669,7 +1715,7 @@ public static class BuildCommand
 
         var args = $"publish \"{hostProject}\" " +
                    $"--runtime {target} " +
-                   $"--configuration Release " +
+                   $"--configuration {(debug ? "Debug" : "Release")} " +
                    $"--output \"{outputDir}\" " +
                    $"--self-contained true " +
                    $"--no-restore " +

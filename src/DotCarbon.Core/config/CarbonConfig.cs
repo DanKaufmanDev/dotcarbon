@@ -348,6 +348,13 @@ public class MacOsBundleConfig
     public string? SigningIdentity { get; set; }
     public string? Entitlements { get; set; }
     public string? NotarizationProfile { get; set; }
+
+    /// <summary>
+    /// Which macOS artifacts to produce. "app" is always built (it is what gets signed and what the
+    /// .dmg wraps); listing "dmg" additionally wraps it for distribution. Use ["app"] to skip the disk
+    /// image — useful in CI where the .app is all that gets tested.
+    /// </summary>
+    public List<string> Formats { get; set; } = ["app", "dmg"];
 }
 
 public class WindowsBundleConfig
