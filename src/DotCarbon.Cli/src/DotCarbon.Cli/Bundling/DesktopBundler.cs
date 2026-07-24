@@ -26,8 +26,7 @@ internal sealed class DesktopBundler : IBundlerTarget
                 "app identity, versioning, icons, and bundle/updater requirements"),
             new("Prepare icons",
                 "generate platform icons from the source image (or Carbon defaults)"),
-            new("Build frontend",
-                $"{(string.IsNullOrWhiteSpace(ctx.Config.Build.BuildCommand) ? "vite build" : ctx.Config.Build.BuildCommand)} → {ctx.Config.Build.FrontendDist}"),
+            new("Build frontend", FrontendStep(ctx)),
             new("Publish .NET host",
                 $"{ctx.Target}, {(ctx.Aot ? "NativeAOT" : "single-file self-contained")}, frontend embedded in the binary"),
         };
@@ -78,6 +77,26 @@ internal sealed class DesktopBundler : IBundlerTarget
         Plan(ctx).Render(dryRun: false);
         return await BuildCommand.Run(
             ctx.ProjectDir, ctx.Target, ctx.Aot, ctx.Package, ctx.UpdaterArtifacts, ctx.Debug, ctx.Formats);
+    }
+
+    /// <summary>
+    /// What the frontend step will actually do. A project with a prebuilt, committed dist and no build
+    /// command skips the build entirely, so the plan must say that rather than name a command that
+    /// will never run.
+    /// </summary>
+    private static string FrontendStep(BundleContext ctx)
+    {
+        var dist = ctx.Config.Build.FrontendDist;
+        if (string.IsNullOrWhiteSpace(ctx.Config.Build.BuildCommand) &&
+            File.Exists(Path.Combine(ctx.WorkingDir, dist, "index.html")))
+        {
+            return $"skipped — {dist} is already built";
+        }
+
+        var command = string.IsNullOrWhiteSpace(ctx.Config.Build.BuildCommand)
+            ? ctx.Config.Build.DevCommand.Replace("run dev", "run build").Replace(" dev", " build")
+            : ctx.Config.Build.BuildCommand;
+        return $"{command} → {dist}";
     }
 
     private static string OsFamily(string target) =>
