@@ -162,6 +162,28 @@ jobs:
       # The release action's artifact collection runs on every runner OS, where bash differs sharply
       # (macOS ships bash 3.2 with no globstar; Windows uses git-bash). Exercising it against the
       # artifacts just produced is the only way those differences surface before a user's release.
+      # flatpak/snap emit a ready-to-build manifest (and build it when the tooling is present, which
+      # the runner does not have). This exercises the manifest generation + payload staging on a real
+      # Linux host — the half the pure-generator unit tests cannot cover.
+      - name: Generate Flatpak + Snap manifests
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          project=tests/DotCarbon.Tests/fixtures/package-app
+          dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- \
+            bundle desktop --project "$project" --target ${{ matrix.rid }} --bundles flatpak snap
+          flatpak_manifest="$project/out/${{ matrix.rid }}/flatpak/dev.dotcarbon.packagefixture.yml"
+          snap_manifest="$project/out/${{ matrix.rid }}/snap-build/snap/snapcraft.yaml"
+          test -f "$flatpak_manifest" || { echo "::error::flatpak manifest not generated"; exit 1; }
+          test -f "$snap_manifest" || { echo "::error::snapcraft.yaml not generated"; exit 1; }
+          grep -q "app-id: dev.dotcarbon.packagefixture" "$flatpak_manifest"
+          grep -q "confinement: strict" "$snap_manifest"
+          # The payload the manifests reference must actually be staged, not just named.
+          test -s "$project/out/${{ matrix.rid }}/flatpak/launcher"
+          test -d "$project/out/${{ matrix.rid }}/snap-build/payload"
+          echo "::notice::Flatpak and Snap manifests generated with staged payloads."
+
       - name: Collect artifacts (release action script)
         shell: bash
         run: |

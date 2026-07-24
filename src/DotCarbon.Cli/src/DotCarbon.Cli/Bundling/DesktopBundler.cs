@@ -116,9 +116,15 @@ internal sealed class DesktopBundler : IBundlerTarget
     {
         var formats = ctx.Config.Bundle.Linux.Formats
             .Select(format => format.Trim().ToLowerInvariant())
-            .Where(format => format is "appimage" or "deb" or "rpm")
+            .Where(format => format is "appimage" or "deb" or "rpm" or "flatpak" or "snap")
             .Distinct()
-            .Select(format => format == "appimage" ? ".AppImage" : "." + format)
+            .Select(format => format switch
+            {
+                "appimage" => ".AppImage",
+                "flatpak" => "flatpak manifest",
+                "snap" => "snapcraft.yaml",
+                _ => "." + format,
+            })
             .ToList();
         return formats.Count > 0 ? string.Join(" + ", formats) : ".AppImage";
     }

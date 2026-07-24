@@ -1233,7 +1233,7 @@ public static class BuildCommand
 
         var formats = config.Bundle.Linux.Formats
             .Select(format => format.Trim().ToLowerInvariant())
-            .Where(format => format is "appimage" or "deb" or "rpm")
+            .Where(format => format is "appimage" or "deb" or "rpm" or "flatpak" or "snap")
             .Distinct()
             .ToList();
         if (formats.Count == 0) formats.Add("appimage");
@@ -1266,6 +1266,10 @@ public static class BuildCommand
             await TryBuild("deb", () => BuildDeb(config, workingDir, outDir, target, name, slug, exeName, icons));
         if (formats.Contains("rpm"))
             await TryBuild("rpm", () => BuildRpm(config, workingDir, outDir, target, name, slug, exeName, icons));
+        if (formats.Contains("flatpak"))
+            await TryBuild("flatpak", () => BuildFlatpak(config, workingDir, outDir, name, slug, exeName, icons));
+        if (formats.Contains("snap"))
+            await TryBuild("snap", () => BuildSnap(config, workingDir, outDir, name, slug, exeName, icons));
 
         primary ??= produced.FirstOrDefault();
         if (produced.Count > 0)
@@ -1414,6 +1418,98 @@ public static class BuildCommand
         var dest = Path.Combine(outDir, Path.GetFileName(built));
         File.Copy(built, dest, true);
         return dest;
+    }
+
+    private static async Task<string?> BuildFlatpak(
+        CarbonConfig config, string workingDir, string outDir,
+        string name, string slug, string exeName, IconAssets? icons)
+    {
+        Console.WriteLine("\n[Carbon] Generating Flatpak manifest...");
+        // A build context the manifest's `dir` source points at: the published payload + a launcher
+        // + the .desktop entry, all relative paths inside build-commands.
+        var context = Path.Combine(outDir, "flatpak");
+        if (Directory.Exists(context)) Directory.Delete(context, true);
+        var payload = Path.Combine(context, "payload");
+        Directory.CreateDirectory(payload);
+        foreach (var file in Directory.GetFiles(outDir))
+            File.Copy(file, Path.Combine(payload, Path.GetFileName(file)), true);
+        if (!CopyBundleResources(config.Bundle.Resources, workingDir, payload)) return null;
+
+        await File.WriteAllTextAsync(Path.Combine(context, "launcher"),
+            Bundling.LinuxPackaging.FlatpakLauncher(slug, exeName));
+        await File.WriteAllTextAsync(Path.Combine(context, slug + ".desktop"),
+            BuildDesktopEntry(config, name, slug, slug));
+
+        var manifestPath = Path.Combine(context, config.App.Identifier + ".yml");
+        await File.WriteAllTextAsync(manifestPath, Bundling.LinuxPackaging.FlatpakManifest(config, slug, exeName));
+
+        // flatpak-builder does the actual build; without it, the manifest is a ready-to-build recipe.
+        if (ToolExists("flatpak-builder"))
+        {
+            var repo = Path.Combine(context, "build");
+            if (await RunProcessToCompletion("flatpak-builder",
+                    $"--force-clean --repo=\"{Path.Combine(context, "repo")}\" \"{repo}\" \"{manifestPath}\"",
+                    context, "[pkg]", ConsoleColor.Blue) == 0)
+            {
+                var bundle = Path.Combine(outDir, $"{slug}.flatpak");
+                await RunProcessToCompletion("flatpak",
+                    $"build-bundle \"{Path.Combine(context, "repo")}\" \"{bundle}\" {config.App.Identifier}",
+                    context, "[pkg]", ConsoleColor.Blue);
+                if (File.Exists(bundle)) return bundle;
+            }
+            WriteWarning("flatpak-builder ran but did not produce a bundle; the manifest is at " +
+                         Path.GetRelativePath(workingDir, manifestPath));
+        }
+        else
+        {
+            Console.WriteLine($"[pkg] Flatpak manifest -> {Path.GetRelativePath(workingDir, manifestPath)} " +
+                              "(build it with: flatpak-builder --repo=repo build " +
+                              $"{config.App.Identifier}.yml)");
+        }
+
+        return manifestPath;
+    }
+
+    private static async Task<string?> BuildSnap(
+        CarbonConfig config, string workingDir, string outDir,
+        string name, string slug, string exeName, IconAssets? icons)
+    {
+        Console.WriteLine("\n[Carbon] Generating snapcraft.yaml...");
+        var context = Path.Combine(outDir, "snap-build");
+        if (Directory.Exists(context)) Directory.Delete(context, true);
+        var payload = Path.Combine(context, "payload");
+        Directory.CreateDirectory(payload);
+        foreach (var file in Directory.GetFiles(outDir))
+            File.Copy(file, Path.Combine(payload, Path.GetFileName(file)), true);
+        if (!CopyBundleResources(config.Bundle.Resources, workingDir, payload)) return null;
+
+        var snapDir = Path.Combine(context, "snap");
+        Directory.CreateDirectory(snapDir);
+        var manifestPath = Path.Combine(snapDir, "snapcraft.yaml");
+        await File.WriteAllTextAsync(manifestPath, Bundling.LinuxPackaging.SnapcraftYaml(config, slug, exeName));
+
+        if (ToolExists("snapcraft"))
+        {
+            if (await RunProcessToCompletion("snapcraft", "pack", context, "[pkg]", ConsoleColor.Blue) == 0)
+            {
+                var snap = Directory.GetFiles(context, "*.snap").FirstOrDefault();
+                if (snap is not null)
+                {
+                    var dest = Path.Combine(outDir, Path.GetFileName(snap));
+                    File.Copy(snap, dest, true);
+                    return dest;
+                }
+            }
+            WriteWarning("snapcraft ran but did not produce a .snap; the recipe is at " +
+                         Path.GetRelativePath(workingDir, manifestPath));
+        }
+        else
+        {
+            Console.WriteLine($"[pkg] snapcraft.yaml -> {Path.GetRelativePath(workingDir, manifestPath)} " +
+                              "(build it with: cd " + Path.GetRelativePath(workingDir, context) + " && snapcraft pack)");
+        }
+
+        return manifestPath;
     }
 
     // Builds the shared FHS payload (/usr/lib/<slug>, a /usr/bin wrapper, .desktop, icons,
@@ -1678,7 +1774,7 @@ public static class BuildCommand
         {
             _ when target.StartsWith("osx", StringComparison.OrdinalIgnoreCase) => ("macOS", new[] { "app", "dmg" }),
             _ when target.StartsWith("win", StringComparison.OrdinalIgnoreCase) => ("Windows", ["msi", "nsis"]),
-            _ when target.StartsWith("linux", StringComparison.OrdinalIgnoreCase) => ("Linux", ["appimage", "deb", "rpm"]),
+            _ when target.StartsWith("linux", StringComparison.OrdinalIgnoreCase) => ("Linux", ["appimage", "deb", "rpm", "flatpak", "snap"]),
             _ => ("unknown", []),
         };
 

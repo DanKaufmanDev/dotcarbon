@@ -238,6 +238,11 @@ public static class BundleCommand
         if (verify)
             return VerifyDesktopOutput(workingDir, target, aot);
 
+        // Apply --bundles onto the config up front so the plan reflects it too, not just the build
+        // (BuildCommand.Run re-applies it idempotently). An invalid format is a hard error.
+        if (formats is { Count: > 0 } && !BuildCommand.ApplyFormatOverride(config, target, formats))
+            return 1;
+
         var context = new BundleContext(
             config, workingDir, project, target, aot, package, updaterArtifacts, dryRun, debug, formats);
 

@@ -394,7 +394,7 @@ public class LinuxBundleConfig
 {
     public string Category { get; set; } = "Utility";
 
-    /// <summary>Which Linux packages to produce. Any of: appimage, deb, rpm.</summary>
+    /// <summary>Which Linux packages to produce. Any of: appimage, deb, rpm, flatpak, snap.</summary>
     public List<string> Formats { get; set; } = ["appimage", "deb", "rpm"];
 
     /// <summary>deb/rpm packager identity, e.g. "Jane Doe &lt;jane@example.com&gt;". Falls back to bundle.publisher/app.name.</summary>

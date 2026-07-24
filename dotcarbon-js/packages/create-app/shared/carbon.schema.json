@@ -350,9 +350,9 @@
                 "category": { "type": "string", "default": "Utility" },
                 "formats": {
                     "type": "array",
-                    "items": { "type": "string", "enum": ["appimage", "deb", "rpm"] },
+                    "items": { "type": "string", "enum": ["appimage", "deb", "rpm", "flatpak", "snap"] },
                     "default": ["appimage", "deb", "rpm"],
-                    "description": "Which Linux packages to produce. Each is skipped with a warning if its tool (appimagetool, dpkg-deb, rpmbuild) is unavailable."
+                    "description": "Which Linux packages to produce. Each is skipped with a warning if its tool (appimagetool, dpkg-deb, rpmbuild) is unavailable. flatpak/snap emit a ready-to-build manifest and build it when flatpak-builder/snapcraft is present."
                 },
                 "maintainer": { "type": ["string", "null"], "description": "deb/rpm packager identity, e.g. \"Jane Doe <jane@example.com>\". Falls back to bundle.publisher, then app.name." },
                 "section": { "type": "string", "default": "utils", "description": "Debian archive section." },

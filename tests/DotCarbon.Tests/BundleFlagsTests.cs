@@ -71,7 +71,7 @@ public class BundleFlagsTests
     {
         var config = new CarbonConfig();
 
-        Assert.False(BuildCommand.ApplyFormatOverride(config, "linux-x64", ["snap"]));
+        Assert.False(BuildCommand.ApplyFormatOverride(config, "linux-x64", ["pkgbuild"]));
     }
 
     [Fact]
