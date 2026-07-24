@@ -317,7 +317,24 @@
                 "webView2InstallMode": { "type": "string", "enum": ["downloadBootstrapper", "offlineInstaller", "skip"], "default": "downloadBootstrapper" },
                 "webView2InstallerPath": { "type": ["string", "null"], "description": "Path to the Evergreen standalone installer when webView2InstallMode is offlineInstaller." },
                 "certificateThumbprint": { "type": ["string", "null"] },
-                "timestampUrl": { "type": "string", "format": "uri", "default": "http://timestamp.digicert.com" }
+                "timestampUrl": { "type": "string", "format": "uri", "default": "http://timestamp.digicert.com" },
+                "formats": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["msi", "nsis"] },
+                    "default": ["msi"],
+                    "description": "Which Windows installers to produce. msi uses WiX; nsis produces a self-contained .exe setup (skipped with a warning if makensis is unavailable)."
+                },
+                "nsis": { "$ref": "#/definitions/NsisBundle" }
+            }
+        },
+        "NsisBundle": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "NSIS installer settings, used when \"nsis\" is in bundle.windows.formats.",
+            "properties": {
+                "installMode": { "type": "string", "enum": ["perUser", "perMachine"], "default": "perUser", "description": "perUser installs to %LOCALAPPDATA% without elevation; perMachine installs to Program Files and requires admin." },
+                "license": { "type": ["string", "null"], "description": "Optional license file shown by the installer." },
+                "language": { "type": "string", "default": "English", "description": "NSIS MUI2 language name for the installer UI." }
             }
         },
         "LinuxBundle": {

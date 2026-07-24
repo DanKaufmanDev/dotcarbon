@@ -830,13 +830,20 @@ public static class BuildCommand
         var outDir = Path.Combine(workingDir, "out", target);
         var exe = Directory.GetFiles(outDir, "*.exe").FirstOrDefault();
         if (exe is null) return null;
-        if (!ToolExists("wix"))
+
+        var formats = config.Bundle.Windows.Formats
+            .Select(format => format.Trim().ToLowerInvariant())
+            .Where(format => format is "msi" or "nsis")
+            .Distinct()
+            .ToList();
+        if (formats.Count == 0) formats.Add("msi");
+
+        if (formats.Contains("msi") && !ToolExists("wix"))
         {
             WriteError("Windows .msi packaging requires WiX. Install it with: dotnet tool install --global wix --version 4.*");
             return null;
         }
 
-        Console.WriteLine("\n[Carbon] Packaging Windows .msi (WiX)...");
         var name = string.IsNullOrWhiteSpace(config.App.Name) ? Path.GetFileNameWithoutExtension(exe) : config.App.Name;
         var resourceDir = Path.Combine(outDir, "resources");
         if (config.Bundle.Resources.Count > 0)
@@ -857,23 +864,86 @@ public static class BuildCommand
         if (config.Bundle.Windows.WebView2InstallMode != "skip" && webView2 is null)
             return null;
 
-        var wxs = Path.Combine(workingDir, "out", "installer.wxs");
-        var msi = Path.Combine(workingDir, "out", name + ".msi");
-        await File.WriteAllTextAsync(wxs, WindowsInstallerWxs(config, outDir, exe, webView2, icons?.Ico));
-        if (await RunProcessToCompletion("wix", $"build \"{wxs}\" -o \"{msi}\"", outDir, "[pkg]", ConsoleColor.Blue) != 0)
+        // Each format is isolated: a failure in one must not abort the other, matching how the Linux
+        // formats behave. The first produced artifact is the one reported as primary.
+        string? primary = null;
+
+        if (formats.Contains("msi"))
         {
-            WriteError("WiX failed to build the Windows .msi package.");
+            Console.WriteLine("\n[Carbon] Packaging Windows .msi (WiX)...");
+            var wxs = Path.Combine(workingDir, "out", "installer.wxs");
+            var msi = Path.Combine(workingDir, "out", name + ".msi");
+            await File.WriteAllTextAsync(wxs, WindowsInstallerWxs(config, outDir, exe, webView2, icons?.Ico));
+            if (await RunProcessToCompletion("wix", $"build \"{wxs}\" -o \"{msi}\"", outDir, "[pkg]", ConsoleColor.Blue) != 0)
+            {
+                WriteError("WiX failed to build the Windows .msi package.");
+                return null;
+            }
+            if (!File.Exists(msi))
+            {
+                WriteError($"WiX completed but did not create the expected MSI: {msi}");
+                return null;
+            }
+            if (!string.IsNullOrWhiteSpace(thumbprint) &&
+                !await SignWindows(msi, thumbprint, config.Bundle.Windows.TimestampUrl, outDir))
+                return null;
+            primary = $"out/{name}.msi";
+        }
+
+        if (formats.Contains("nsis"))
+        {
+            var setup = await BundleWindowsNsis(
+                config, workingDir, outDir, name, Path.GetFileName(exe), webView2, icons?.Ico, thumbprint);
+            primary ??= setup;
+        }
+
+        return primary;
+    }
+
+    /// <summary>Builds the NSIS <c>.exe</c> setup. Returns the artifact path, or null if it could not be built.</summary>
+    private static async Task<string?> BundleWindowsNsis(
+        CarbonConfig config,
+        string workingDir,
+        string outDir,
+        string name,
+        string exeName,
+        string? webView2,
+        string? iconIco,
+        string? thumbprint)
+    {
+        if (!ToolExists("makensis"))
+        {
+            // A missing NSIS must not fail the whole bundle when the MSI already succeeded — the user
+            // asked for both, and one of them is on disk.
+            WriteWarning("Skipping .exe installer: NSIS not found. Install it (choco install nsis, " +
+                         "or https://nsis.sourceforge.io) and ensure makensis is on PATH.");
             return null;
         }
-        if (!File.Exists(msi))
+
+        Console.WriteLine("\n[Carbon] Packaging Windows .exe installer (NSIS)...");
+        var setup = Path.Combine(workingDir, "out", $"{name}-setup.exe");
+        var nsi = Path.Combine(workingDir, "out", "installer.nsi");
+        await File.WriteAllTextAsync(
+            nsi, Bundling.NsisInstaller.Script(config, outDir, exeName, webView2, iconIco, setup));
+
+        if (await RunProcessToCompletion("makensis", $"\"{nsi}\"", outDir, "[pkg]", ConsoleColor.Blue) != 0)
         {
-            WriteError($"WiX completed but did not create the expected MSI: {msi}");
+            WriteError("makensis failed to build the Windows .exe installer.");
             return null;
         }
-        if (File.Exists(msi) && !string.IsNullOrWhiteSpace(thumbprint) &&
-            !await SignWindows(msi, thumbprint, config.Bundle.Windows.TimestampUrl, outDir))
+
+        if (!File.Exists(setup))
+        {
+            WriteError($"makensis completed but did not create the expected installer: {setup}");
             return null;
-        return $"out/{name}.msi";
+        }
+
+        if (!string.IsNullOrWhiteSpace(thumbprint) &&
+            !await SignWindows(setup, thumbprint, config.Bundle.Windows.TimestampUrl, outDir))
+            return null;
+
+        Console.WriteLine($"[pkg] created: {setup}");
+        return $"out/{name}-setup.exe";
     }
 
     internal static string WindowsInstallerWxs(

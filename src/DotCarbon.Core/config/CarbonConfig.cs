@@ -356,6 +356,31 @@ public class WindowsBundleConfig
     public string? WebView2InstallerPath { get; set; }
     public string? CertificateThumbprint { get; set; }
     public string TimestampUrl { get; set; } = "http://timestamp.digicert.com";
+
+    /// <summary>
+    /// Which Windows installers to produce. Any of: msi (WiX), nsis (a self-contained .exe setup).
+    /// MSI suits managed/enterprise deployment; NSIS gives a smaller per-user installer that does not
+    /// need elevation.
+    /// </summary>
+    public List<string> Formats { get; set; } = ["msi"];
+
+    /// <summary>NSIS-specific settings, used when "nsis" is in <see cref="Formats"/>.</summary>
+    public NsisBundleConfig Nsis { get; set; } = new();
+}
+
+public class NsisBundleConfig
+{
+    /// <summary>
+    /// "perUser" installs to %LOCALAPPDATA% with no elevation prompt (the default, and what most
+    /// desktop apps want); "perMachine" installs to Program Files and requires admin.
+    /// </summary>
+    public string InstallMode { get; set; } = "perUser";
+
+    /// <summary>Optional license file shown by the installer.</summary>
+    public string? License { get; set; }
+
+    /// <summary>Language the installer UI uses (an NSIS MUI2 language name).</summary>
+    public string Language { get; set; } = "English";
 }
 
 public class LinuxBundleConfig
