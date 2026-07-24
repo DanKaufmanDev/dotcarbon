@@ -8,13 +8,16 @@ import { execSync, spawn } from 'child_process'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-const TEMPLATES = ['react', 'vue', 'svelte', 'solid', 'preact', 'vanilla'] as const
+const TEMPLATES = ['react', 'vue', 'svelte', 'sveltekit', 'solid', 'preact', 'lit', 'angular', 'nuxt', 'vanilla'] as const
 type Template = typeof TEMPLATES[number]
+// Decorator-based (Lit, Angular) and TS-first meta-frameworks (SvelteKit, Nuxt) ship TypeScript only.
+const TS_ONLY: ReadonlySet<Template> = new Set(['lit', 'angular', 'sveltekit', 'nuxt'])
 type PackageManager = 'pnpm' | 'npm' | 'yarn' | 'bun'
 type Lang = 'ts' | 'js'
 
 const TEMPLATE_LABELS: Record<Template, string> = {
-    react: 'React', vue: 'Vue', svelte: 'Svelte', solid: 'Solid', preact: 'Preact', vanilla: 'Vanilla',
+    react: 'React', vue: 'Vue', svelte: 'Svelte', sveltekit: 'SvelteKit (static)', solid: 'Solid',
+    preact: 'Preact', lit: 'Lit', angular: 'Angular', nuxt: 'Nuxt (static)', vanilla: 'Vanilla',
 }
 const PMS: readonly PackageManager[] = ['pnpm', 'npm', 'yarn', 'bun']
 const EXCLUDE_DIRS = new Set(['node_modules', 'dist', 'bin', 'obj', 'out'])
@@ -60,6 +63,12 @@ async function main() {
                 options: TEMPLATES.map(t => ({ value: t, label: TEMPLATE_LABELS[t] })),
             })) as Template
             : 'react'
+    }
+
+    if (TS_ONLY.has(template)) {
+        if (lang === 'js') fail(`The ${TEMPLATE_LABELS[template]} template is TypeScript-only.`)
+        if (lang === undefined && interactive) p.log.info(`${TEMPLATE_LABELS[template]} is TypeScript-only.`)
+        lang = 'ts'
     }
 
     if (!lang) {

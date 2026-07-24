@@ -1,0 +1,14 @@
+# .NET
+bin/
+obj/
+
+# Node
+node_modules/
+dist/
+
+# Carbon
+out/
+carbon-updater.key
+
+# macOS
+.DS_Store

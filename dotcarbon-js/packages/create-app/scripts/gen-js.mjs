@@ -9,6 +9,8 @@ const SRC = join(ROOT, 'templates')
 const OUT = join(ROOT, 'templates-js')
 
 const DROP_DEV_DEPS = new Set(['typescript', 'vue-tsc', 'svelte-check', '@tsconfig/svelte', 'tslib'])
+// Decorator-based and TS-first templates have no meaningful JavaScript variant.
+const TS_ONLY = new Set(['lit', 'angular', 'sveltekit', 'nuxt'])
 
 async function walk(dir) {
     const out = []
@@ -57,6 +59,7 @@ const IGNORE = (p) => p.endsWith('tsconfig.json') || p.endsWith('.d.ts')
 
 await rm(OUT, { recursive: true, force: true })
 for (const template of await readdir(SRC)) {
+    if (TS_ONLY.has(template)) continue
     const base = join(SRC, template)
     for (const file of await walk(base)) {
         if (IGNORE(file)) continue

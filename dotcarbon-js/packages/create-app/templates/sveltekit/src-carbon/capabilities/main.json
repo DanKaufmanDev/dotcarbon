@@ -1,0 +1,5 @@
+{
+    "description": "Main window permissions.",
+    "windows": ["main"],
+    "commands": ["app:greet", "window:*", "core:event_emit"]
+}
