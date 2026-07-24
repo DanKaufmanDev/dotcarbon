@@ -112,6 +112,35 @@ jobs:
         run: |
           dotnet tool install --global wix --version 4.*
           "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install NSIS
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Note the braces: "$env:ProgramFiles(x86)" parses as $env:ProgramFiles + a literal "(x86)".
+          function Find-NsisDir {
+            # Filter roots first — Join-Path with a null base throws under ErrorActionPreference Stop.
+            $roots = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) | Where-Object { $_ }
+            foreach ($root in $roots) {
+              $dir = Join-Path $root 'NSIS'
+              if (Test-Path (Join-Path $dir 'makensis.exe')) { return $dir }
+            }
+            return $null
+          }
+
+          $dir = Find-NsisDir
+          if (-not $dir) {
+            Write-Host 'NSIS is not on the runner image — installing with Chocolatey.'
+            choco install nsis --no-progress -y
+            if ($LASTEXITCODE -ne 0) { throw "choco install nsis failed with $LASTEXITCODE." }
+            $dir = Find-NsisDir
+          }
+          if (-not $dir) { throw 'makensis is still not available after installing NSIS.' }
+
+          # The bundler shells out to `makensis`, so it must resolve by name in later steps.
+          Write-Host "Using NSIS at $dir"
+          $dir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Install Linux package tools
         if: runner.os == 'Linux'
         run: |
@@ -173,50 +202,31 @@ jobs:
             Write-Host "::warning::MSI install returned $code."
           }
 
-      # NSIS is the second Windows target. makensis is preinstalled on the Windows runners, so this
-      # compiles the generated .nsi for real and exercises the silent install/uninstall — the same
-      # level of verification the MSI gets, and the only place it can be done (no makensis on macOS).
-      - name: Package + smoke the NSIS installer
+      # The fixture asks for both Windows formats, so the package step above already produced the
+      # NSIS setup. Exercise it the same way the MSI is exercised: silent install, then uninstall.
+      - name: Smoke the NSIS installer
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $nsisDir = "$env:ProgramFiles(x86)\NSIS"
-          if (Test-Path $nsisDir) { $env:PATH = "$nsisDir;$env:PATH" }
-          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
-            throw "makensis not found — the Windows runner is expected to ship NSIS."
-          }
-
           $project = 'tests/DotCarbon.Tests/fixtures/package-app'
-          $config = Join-Path $project 'carbon.json'
-          $json = Get-Content $config -Raw | ConvertFrom-Json
-          if (-not $json.bundle.windows) {
-            $json.bundle | Add-Member -NotePropertyName windows -NotePropertyValue ([pscustomobject]@{}) -Force
-          }
-          $json.bundle.windows | Add-Member -NotePropertyName formats -NotePropertyValue @('nsis') -Force
-          $json | ConvertTo-Json -Depth 30 | Set-Content $config
-
-          dotnet run --project src/DotCarbon.Cli/DotCarbon.Cli.csproj -- bundle desktop --project $project --target ${{ matrix.rid }}
-
           $setup = Get-ChildItem (Join-Path $project 'out') -Filter '*-setup.exe' | Select-Object -First 1
           if (-not $setup) { throw 'NSIS did not produce a *-setup.exe installer.' }
           Write-Host "NSIS installer: $($setup.FullName) ($($setup.Length) bytes)"
 
-          # /S is NSIS's silent switch; a per-user install needs no elevation on the runner.
+          # /S is NSIS's silent switch; the per-user install needs no elevation.
           $install = Start-Process $setup.FullName -ArgumentList '/S' -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Silent install failed with $($install.ExitCode)." }
 
           $installed = Join-Path $env:LOCALAPPDATA 'Programs\Package Fixture'
-          if (-not (Test-Path (Join-Path $installed 'uninstall.exe'))) {
-            throw "Installer did not write an uninstaller to $installed."
-          }
+          $uninstaller = Join-Path $installed 'uninstall.exe'
+          if (-not (Test-Path $uninstaller)) { throw "Installer did not write an uninstaller to $installed." }
           $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\dev.dotcarbon.packagefixture'
           if (-not (Test-Path $key)) { Write-Host "::warning::No Add/Remove Programs key at $key" }
 
-          $uninstall = Start-Process (Join-Path $installed 'uninstall.exe') -ArgumentList '/S' -Wait -PassThru
+          $uninstall = Start-Process $uninstaller -ArgumentList '/S' -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) { Write-Host "::warning::Uninstall returned $($uninstall.ExitCode)." }
           Write-Host '::notice::NSIS installer built, installed and uninstalled.'
-          git checkout -- $config
 
   # Optional: the mobile host packages target net10.0-android / net10.0-ios and are not part of
   # DotCarbon.slnx, so they only build with the corresponding workload installed.

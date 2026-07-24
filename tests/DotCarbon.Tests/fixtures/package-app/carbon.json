@@ -34,7 +34,8 @@
       "desktop"
     ],
     "windows": {
-      "webView2InstallMode": "skip"
+      "webView2InstallMode": "skip",
+      "formats": ["msi", "nsis"]
     },
     "linux": {
       "formats": [

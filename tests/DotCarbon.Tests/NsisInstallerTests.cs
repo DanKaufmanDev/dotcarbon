@@ -158,6 +158,37 @@ public class NsisInstallerTests
     }
 
     [Fact]
+    public void The_windows_formats_list_binds_from_carbon_json()
+    {
+        // The CI fixture asks for both formats via config; if this did not bind, the Windows job would
+        // silently build only the MSI and the NSIS smoke would have nothing to install.
+        var path = Path.Combine(Path.GetTempPath(), $"carbon-fmt-{Guid.NewGuid():N}.json");
+        File.WriteAllText(path,
+            """
+            { "app": { "name": "X" },
+              "bundle": { "windows": { "formats": ["msi", "nsis"], "nsis": { "installMode": "perMachine" } } } }
+            """);
+        try
+        {
+            var config = ConfigLoader.Load(path);
+
+            Assert.Equal(["msi", "nsis"], config.Bundle.Windows.Formats);
+            Assert.Equal("perMachine", config.Bundle.Windows.Nsis.InstallMode);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Windows_defaults_to_the_msi_alone()
+    {
+        // Adding NSIS must not change what an existing project produces without opting in.
+        Assert.Equal(["msi"], new CarbonConfig().Bundle.Windows.Formats);
+    }
+
+    [Fact]
     public void Quotes_in_the_app_name_cannot_break_the_script_strings()
     {
         var script = Script(Config(c => c.App.Name = "My \"Great\" App"));
