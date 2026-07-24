@@ -1,0 +1,143 @@
+name: Carbon build
+description: Build, bundle and release a DotCarbon app — installers per platform, plus signed updater manifests.
+author: DanKaufmanDev
+
+branding:
+  icon: zap
+  color: gray-dark
+
+inputs:
+  projectPath:
+    description: Directory containing carbon.json.
+    required: false
+    default: '.'
+  args:
+    description: Extra arguments appended to `carbon bundle desktop`.
+    required: false
+    default: ''
+  carbonVersion:
+    description: 'Version of the DotCarbon.Cli tool to install (default: latest).'
+    required: false
+    default: ''
+  installFrontendDeps:
+    description: Install frontend dependencies before bundling, using the project's package manager.
+    required: false
+    default: 'true'
+  tagName:
+    description: Release tag to upload to. Leave empty to build without publishing.
+    required: false
+    default: ''
+  releaseName:
+    description: Release title (defaults to the tag).
+    required: false
+    default: ''
+  releaseBody:
+    description: Release notes.
+    required: false
+    default: ''
+  releaseDraft:
+    description: Create the release as a draft.
+    required: false
+    default: 'false'
+  prerelease:
+    description: Mark the release as a prerelease.
+    required: false
+    default: 'false'
+  includeUpdaterJson:
+    description: >-
+      Publish each signed updater manifest as <target>.json, so a bundle.updater.endpoints URL
+      templated on {{target}} resolves to it.
+    required: false
+    default: 'true'
+
+outputs:
+  artifacts:
+    description: Newline-separated paths of the staged release artifacts.
+    value: ${{ steps.collect.outputs.artifacts }}
+  stagingPath:
+    description: Directory holding the staged artifacts.
+    value: ${{ steps.collect.outputs.staging }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install the carbon CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+        # `update` covers the already-installed case, which `install` fails on.
+        if [ -n "${{ inputs.carbonVersion }}" ]; then
+          dotnet tool update --global DotCarbon.Cli --version "${{ inputs.carbonVersion }}"
+        else
+          dotnet tool update --global DotCarbon.Cli
+        fi
+        echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+    - name: Install frontend dependencies
+      if: inputs.installFrontendDeps == 'true'
+      shell: bash
+      working-directory: ${{ inputs.projectPath }}
+      run: |
+        set -euo pipefail
+        # The frontend lives next to build.frontendDist; the lockfile picks the package manager.
+        DIST=$(node -p "require('./carbon.json').build.frontendDist || 'dist'")
+        DIR=$(dirname "$DIST")
+        [ "$DIR" = "." ] && DIR="."
+        if [ ! -f "$DIR/package.json" ]; then
+          echo "No package.json in $DIR — skipping frontend install."
+          exit 0
+        fi
+        cd "$DIR"
+        corepack enable || true
+        if   [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile
+        elif [ -f yarn.lock ];      then yarn install --frozen-lockfile
+        elif [ -f bun.lockb ] || [ -f bun.lock ]; then bun install
+        else npm ci || npm install
+        fi
+
+    - name: Bundle
+      shell: bash
+      working-directory: ${{ inputs.projectPath }}
+      run: carbon bundle desktop ${{ inputs.args }}
+
+    - name: Collect artifacts
+      id: collect
+      shell: bash
+      run: |
+        set -euo pipefail
+        STAGING="${RUNNER_TEMP}/carbon-artifacts"
+        rm -rf "$STAGING"
+        ARTIFACTS=$(bash "${{ github.action_path }}/collect-artifacts.sh" \
+          "${{ inputs.projectPath }}" "$STAGING" "${{ inputs.includeUpdaterJson }}")
+        echo "staging=$STAGING" >> "$GITHUB_OUTPUT"
+        {
+          echo "artifacts<<CARBON_EOF"
+          echo "$ARTIFACTS"
+          echo "CARBON_EOF"
+        } >> "$GITHUB_OUTPUT"
+        echo "$ARTIFACTS"
+
+    - name: Publish to the release
+      if: inputs.tagName != ''
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -z "${GITHUB_TOKEN:-}" ]; then
+          echo "::error::GITHUB_TOKEN is not set — pass env.GITHUB_TOKEN to this step's job to publish."
+          exit 1
+        fi
+
+        TAG="${{ inputs.tagName }}"
+        # Create the release only if it does not exist; otherwise upload into the existing one, so a
+        # multi-OS matrix converges on a single release instead of racing to create it.
+        if ! gh release view "$TAG" >/dev/null 2>&1; then
+          FLAGS=()
+          [ "${{ inputs.releaseDraft }}" = "true" ] && FLAGS+=(--draft)
+          [ "${{ inputs.prerelease }}" = "true" ] && FLAGS+=(--prerelease)
+          [ -n "${{ inputs.releaseName }}" ] && FLAGS+=(--title "${{ inputs.releaseName }}")
+          [ -n "${{ inputs.releaseBody }}" ] && FLAGS+=(--notes "${{ inputs.releaseBody }}")
+          gh release create "$TAG" "${FLAGS[@]+"${FLAGS[@]}"}" || \
+            echo "Release $TAG already created by another matrix job — uploading into it."
+        fi
+
+        gh release upload "$TAG" "${{ steps.collect.outputs.staging }}"/* --clobber

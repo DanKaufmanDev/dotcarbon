@@ -130,6 +130,18 @@ jobs:
           if (!(Test-Path $artifact)) { throw "Missing package artifact: $artifact" }
           $item = Get-Item $artifact
           if ($item.Length -le 0) { throw "Package artifact is empty: $artifact" }
+      # The release action's artifact collection runs on every runner OS, where bash differs sharply
+      # (macOS ships bash 3.2 with no globstar; Windows uses git-bash). Exercising it against the
+      # artifacts just produced is the only way those differences surface before a user's release.
+      - name: Collect artifacts (release action script)
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGING="${RUNNER_TEMP}/carbon-artifacts"
+          rm -rf "$STAGING"
+          bash action/collect-artifacts.sh tests/DotCarbon.Tests/fixtures/package-app "$STAGING" true
+          # It must find the installer this job just built, not silently stage nothing.
+          test "$(find "$STAGING" -type f | wc -l)" -gt 0
       # Exercise the installer itself after validating the MSI artifact. Keep the verbose log focused
       # on Windows Installer error and rollback lines when installation fails.
       - name: Install + uninstall MSI (smoke)
