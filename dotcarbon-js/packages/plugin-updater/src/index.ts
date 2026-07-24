@@ -1,4 +1,4 @@
-import { invoke } from '@dotcarbon/api'
+import { invoke, listen, type UnlistenFn } from '@dotcarbon/api'
 
 export interface UpdaterStatus {
     active: boolean
@@ -38,6 +38,15 @@ export interface UpdateDownloadResult {
     manifest: UpdateManifest
 }
 
+export interface UpdateProgress {
+    /** Bytes downloaded so far. */
+    downloaded: number
+    /** Total bytes, or null when the server sends no Content-Length. */
+    total: number | null
+    /** 0-100, or 0 when the total is unknown. */
+    percent: number
+}
+
 export interface InstallUpdateOptions {
     path?: string
     endpoint?: string
@@ -74,9 +83,17 @@ export const updater = {
             endpoint: options.endpoint ?? null,
             restart: true,
         }),
+
+    /** Fires repeatedly while `download()` runs; ends on a final 100% event. Returns a detach fn. */
+    onDownloadProgress: (handler: (progress: UpdateProgress) => void): Promise<UnlistenFn> =>
+        listen('updater:download-progress', ({ payload }) => handler(payload)),
 }
 
 declare module '@dotcarbon/api' {
+    interface CarbonEvents {
+        'updater:download-progress': UpdateProgress
+    }
+
     interface CarbonCommands {
         'updater:status': { args: void; result: UpdaterStatus }
         'updater:check': { args: { endpoint: string | null }; result: UpdateCheckResult }

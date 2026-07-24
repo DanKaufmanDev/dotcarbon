@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using DotCarbon.Core.Bridge;
 using DotCarbon.Core.Config;
 using DotCarbon.Core.Plugins;
+using DotCarbon.Core.Runtime;
 
 namespace DotCarbon.Plugins.Updater;
 
@@ -12,12 +13,14 @@ namespace DotCarbon.Plugins.Updater;
 [CarbonPermission("updater:default", "Allow updater commands.", Commands = new[] { "updater:*" })]
 public partial class UpdaterPlugin : IPlugin
 {
+    private readonly AppHandle _app;
     private readonly CarbonConfig _config;
     private readonly HttpClient _http = new();
 
-    public UpdaterPlugin(CarbonConfig config)
+    public UpdaterPlugin(AppHandle app)
     {
-        _config = config;
+        _app = app;
+        _config = app.Config;
     }
 
     public string Namespace => "updater";
@@ -162,23 +165,77 @@ public partial class UpdaterPlugin : IPlugin
 
     private async Task DownloadArtifact(string url, string destination)
     {
-        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.IsFile)
+        // Local sources (file:// or a plain path) are a straight copy, but still report a start/finish
+        // so a UI wired to the progress event behaves the same whatever the update is served from.
+        var localPath =
+            Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.IsFile ? uri.LocalPath :
+            !Uri.TryCreate(url, UriKind.Absolute, out _) ? Path.GetFullPath(url) : null;
+
+        if (localPath is not null)
         {
-            File.Copy(uri.LocalPath, destination, overwrite: true);
+            var total = new FileInfo(localPath).Length;
+            await EmitProgress(0, total);
+            await using var input = File.OpenRead(localPath);
+            await using var output = File.Create(destination);
+            await CopyWithProgress(input, output, total);
             return;
         }
 
-        if (!Uri.TryCreate(url, UriKind.Absolute, out _))
-        {
-            File.Copy(Path.GetFullPath(url), destination, overwrite: true);
-            return;
-        }
-
-        using var response = await _http.GetAsync(url);
+        using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
-        await using var input = await response.Content.ReadAsStreamAsync();
-        await using var output = File.Create(destination);
-        await input.CopyToAsync(output);
+        var contentLength = response.Content.Headers.ContentLength;
+        await EmitProgress(0, contentLength);
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        await using var file = File.Create(destination);
+        await CopyWithProgress(stream, file, contentLength);
+    }
+
+    /// <summary>
+    /// Copies <paramref name="input"/> to <paramref name="output"/>, emitting an
+    /// <c>updater:download-progress</c> event as it goes. Emissions are throttled to whole-percent
+    /// steps (or every 256&#160;KiB when the total is unknown) so a large download does not flood the
+    /// bridge, and a final 100% is always sent.
+    /// </summary>
+    private async Task CopyWithProgress(Stream input, Stream output, long? total)
+    {
+        var buffer = new byte[81920];
+        long downloaded = 0;
+        var lastPercent = -1;
+        long lastEmittedBytes = 0;
+
+        int read;
+        while ((read = await input.ReadAsync(buffer)) > 0)
+        {
+            await output.WriteAsync(buffer.AsMemory(0, read));
+            downloaded += read;
+
+            if (total is > 0)
+            {
+                var percent = (int)(downloaded * 100 / total.Value);
+                if (percent != lastPercent)
+                {
+                    lastPercent = percent;
+                    await EmitProgress(downloaded, total);
+                }
+            }
+            else if (downloaded - lastEmittedBytes >= 256 * 1024)
+            {
+                lastEmittedBytes = downloaded;
+                await EmitProgress(downloaded, total);
+            }
+        }
+
+        // Always finish on a concrete final value, even for a zero-byte or already-100% download.
+        await EmitProgress(downloaded, total ?? downloaded);
+    }
+
+    private Task EmitProgress(long downloaded, long? total)
+    {
+        var percent = total is > 0 ? Math.Round(downloaded * 100.0 / total.Value, 2) : 0;
+        return _app.EmitAsync(
+            new CarbonEventName<UpdateProgress>("updater:download-progress"),
+            new UpdateProgress(downloaded, total, percent),
+            UpdaterJsonContext.Default.UpdateProgress);
     }
 
     private void VerifySignature(string path, UpdateManifest manifest)

@@ -23,6 +23,12 @@ public record UpdateManifest(
     string? Sha256 = null,
     long? Size = null);
 
+/// <summary>
+/// Emitted as the <c>updater:download-progress</c> event while an update downloads. <see cref="Total"/>
+/// is null when the server does not send a Content-Length; <see cref="Percent"/> is then 0.
+/// </summary>
+public record UpdateProgress(long Downloaded, long? Total, double Percent);
+
 public record UpdateDownloadResult(
     bool Available,
     string CurrentVersion,

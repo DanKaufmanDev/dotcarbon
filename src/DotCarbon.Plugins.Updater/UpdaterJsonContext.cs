@@ -11,6 +11,7 @@ namespace DotCarbon.Plugins.Updater;
 [JsonSerializable(typeof(InstallUpdateArgs))]
 [JsonSerializable(typeof(UpdateManifest))]
 [JsonSerializable(typeof(UpdateDownloadResult))]
+[JsonSerializable(typeof(UpdateProgress))]
 [JsonSerializable(typeof(UpdateInstallResult))]
 [JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(JsonElement?))]

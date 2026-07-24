@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using DotCarbon.Core.Config;
+using DotCarbon.Core.Runtime;
 using DotCarbon.Plugins.Updater;
 using Xunit;
 
@@ -21,7 +22,7 @@ public class UpdaterPluginTests
     public void Status_reports_config()
     {
         var config = MakeConfig(publicKey: "abc", endpoint: "https://example/u.json");
-        var status = new UpdaterPlugin(config).Status();
+        var status = Plugin(config).Status();
 
         Assert.True(status.Active);
         Assert.Equal(CurrentVersion, status.CurrentVersion);
@@ -36,7 +37,7 @@ public class UpdaterPluginTests
         var artifact = Encoding.UTF8.GetBytes("carbon-update-payload");
         using var server = UpdateServer.Start(key, artifact, LatestVersion, tamper: false);
 
-        var plugin = new UpdaterPlugin(MakeConfig(PublicKeyBase64(key), server.ManifestUrl));
+        var plugin = Plugin(MakeConfig(PublicKeyBase64(key), server.ManifestUrl));
         var result = await plugin.Check(new CheckUpdateArgs());
 
         Assert.True(result.Available);
@@ -52,7 +53,7 @@ public class UpdaterPluginTests
         var artifact = Encoding.UTF8.GetBytes("same-version");
         using var server = UpdateServer.Start(key, artifact, CurrentVersion, tamper: false);
 
-        var result = await new UpdaterPlugin(MakeConfig(PublicKeyBase64(key), server.ManifestUrl))
+        var result = await Plugin(MakeConfig(PublicKeyBase64(key), server.ManifestUrl))
             .Check(new CheckUpdateArgs());
 
         Assert.False(result.Available);
@@ -68,7 +69,7 @@ public class UpdaterPluginTests
 
         try
         {
-            var plugin = new UpdaterPlugin(MakeConfig(PublicKeyBase64(key), server.ManifestUrl));
+            var plugin = Plugin(MakeConfig(PublicKeyBase64(key), server.ManifestUrl));
             var result = await plugin.Download(new DownloadUpdateArgs(DestinationDir: dest));
 
             Assert.True(result.Available);
@@ -85,6 +86,53 @@ public class UpdaterPluginTests
     }
 
     [Fact]
+    public async Task Download_emits_progress_events_to_the_webview()
+    {
+        // A payload larger than the copy buffer so several progress steps occur, not just start+finish.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var artifact = new byte[500_000];
+        Random.Shared.NextBytes(artifact);
+        using var server = UpdateServer.Start(key, artifact, LatestVersion, tamper: false);
+        var dest = Path.Combine(Path.GetTempPath(), "carbon-updater-test-" + Guid.NewGuid().ToString("N"));
+
+        var host = new RecordingHost();
+        var app = CarbonApp.Create(MakeConfig(PublicKeyBase64(key), server.ManifestUrl)).UsePlatform(host);
+        var handle = app.Start();
+        try
+        {
+            await new UpdaterPlugin(handle).Download(new DownloadUpdateArgs(DestinationDir: dest));
+
+            var progress = host.Views["main"].Sent
+                .Where(message => message.Contains("updater:download-progress"))
+                .ToList();
+
+            // Several events, not just one, and the last reports the whole artifact at 100%.
+            Assert.True(progress.Count >= 2, $"expected multiple progress events, got {progress.Count}");
+            Assert.Contains($"\"downloaded\":{artifact.Length}", progress[^1].Replace(" ", string.Empty));
+            Assert.Contains("\"percent\":100", progress[^1].Replace(" ", string.Empty));
+
+            // Downloaded bytes never decrease across events.
+            var counts = progress.Select(DownloadedBytes).ToList();
+            for (var i = 1; i < counts.Count; i++)
+                Assert.True(counts[i] >= counts[i - 1], "progress went backwards");
+        }
+        finally
+        {
+            app.Shutdown();
+            if (Directory.Exists(dest)) Directory.Delete(dest, recursive: true);
+        }
+    }
+
+    private static long DownloadedBytes(string eventMessage)
+    {
+        var marker = "\"downloaded\":";
+        var start = eventMessage.Replace(" ", string.Empty).IndexOf(marker, StringComparison.Ordinal) + marker.Length;
+        var compact = eventMessage.Replace(" ", string.Empty);
+        var end = compact.IndexOf(',', start);
+        return long.Parse(compact[start..end]);
+    }
+
+    [Fact]
     public async Task Download_rejects_a_tampered_artifact()
     {
         // The server swaps the advertised artifact to prove verification rejects changed bytes.
@@ -95,7 +143,7 @@ public class UpdaterPluginTests
 
         try
         {
-            var plugin = new UpdaterPlugin(MakeConfig(PublicKeyBase64(key), server.ManifestUrl));
+            var plugin = Plugin(MakeConfig(PublicKeyBase64(key), server.ManifestUrl));
             await Assert.ThrowsAsync<CryptographicException>(
                 () => plugin.Download(new DownloadUpdateArgs(DestinationDir: dest)));
         }
@@ -109,12 +157,16 @@ public class UpdaterPluginTests
     public async Task Install_rejects_a_missing_artifact_path()
     {
         var config = MakeConfig(publicKey: "abc", endpoint: "https://example/u.json");
-        var plugin = new UpdaterPlugin(config);
+        var plugin = Plugin(config);
         var missing = Path.Combine(Path.GetTempPath(), "carbon-missing-" + Guid.NewGuid().ToString("N") + ".bin");
 
         await Assert.ThrowsAsync<FileNotFoundException>(
             () => plugin.Install(new InstallUpdateArgs(Path: missing)));
     }
+
+    /// <summary>Builds the plugin over a real AppHandle (which it needs to emit progress events).</summary>
+    private static UpdaterPlugin Plugin(CarbonConfig config) =>
+        new(CarbonApp.Create(config).UsePlatform(new NoopHost()).Start());
 
     private static CarbonConfig MakeConfig(string? publicKey, string endpoint)
     {
