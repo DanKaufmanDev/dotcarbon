@@ -1802,8 +1802,12 @@ public static class BuildCommand
         var outputDir = Path.Combine(workingDir, "out", target);
         if (Directory.Exists(outputDir)) Directory.Delete(outputDir, recursive: true);
 
+        // Restore with the same bundle props as the publish. This matters for AOT: PublishAot must be
+        // set at restore time so the ILCompiler package is fetched — otherwise the --no-restore publish
+        // silently falls back to a non-AOT self-contained build.
         var restoreArgs = $"restore \"{hostProject}\" " +
                           $"--runtime {target} " +
+                          $"-p:CustomBeforeMicrosoftCommonProps=\"{bundleProps}\" " +
                           "-p:NuGetAudit=false";
         if (await RunProcessToCompletion(
                 "dotnet", restoreArgs, workingDir, "[C#]", ConsoleColor.Magenta) != 0)
