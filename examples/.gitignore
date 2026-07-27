@@ -1,0 +1,4 @@
+# Build output for every example
+*/out/
+**/bin/
+**/obj/

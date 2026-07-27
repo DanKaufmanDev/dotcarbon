@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>TrayMenu</AssemblyName>
+  </PropertyGroup>
+
+  <!-- In your own app: <PackageReference Include="DotCarbon.Host.Desktop" Version="..." /> -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\DotCarbon.Host.Desktop\DotCarbon.Host.Desktop.csproj" />
+    <!-- The source generator (emits each plugin's command Register). A published PackageReference
+         bundles it automatically; a project reference does not, so wire it up explicitly here. -->
+    <ProjectReference Include="..\..\..\src\DotCarbon.Generators\DotCarbon.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\icons\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="icons" />
+  </ItemGroup>
+</Project>

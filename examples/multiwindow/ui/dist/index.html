@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Main window</title>
+    <style>
+      body { margin: 0; font-family: system-ui; background: #0f0f0f; color: #eee; height: 100vh;
+             display: flex; flex-direction: column; align-items: center; justify-content: center }
+      h1 { color: #6366f1 } button { padding: 10px 20px; background: #6366f1; color: #fff; border: none;
+             border-radius: 8px; cursor: pointer; font-size: 15px; margin-top: 16px }
+      .msg { color: #888; margin-top: 14px; min-height: 20px }
+    </style>
+  </head>
+  <body>
+    <h1>⚡ Main window</h1>
+    <p>Open a second, independent webview window.</p>
+    <button id="open">Open second window</button>
+    <p class="msg" id="msg"></p>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

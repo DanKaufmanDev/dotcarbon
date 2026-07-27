@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SQL To-Do</title>
+    <style>
+      body { margin: 0; font-family: system-ui; background: #0f0f0f; color: #eee; height: 100vh;
+             display: flex; flex-direction: column; align-items: center; padding-top: 48px; box-sizing: border-box }
+      h1 { color: #6366f1; margin: 0 0 4px }
+      p.sub { color: #888; margin: 0 0 24px; font-size: 13px }
+      form { display: flex; gap: 8px }
+      input { padding: 10px 14px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #fff; width: 260px }
+      button { padding: 10px 18px; background: #6366f1; color: #fff; border: none; border-radius: 8px; cursor: pointer }
+      ul { list-style: none; padding: 0; margin: 24px 0 0; width: 360px }
+      li { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid #222 }
+      li.done span { text-decoration: line-through; color: #666 }
+      li span { flex: 1 } .del { background: none; color: #944; border: none; cursor: pointer; font-size: 16px }
+    </style>
+  </head>
+  <body>
+    <h1>⚡ SQL To-Do</h1>
+    <p class="sub">Persisted in SQLite — quit and reopen, your items are still here.</p>
+    <form id="add"><input id="text" placeholder="What needs doing?" autocomplete="off" /><button>Add</button></form>
+    <ul id="list"></ul>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

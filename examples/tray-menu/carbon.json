@@ -1,0 +1,9 @@
+{
+    "app": { "name": "Tray Menu", "version": "0.1.0", "identifier": "dev.dotcarbon.example.traymenu" },
+    "window": { "title": "Tray Menu", "width": 520, "height": 340, "center": true, "capabilities": ["main"] },
+    "security": {
+        "enabled": true,
+        "capabilities": { "main": { "windows": ["main"], "commands": ["app:greet", "core:event_emit"] } }
+    },
+    "build": { "frontendDist": "ui/dist", "backendProject": "src-carbon" }
+}

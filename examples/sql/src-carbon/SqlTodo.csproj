@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>SqlTodo</AssemblyName>
+  </PropertyGroup>
+
+  <!-- In your own app: `carbon add plugin Sql` adds the published packages for you. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\DotCarbon.Host.Desktop\DotCarbon.Host.Desktop.csproj" />
+    <ProjectReference Include="..\..\..\src\DotCarbon.Plugins.Sql\DotCarbon.Plugins.Sql.csproj" />
+  </ItemGroup>
+</Project>

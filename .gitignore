@@ -20,6 +20,9 @@ dist/
 !tests/DotCarbon.Tests/fixtures/package-app/ui/dist/index.html
 !tests/mobile-smoke/ui/dist/
 !tests/mobile-smoke/ui/dist/index.html
+# Examples ship a prebuilt static UI so they run without a frontend build.
+!examples/*/ui/dist/
+!examples/*/ui/dist/**
 *.log
 # The *.log rule above also matches the DotCarbon.Plugins.Log project dir on case-insensitive
 # filesystems (macOS/Windows), which would silently un-track the plugin. Re-include its source

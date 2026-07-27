@@ -1,0 +1,11 @@
+{
+    "app": { "name": "Multi-window", "version": "0.1.0", "identifier": "dev.dotcarbon.example.multiwindow" },
+    "window": { "title": "Main window", "width": 520, "height": 320, "center": true, "capabilities": ["main"] },
+    "security": {
+        "enabled": true,
+        "capabilities": {
+            "main": { "windows": ["main", "second"], "commands": ["window:*", "core:event_emit"] }
+        }
+    },
+    "build": { "frontendDist": "ui/dist", "backendProject": "src-carbon" }
+}

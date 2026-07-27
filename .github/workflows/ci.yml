@@ -47,6 +47,25 @@ jobs:
       - name: Build solution
         run: dotnet build DotCarbon.slnx -c Release
 
+  examples:
+    name: Examples build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      # The gallery apps aren't in the solution, so build each one to keep them from rotting as the
+      # framework evolves — "each example is runnable" is only true if it still compiles.
+      - name: Build every example
+        run: |
+          set -euo pipefail
+          for proj in examples/*/src-carbon/*.csproj; do
+            echo "::group::$proj"
+            dotnet build "$proj" -c Release
+            echo "::endgroup::"
+          done
+
   aot-safety:
     name: AOT/trim safety
     runs-on: ubuntu-latest

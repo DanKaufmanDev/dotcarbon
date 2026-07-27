@@ -1,0 +1,9 @@
+{
+    "app": { "name": "SQL To-Do", "version": "0.1.0", "identifier": "dev.dotcarbon.example.sql" },
+    "window": { "title": "SQL To-Do", "width": 560, "height": 480, "center": true, "capabilities": ["main"] },
+    "security": {
+        "enabled": true,
+        "capabilities": { "main": { "windows": ["main"], "commands": ["sql:*", "core:event_emit"] } }
+    },
+    "build": { "frontendDist": "ui/dist", "backendProject": "src-carbon" }
+}
