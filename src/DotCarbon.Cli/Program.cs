@@ -12,6 +12,7 @@ root.AddCommand(BuildCommand.Build()); // Keep the original desktop build comman
 root.AddCommand(PlatformCommand.Build());
 root.AddCommand(DoctorCommand.Build());
 root.AddCommand(InfoCommand.Build());
+root.AddCommand(DocsCommand.Build());
 root.AddCommand(TypesCommand.Build());
 root.AddCommand(CapabilitiesCommand.Build());
 root.AddCommand(PermissionCommand.Build());
