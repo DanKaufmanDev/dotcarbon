@@ -10,7 +10,13 @@ public record UpdateCheckResult(bool Available, string CurrentVersion, string? L
 
 public record DownloadUpdateArgs(string? Endpoint = null, string? DestinationDir = null);
 
-public record InstallUpdateArgs(string? Path = null, string? Endpoint = null, bool Restart = false);
+/// <summary>
+/// <paramref name="Passive"/> runs the installer silently (unattended) where the platform supports it,
+/// rather than showing its UI. <paramref name="Restart"/> asks the app to relaunch after installing —
+/// on Windows that means install-on-exit (the app closes so its files can be replaced, then reopens).
+/// </summary>
+public record InstallUpdateArgs(
+    string? Path = null, string? Endpoint = null, bool Restart = false, bool Passive = false);
 
 public record UpdateManifest(
     string Version,

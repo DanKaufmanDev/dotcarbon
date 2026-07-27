@@ -105,7 +105,19 @@ public partial class UpdaterPlugin : IPlugin
         if (!File.Exists(path))
             throw new FileNotFoundException($"Update artifact does not exist: {path}");
 
-        StartInstaller(path);
+        // Windows + restart: the running exe is locked, so an in-place MSI/NSIS install must happen
+        // after the app exits. Hand off to a detached helper that waits for us to close, installs, then
+        // relaunches — this is the "install on exit" semantics — and quit so it can proceed.
+        var exePath = Environment.ProcessPath;
+        if (args.Restart && OperatingSystem.IsWindows() && exePath is not null)
+        {
+            var (installer, installerArgs) = InstallerCommand.For(path, args.Passive, InstallerOs.Windows);
+            StartDetached("powershell",
+                InstallerCommand.WindowsRelaunchArgs(Environment.ProcessId, installer, installerArgs, exePath));
+            Environment.Exit(0);
+        }
+
+        StartInstaller(path, args.Passive);
         if (args.Restart)
             Environment.Exit(0);
 
@@ -115,7 +127,9 @@ public partial class UpdaterPlugin : IPlugin
             RestartRequested: args.Restart,
             Message: args.Restart
                 ? "Started installer and requested application exit."
-                : "Started installer. Restart the app after the installer finishes.");
+                : (args.Passive
+                    ? "Started installer silently. Restart the app after it finishes."
+                    : "Started installer. Restart the app after the installer finishes."));
     }
 
     [CarbonCommand("install_and_restart")]
@@ -258,16 +272,33 @@ public partial class UpdaterPlugin : IPlugin
             throw new CryptographicException("Updater artifact signature is invalid.");
     }
 
-    private static void StartInstaller(string path)
+    private static void StartInstaller(string path, bool passive)
     {
-        if (OperatingSystem.IsMacOS())
-            Process.Start("open", new[] { path });
-        else if (OperatingSystem.IsWindows())
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-        else if (OperatingSystem.IsLinux())
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-        else
+        var os =
+            OperatingSystem.IsWindows() ? InstallerOs.Windows :
+            OperatingSystem.IsMacOS() ? InstallerOs.MacOS :
+            OperatingSystem.IsLinux() ? InstallerOs.Linux :
             throw new PlatformNotSupportedException("Updater install is only supported on desktop platforms.");
+
+        var (fileName, args) = InstallerCommand.For(path, passive, os);
+        // msiexec / open take explicit arguments; a bare installer path is shell-executed as before.
+        if (args.Count > 0 || !string.Equals(fileName, path, StringComparison.Ordinal))
+        {
+            var info = new ProcessStartInfo(fileName) { UseShellExecute = false };
+            foreach (var arg in args) info.ArgumentList.Add(arg);
+            Process.Start(info);
+        }
+        else
+        {
+            Process.Start(new ProcessStartInfo(fileName) { UseShellExecute = true });
+        }
+    }
+
+    private static void StartDetached(string fileName, IReadOnlyList<string> args)
+    {
+        var info = new ProcessStartInfo(fileName) { UseShellExecute = false };
+        foreach (var arg in args) info.ArgumentList.Add(arg);
+        Process.Start(info);
     }
 
     private string StagingPath(string version, string fileName) =>

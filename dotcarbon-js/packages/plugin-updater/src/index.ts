@@ -51,6 +51,8 @@ export interface InstallUpdateOptions {
     path?: string
     endpoint?: string
     restart?: boolean
+    /** Run the installer silently where the platform supports it (MSI /passive, NSIS /S). */
+    passive?: boolean
 }
 
 export interface UpdateInstallResult {
@@ -75,6 +77,7 @@ export const updater = {
             path: options.path ?? null,
             endpoint: options.endpoint ?? null,
             restart: options.restart ?? false,
+            passive: options.passive ?? false,
         }),
 
     installAndRestart: (options: Omit<InstallUpdateOptions, 'restart'> = {}): Promise<UpdateInstallResult> =>
@@ -82,6 +85,7 @@ export const updater = {
             path: options.path ?? null,
             endpoint: options.endpoint ?? null,
             restart: true,
+            passive: options.passive ?? false,
         }),
 
     /** Fires repeatedly while `download()` runs; ends on a final 100% event. Returns a detach fn. */
@@ -102,11 +106,11 @@ declare module '@dotcarbon/api' {
             result: UpdateDownloadResult
         }
         'updater:install': {
-            args: { path: string | null; endpoint: string | null; restart: boolean }
+            args: { path: string | null; endpoint: string | null; restart: boolean; passive: boolean }
             result: UpdateInstallResult
         }
         'updater:install_and_restart': {
-            args: { path: string | null; endpoint: string | null; restart: boolean }
+            args: { path: string | null; endpoint: string | null; restart: boolean; passive: boolean }
             result: UpdateInstallResult
         }
     }
