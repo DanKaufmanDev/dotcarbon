@@ -1,0 +1,58 @@
+---
+title: Plugin registry
+description: The first-party plugins DotCarbon ships, and how to publish and discover third-party ones.
+---
+
+DotCarbon ships a set of first-party plugins, and anyone can publish their own. The authoritative,
+always-current list of every plugin and command is the generated
+[command reference](/reference/commands/) — this page is the curated index and the guide to the
+third-party ecosystem.
+
+## First-party plugins
+
+Add any of these with `carbon add plugin <name>`.
+
+### Everywhere (desktop, Android, iOS)
+
+`battery` · `clipboard` · `deep-link` · `dialog` · `fs` · `http` · `log` · `notification` · `os` ·
+`path` · `permissions` · `store`
+
+### Mobile only (Android, iOS)
+
+`biometric` · `geolocation` · `haptics` · `nfc`
+
+### Desktop only
+
+`autostart` · `cli` · `global-shortcut` · `localhost` · `opener` · `persisted-scope` · `positioner` ·
+`process` · `secure-storage` · `shell` · `single-instance` · `sql` · `updater` · `upload` ·
+`websocket` · `window` · `window-state`
+
+For each plugin's exact commands, arguments, return types, and permissions, see the
+[command reference](/reference/commands/), which is generated from the plugin sources.
+
+## Publishing a third-party plugin
+
+Scaffold the whole project — C# plugin, JSON serializer context, permission manifest, tests, and the
+JS package — with:
+
+```bash
+carbon plugin new my-plugin
+```
+
+See [Authoring a plugin](/plugins/authoring/) for the walkthrough. When you publish:
+
+- **NuGet package** — the C# plugin. Any package id works; the convention is `Author.DotCarbon.Thing`,
+  and deliberately **not** `DotCarbon.*` (that prefix is reserved for first-party packages).
+- **npm package** — the typed JS bindings, named `carbon-plugin-<name>` (or scoped, `@you/…`).
+- **Permission manifest** — ship `permissions/<namespace>.json` in the package so `carbon capabilities`
+  discovers the plugin's permissions and scope requirements without a hardcoded catalog entry.
+
+## Being discovered
+
+So users can find your plugin, tag both packages:
+
+- **npm** — add the keywords `dotcarbon` and `carbon-plugin` to `package.json`.
+- **NuGet** — add `dotcarbon` and `dotcarbon-plugin` to `<PackageTags>`.
+
+That makes a plugin findable with an [npm keyword search](https://www.npmjs.com/search?q=keywords:carbon-plugin)
+or the equivalent on NuGet. To have a plugin listed here, open a pull request adding it to this page.

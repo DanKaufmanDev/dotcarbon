@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest a capability or improvement.
+labels: ["feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The use case first — what are you trying to do that DotCarbon makes hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What you'd like to see. API sketches or config examples welcome.
+    validations:
+      required: true
+  - type: input
+    id: tauri-parity
+    attributes:
+      label: Tauri equivalent (if any)
+      description: DotCarbon tracks 1:1 parity with Tauri v2 — link the equivalent Tauri feature if there is one.
+      placeholder: https://v2.tauri.app/plugin/…
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

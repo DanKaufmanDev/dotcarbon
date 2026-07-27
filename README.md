@@ -23,7 +23,7 @@ DotCarbon lets you build native desktop applications using the web stack you alr
 ## Highlights
 
 - **Single-file apps** — The .NET runtime, native webview host, configuration, and compiled frontend ship as one compressed executable.
-- **Any frontend** — First-class templates for **React, Vue, Svelte, Solid, Preact, and Vanilla**, all TypeScript + Vite.
+- **Any frontend** — First-class templates for **React, Vue, Svelte, SvelteKit, Solid, Preact, Lit, Angular, Nuxt, and Vanilla**.
 - **End-to-end type safety** — Your C# commands are projected into TypeScript types, so `invoke()` calls are autocompleted and checked at compile time.
 - **C# backend** — Use the entire .NET ecosystem for your application logic, file access, networking, and native OS integration.
 - **Application runtime** — Managed state and DI, labeled multi-window apps, lifecycle hooks, and typed cross-webview events.
@@ -46,7 +46,8 @@ Pick a template with `--template`:
 npx @dotcarbon/create-app my-app --template vue
 ```
 
-Available templates: `react` · `vue` · `svelte` · `solid` · `preact` · `vanilla`.
+Available templates: `react` · `vue` · `svelte` · `sveltekit` · `solid` · `preact` · `lit` · `angular` · `nuxt` · `vanilla`.
+(`lit`, `angular`, `sveltekit`, and `nuxt` are TypeScript-only; the rest offer `--lang js` too.)
 
 `carbon dev` starts your frontend dev server and the C# host together with live reload. When you're ready to distribute, `carbon build` compiles a native app into `out/`.
 

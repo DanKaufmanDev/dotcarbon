@@ -87,6 +87,7 @@ export default defineConfig({
           items: [
             { label: 'Plugin system', slug: 'plugins/overview' },
             { label: 'Author a plugin', slug: 'plugins/authoring' },
+            { label: 'Plugin registry', slug: 'plugins/registry' },
             { label: 'Clipboard', slug: 'plugins/clipboard' },
             { label: 'Deep Link', slug: 'plugins/deep-link' },
             { label: 'Dialog', slug: 'plugins/dialog' },
