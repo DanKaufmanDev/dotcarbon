@@ -117,6 +117,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          # A non-zero choco exit must set $LASTEXITCODE and fall through to the retry loop, not throw
+          # (PowerShell 7.4+ otherwise turns native exit codes into terminating errors under Stop).
+          $PSNativeCommandUseErrorActionPreference = $false
           # Note the braces: "$env:ProgramFiles(x86)" parses as $env:ProgramFiles + a literal "(x86)".
           function Find-NsisDir {
             # Filter roots first — Join-Path with a null base throws under ErrorActionPreference Stop.
@@ -130,16 +133,26 @@ jobs:
 
           $dir = Find-NsisDir
           if (-not $dir) {
-            Write-Host 'NSIS is not on the runner image — installing with Chocolatey.'
-            choco install nsis --no-progress -y
-            if ($LASTEXITCODE -ne 0) { throw "choco install nsis failed with $LASTEXITCODE." }
-            $dir = Find-NsisDir
+            # Chocolatey's community feed occasionally 504s. Retry a few times, but treat a persistent
+            # outage as "NSIS unavailable" rather than a build failure: the NSIS script is unit-tested,
+            # so this CI compile is supplementary and must not go red on a third-party server hiccup.
+            for ($attempt = 1; $attempt -le 3 -and -not $dir; $attempt++) {
+              Write-Host "Installing NSIS with Chocolatey (attempt $attempt)."
+              choco install nsis --no-progress -y --no-color
+              if ($LASTEXITCODE -eq 0) { $dir = Find-NsisDir }
+              if (-not $dir -and $attempt -lt 3) { Start-Sleep -Seconds 15 }
+            }
           }
-          if (-not $dir) { throw 'makensis is still not available after installing NSIS.' }
 
-          # The bundler shells out to `makensis`, so it must resolve by name in later steps.
-          Write-Host "Using NSIS at $dir"
-          $dir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          if ($dir) {
+            # The bundler shells out to `makensis`, so it must resolve by name in later steps.
+            Write-Host "Using NSIS at $dir"
+            "CARBON_NSIS=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            $dir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          } else {
+            Write-Host "::warning::NSIS could not be installed (Chocolatey unavailable). Skipping the NSIS smoke; the generated script is still covered by unit tests."
+            "CARBON_NSIS=0" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
 
       - name: Install Linux package tools
         if: runner.os == 'Linux'
@@ -205,7 +218,7 @@ jobs:
       # The fixture asks for both Windows formats, so the package step above already produced the
       # NSIS setup. Exercise it the same way the MSI is exercised: silent install, then uninstall.
       - name: Smoke the NSIS installer
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && env.CARBON_NSIS == '1'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
