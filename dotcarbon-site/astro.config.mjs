@@ -3,8 +3,11 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import tailwindcss from '@tailwindcss/vite';
 
+import cloudflare from '@astrojs/cloudflare';
+
 export default defineConfig({
   site: 'https://dotcarbon.dev',
+
   integrations: [
     starlight({
       title: '.Carbon',
@@ -131,7 +134,10 @@ export default defineConfig({
       ],
     }),
   ],
+
   vite: {
     plugins: [tailwindcss()],
   },
+
+  adapter: cloudflare(),
 });
