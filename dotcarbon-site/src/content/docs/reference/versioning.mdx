@@ -1,0 +1,81 @@
+---
+title: Versioning & stability
+description: What semver guarantees DotCarbon makes, which surface they cover, how deprecations work, and the road to 1.0.
+---
+
+This page defines what you can rely on across DotCarbon releases: the parts of the project covered by
+semantic versioning, how breaking changes and deprecations are handled, and what has to be true before
+1.0.
+
+## Current status: pre-1.0
+
+DotCarbon is in the **0.x** series. Under semver, `0.x` makes **no backwards-compatibility promise** —
+a minor bump (`0.6 → 0.7`) may include breaking changes. Until 1.0:
+
+- **Pin your versions.** Reference exact package versions (`DotCarbon.Core`, `@dotcarbon/*`) and the
+  `carbon` CLI, and upgrade deliberately.
+- **Read the release notes** before upgrading — breaking changes are called out there.
+- **`carbon.json` is forward-migrated.** The config carries a `configVersion` and `carbon migrate`
+  upgrades an older file, so config changes are the one thing you don't have to hand-fix.
+
+## What semver covers at 1.0+
+
+From 1.0 on, versions follow [semver](https://semver.org): **MAJOR** for breaking changes, **MINOR**
+for backwards-compatible additions, **PATCH** for backwards-compatible fixes. The guarantee applies to
+this **public API surface**:
+
+| Surface | Covered |
+| --- | --- |
+| C# | `public` types and members of `DotCarbon.Core` and the first-party `DotCarbon.Plugins.*` packages |
+| Plugin contract | `IPlugin`, the `[CarbonCommand]` / `[CarbonPlugin]` / `[CarbonPermission]` / `[CarbonPluginPlatform]` attributes |
+| Frontend | The exported members of `@dotcarbon/api` and `@dotcarbon/plugin-*` |
+| Bridge protocol | The command-result and event wire shapes the frontend depends on |
+| Configuration | The `carbon.json` schema (additive within a MAJOR; migrations for the rest) |
+| CLI | `carbon` command names and their documented flags |
+
+### Not covered
+
+These may change in any release, so don't build on them:
+
+- `internal` types and members, and anything under a `*.Internal` namespace.
+- `DotCarbon.Generators` and the **exact shape of generated code** — only its observable behavior
+  (that your `[CarbonCommand]` methods become bridge commands) is stable.
+- The `DotCarbon.Plugins.*.Native` mobile-binding packages' internals.
+- Anything documented as **experimental** or **preview** (e.g. NativeAOT specifics), and exact log
+  output, timing, and error-message text.
+
+## Deprecation policy
+
+Breaking a public API is a last resort. When something must be removed:
+
+1. It is marked deprecated — `[Obsolete("…", false)]` in C#, `@deprecated` in TypeScript — with a
+   message pointing at the replacement.
+2. It keeps working for **at least one minor release** after being deprecated.
+3. Its removal lands only in a **MAJOR** release and is listed in the release notes.
+
+Deprecations are also surfaced by the compiler (C# warnings) and your editor (TS), so an upgrade tells
+you what to change before anything breaks.
+
+## Supported versions
+
+Fixes land on the **latest minor** release. Once 1.0 ships, security fixes are backported to the
+current MAJOR's latest minor; see [SECURITY.md](https://github.com/DanKaufmanDev/dotcarbon/blob/main/SECURITY.md)
+for reporting. During 0.x, upgrade to the newest release to get fixes.
+
+## The road to 1.0
+
+1.0 means "the public API above is stable and worth committing to." The criteria:
+
+- [ ] **Feature parity** with the target of Tauri v2 across desktop and mobile is reached and tracked.
+- [ ] **Mobile is validated**, not just building — Android and iOS boot an app and complete a bridge
+  round trip in CI, and the mobile plugins are exercised on a device.
+- [ ] **The public API surface is reviewed and frozen** — the table above is audited, internals are
+  sealed off, and experimental areas are either promoted or clearly marked.
+- [ ] **The docs are complete** — every plugin and command in the generated
+  [command reference](/reference/commands/), plus guides for each subsystem.
+- [ ] **The release pipeline is proven** — signed, notarized desktop artifacts and signed mobile
+  artifacts produced and accepted by the stores.
+- [ ] **A deprecation/upgrade path exists** — `carbon migrate` covers config, and there is a written
+  upgrade guide between the last 0.x and 1.0.
+
+Progress toward these is tracked in the repository's roadmap.

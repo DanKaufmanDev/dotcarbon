@@ -125,6 +125,7 @@ export default defineConfig({
             { label: 'Packages', slug: 'reference/packages' },
             { label: 'Platform support', slug: 'reference/platform-support' },
             { label: 'Command reference', slug: 'reference/commands' },
+            { label: 'Versioning & stability', slug: 'reference/versioning' },
           ],
         },
       ],
